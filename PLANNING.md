@@ -160,6 +160,12 @@ one process, one database file, one Docker container.
 
 ## 8. Build Roadmap
 
+- **Phase 0 — Static prototype (current):** a client-side-only app served from **GitHub
+  Pages**, persisting to browser **`localStorage`**, for testing the core UX before any
+  server work. Covers all three item types, simulated roles (a user switcher), the
+  dashboard, and the project step-suggestion flow (with an **offline placeholder**
+  generator standing in for the Claude API, which requires the server phase). No real
+  auth, email, or push — those arrive with the server.
 - **Phase 1 — MVP:** auth + roles, chores with recurrence, dashboard, completion logging.
 - **Phase 2 — Maintenance:** assets, calendar/usage intervals, meter readings, service
   history.
