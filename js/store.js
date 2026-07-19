@@ -38,7 +38,10 @@
   function uid(prefix) {
     return (prefix || 'id') + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
-  function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); return true; }
+    catch (e) { return false; }
+  }
 
   /* ---------------- recurrence ---------------- */
   function mdOf(s) { return s.slice(5); }
@@ -151,8 +154,14 @@
       { id: uid('act'), ts: Date.now() - 86400000 * 2, userId: 'u_morgan', text: 'created project "Fence the north pasture"' }
     ];
 
+    var notes = [
+      { id: uid('n'), parentType: 'project', parentId: 'p_shed', userId: 'u_jamie', date: addDays(T, -4), ts: Date.now() - 86400000 * 4, body: 'Footings poured and cured — ready for framing.', photo: null }
+    ];
+    var notificationPrefs = {};
+    users.forEach(function (u) { notificationPrefs[u.id] = defaultPrefs(); });
+
     return {
-      version: 2,
+      version: CURRENT_VERSION,
       currentUserId: 'u_morgan',
       users: users,
       chores: chores,
@@ -163,17 +172,28 @@
       maintenanceLogs: maintenanceLogs,
       projects: projects,
       projectTasks: projectTasks,
-      notes: [],
+      notes: notes,
+      notificationPrefs: notificationPrefs,
       activity: activity
     };
   }
 
+  var CURRENT_VERSION = 3;
+  function defaultPrefs() { return { email: 'daily', push: true, digestHour: 6 }; }
+  // Forward-migrate an older saved state so testers don't lose their data on upgrades.
+  function migrate(s) {
+    if (!Array.isArray(s.notes)) s.notes = [];
+    if (!s.notificationPrefs || typeof s.notificationPrefs !== 'object') s.notificationPrefs = {};
+    (s.users || []).forEach(function (u) { if (!s.notificationPrefs[u.id]) s.notificationPrefs[u.id] = defaultPrefs(); });
+    s.version = CURRENT_VERSION;
+    return s;
+  }
   function init() {
-    try {
-      var raw = localStorage.getItem(STORAGE_KEY);
-      state = raw ? JSON.parse(raw) : null;
-    } catch (e) { state = null; }
-    if (!state || state.version !== 2) { state = seed(); save(); }
+    var s = null;
+    try { var raw = localStorage.getItem(STORAGE_KEY); s = raw ? JSON.parse(raw) : null; } catch (e) { s = null; }
+    if (!s || !Array.isArray(s.users) || !s.users.length) { state = seed(); save(); return; }
+    state = migrate(s);
+    save();
   }
   function reset() { state = seed(); save(); }
 
@@ -331,16 +351,30 @@
     save();
     return { project: project };
   }
+  function updateProject(id, data) {
+    if (!canCreateProject()) return { error: 'Only managers and admins can edit projects.' };
+    var p = getProject(id); if (!p) return { error: 'No such project.' };
+    if (data.name != null && String(data.name).trim()) p.name = String(data.name).trim();
+    p.description = data.description || '';
+    p.targetDate = data.targetDate || null;
+    logActivity('edited project "' + p.name + '"');
+    save();
+    return { project: p };
+  }
   function updateProjectStatus(id, status) {
+    if (!canCreateProject()) return { error: 'Only managers and admins can change status.' };
     var p = getProject(id); if (!p) return;
     p.status = status; save();
   }
   function deleteProject(id) {
+    if (!canCreateProject()) return { error: 'Only managers and admins can delete projects.' };
     state.projects = state.projects.filter(function (p) { return p.id !== id; });
     state.projectTasks = state.projectTasks.filter(function (t) { return t.projectId !== id; });
+    state.notes = state.notes.filter(function (n) { return !(n.parentType === 'project' && n.parentId === id); });
     save();
   }
   function addTask(projectId, data) {
+    if (!canCreateProject()) return { error: 'Only managers and admins can add tasks.' };
     var existing = projectTasks(projectId);
     var task = {
       id: uid('t'), projectId: projectId, title: data.title, description: data.description || '',
@@ -349,9 +383,10 @@
     };
     state.projectTasks.push(task);
     save();
-    return task;
+    return { task: task };
   }
   function addTasksBulk(projectId, items) {
+    if (!canCreateProject()) return { error: 'Only managers and admins can add tasks.' };
     var existing = projectTasks(projectId).length;
     items.forEach(function (it, i) {
       state.projectTasks.push({
@@ -361,6 +396,7 @@
     });
     logActivity('added ' + items.length + ' suggested step(s) to a project');
     save();
+    return { ok: true };
   }
   function toggleTask(taskId) {
     var t = state.projectTasks.filter(function (x) { return x.id === taskId; })[0];
@@ -477,14 +513,86 @@
     return { overdue: b.overdue.length, today: b.today.length, upcoming: b.upcoming.length };
   }
 
+  /* ---------------- notes & photos ---------------- */
+  function notesFor(parentType, parentId) {
+    return state.notes.filter(function (n) { return n.parentType === parentType && n.parentId === parentId; })
+      .sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
+  }
+  function noteById(id) { return state.notes.filter(function (n) { return n.id === id; })[0] || null; }
+  function addNote(parentType, parentId, data) {
+    var note = {
+      id: uid('n'), parentType: parentType, parentId: parentId, userId: state.currentUserId,
+      date: todayISO(), ts: Date.now(), body: data.body || '', photo: data.photo || null
+    };
+    state.notes.unshift(note);
+    // Photos can blow the localStorage quota — roll back if the write fails.
+    if (!save()) { state.notes.shift(); return { error: 'Storage is full — use a smaller photo or remove old notes.' }; }
+    logActivity('added a progress note');
+    save();
+    return { note: note };
+  }
+  function deleteNote(id) { state.notes = state.notes.filter(function (n) { return n.id !== id; }); save(); }
+
+  /* ---------------- user management (admin) ---------------- */
+  function canManageUsers(user) { user = user || currentUser(); return user.role === 'admin'; }
+  function adminCount() { return state.users.filter(function (u) { return u.role === 'admin'; }).length; }
+  function addUser(data) {
+    if (!canManageUsers()) return { error: 'Only admins can manage users.' };
+    var name = (data.name || '').trim();
+    if (!name) return { error: 'Name is required.' };
+    var u = { id: uid('u'), name: name, role: data.role || 'worker' };
+    state.users.push(u);
+    state.notificationPrefs[u.id] = defaultPrefs();
+    logActivity('added user "' + u.name + '"');
+    save();
+    return { user: u };
+  }
+  function updateUserRole(id, role) {
+    if (!canManageUsers()) return { error: 'Only admins can manage users.' };
+    var u = userById(id); if (!u) return { error: 'No such user.' };
+    if (u.role === 'admin' && role !== 'admin' && adminCount() <= 1) return { error: 'There must be at least one admin.' };
+    u.role = role; save(); return { user: u };
+  }
+  function removeUser(id) {
+    if (!canManageUsers()) return { error: 'Only admins can manage users.' };
+    var u = userById(id); if (!u) return { error: 'No such user.' };
+    if (id === state.currentUserId) return { error: 'Switch to another user before removing this one.' };
+    if (u.role === 'admin' && adminCount() <= 1) return { error: 'Cannot remove the last admin.' };
+    state.users = state.users.filter(function (x) { return x.id !== id; });
+    delete state.notificationPrefs[id];
+    logActivity('removed user "' + u.name + '"');
+    save(); return { ok: true };
+  }
+
+  /* ---------------- notification preferences ---------------- */
+  function getPrefs(userId) { return state.notificationPrefs[userId] || defaultPrefs(); }
+  function setPrefs(userId, prefs) {
+    state.notificationPrefs[userId] = { email: prefs.email || 'off', push: !!prefs.push, digestHour: Number(prefs.digestHour) || 0 };
+    save();
+  }
+
+  /* ---------------- backup / restore ---------------- */
+  function exportState() { return JSON.stringify(state, null, 2); }
+  function importState(json) {
+    var s;
+    try { s = JSON.parse(json); } catch (e) { return { error: 'Could not read that file (invalid JSON).' }; }
+    if (!s || !Array.isArray(s.users) || !Array.isArray(s.chores)) return { error: 'That does not look like a Farm Tracker backup.' };
+    state = migrate(s);
+    if (!save()) return { error: 'Storage is full — cannot import.' };
+    return { ok: true };
+  }
+
   /* ---------------- exports ---------------- */
   window.Store = {
     init: init, reset: reset, save: save,
     // dates
     todayISO: todayISO, fmtDate: fmtDate, relativeLabel: relativeLabel, addDays: addDays, diffDays: diffDays,
-    // users
+    // users & roles
     users: users, userById: userById, userName: userName, currentUser: currentUser,
-    setCurrentUser: setCurrentUser, canCreateProject: canCreateProject,
+    setCurrentUser: setCurrentUser, canCreateProject: canCreateProject, canManageUsers: canManageUsers,
+    addUser: addUser, updateUserRole: updateUserRole, removeUser: removeUser,
+    // notification prefs & backup
+    getPrefs: getPrefs, setPrefs: setPrefs, exportState: exportState, importState: importState,
     // chores
     listChores: listChores, addChore: addChore, completeChore: completeChore, deleteChore: deleteChore,
     describeSchedule: describeSchedule, bucketForDate: bucketForDate,
@@ -494,8 +602,10 @@
     logService: logService, maintenanceLogsFor: maintenanceLogsFor, maintenanceStatus: maintenanceStatus,
     // projects
     STATUS_LABELS: STATUS_LABELS, listProjects: listProjects, getProject: getProject, projectTasks: projectTasks,
-    addProject: addProject, updateProjectStatus: updateProjectStatus, deleteProject: deleteProject,
+    addProject: addProject, updateProject: updateProject, updateProjectStatus: updateProjectStatus, deleteProject: deleteProject,
     addTask: addTask, addTasksBulk: addTasksBulk, toggleTask: toggleTask, suggestSteps: suggestSteps,
+    // notes & photos
+    notesFor: notesFor, noteById: noteById, addNote: addNote, deleteNote: deleteNote,
     // dashboard / activity
     dashboard: dashboard, counts: counts, listActivity: listActivity
   };

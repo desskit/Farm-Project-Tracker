@@ -357,3 +357,7 @@ button { font-family: inherit; }
 .hist-row:last-child { border-bottom: none; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { font-size: 12px; background: var(--surface-2); border-radius: 999px; padding: 3px 9px; color: var(--muted); }
+
+.note-photo { display: block; margin-top: 8px; max-width: 100%; max-height: 240px; object-fit: cover; border-radius: 10px; cursor: pointer; }
+.inline-check { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text); margin: 0; }
+.inline-check input { width: 20px; height: 20px; }

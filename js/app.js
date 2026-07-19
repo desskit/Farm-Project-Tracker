@@ -26,6 +26,64 @@
     });
     return html;
   }
+  function optTag(value, label, sel) {
+    return '<option value="' + value + '"' + (value === sel ? ' selected' : '') + '>' + esc(label) + '</option>';
+  }
+  function roleOpts(sel) {
+    return ['admin', 'manager', 'worker'].map(function (r) { return optTag(r, r.charAt(0).toUpperCase() + r.slice(1), sel); }).join('');
+  }
+  function hourOptions(sel) {
+    var s = '';
+    for (var h = 0; h < 24; h++) {
+      var lbl = h === 0 ? '12 AM' : h < 12 ? h + ' AM' : h === 12 ? '12 PM' : (h - 12) + ' PM';
+      s += '<option value="' + h + '"' + (h === sel ? ' selected' : '') + '>' + lbl + '</option>';
+    }
+    return s;
+  }
+  // Downscale a selected image (max longest edge) to a JPEG data URL for localStorage.
+  function fileToDataURL(file, maxDim, cb) {
+    if (!file) { cb(null); return; }
+    var reader = new FileReader();
+    reader.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        var cw = Math.max(1, Math.round(img.width * scale));
+        var ch = Math.max(1, Math.round(img.height * scale));
+        var canvas = document.createElement('canvas');
+        canvas.width = cw; canvas.height = ch;
+        canvas.getContext('2d').drawImage(img, 0, 0, cw, ch);
+        try { cb(canvas.toDataURL('image/jpeg', 0.7)); } catch (e) { cb(reader.result); }
+      };
+      img.onerror = function () { cb(null); };
+      img.src = reader.result;
+    };
+    reader.onerror = function () { cb(null); };
+    reader.readAsDataURL(file);
+  }
+  function exportData() {
+    var blob = new Blob([S.exportState()], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'farm-tracker-backup.json';
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+    toast('Backup downloaded');
+  }
+  function handleImportFile(input) {
+    var f = input.files && input.files[0];
+    if (!f) return;
+    if (!confirm('Import this backup? It replaces all data in this browser.')) { input.value = ''; return; }
+    var reader = new FileReader();
+    reader.onload = function () {
+      var res = S.importState(String(reader.result));
+      if (res.error) { toast(res.error); }
+      else { ui.projectId = null; ui.view = 'dashboard'; toast('Backup imported'); render(); }
+    };
+    reader.onerror = function () { toast('Could not read that file'); };
+    reader.readAsText(f);
+    input.value = '';
+  }
   function toast(msg) {
     var t = $('#toast');
     t.textContent = msg;
@@ -226,6 +284,7 @@
   function viewProjectDetail(id) {
     var p = S.getProject(id);
     if (!p) { ui.projectId = null; return viewProjects(); }
+    var canEdit = S.canCreateProject();
     var tasks = S.projectTasks(id);
     var done = tasks.filter(function (t) { return t.done; }).length;
     var pct = tasks.length ? Math.round(done / tasks.length * 100) : 0;
@@ -233,17 +292,21 @@
     var statusOpts = Object.keys(S.STATUS_LABELS).map(function (k) {
       return '<option value="' + k + '"' + (k === p.status ? ' selected' : '') + '>' + esc(S.STATUS_LABELS[k]) + '</option>';
     }).join('');
+    var statusControl = canEdit
+      ? '<div class="field" style="margin-top:10px"><label>Status</label><select data-action="set-project-status" data-id="' + p.id + '">' + statusOpts + '</select></div>'
+      : '<p class="subtle" style="margin-top:10px">Status: <strong>' + esc(S.STATUS_LABELS[p.status] || p.status) + '</strong></p>';
 
     var html = '' +
       '<div class="view-head">' +
         '<button class="btn small ghost" data-action="back-to-projects">‹ Projects</button>' +
-        '<button class="btn small ghost danger" data-action="delete-project" data-id="' + p.id + '">Delete</button>' +
+        (canEdit ? '<div class="row-actions">' +
+          '<button class="btn small ghost" data-action="edit-project" data-id="' + p.id + '">Edit</button>' +
+          '<button class="btn small ghost danger" data-action="delete-project" data-id="' + p.id + '">Delete</button></div>' : '') +
       '</div>' +
       '<div class="card">' +
         '<h1 style="font-size:20px">' + esc(p.name) + '</h1>' +
         (p.description ? '<p class="subtle">' + esc(p.description) + '</p>' : '') +
-        '<div class="field" style="margin-top:10px"><label>Status</label>' +
-          '<select data-action="set-project-status" data-id="' + p.id + '">' + statusOpts + '</select></div>' +
+        statusControl +
         '<div class="progress"><span style="width:' + pct + '%"></span></div>' +
         '<p class="subtle">' + done + ' / ' + tasks.length + ' tasks done' +
           (p.targetDate ? ' · target ' + esc(S.fmtDate(p.targetDate)) : '') + '</p>' +
@@ -270,32 +333,77 @@
           '</div>';
       }).join('');
     } else {
-      html += '<div class="empty">No tasks yet. Add one, or let AI suggest a plan.</div>';
+      html += '<div class="empty">No tasks yet' + (canEdit ? '. Add one, or let AI suggest a plan.' : '.') + '</div>';
     }
 
-    html += '<div class="stack" style="margin-top:14px">' +
-      '<button class="btn primary block" data-action="open-add-task" data-id="' + p.id + '">+ Add task</button>' +
-      '<button class="btn block" data-action="suggest-steps" data-id="' + p.id + '">✨ Suggest steps (AI)</button>' +
-      '</div>' +
-      '<p class="subtle" style="margin-top:8px">“Suggest steps” uses an offline placeholder in this prototype. The real Claude API breakdown arrives with the server phase.</p>';
+    if (canEdit) {
+      html += '<div class="stack" style="margin-top:14px">' +
+        '<button class="btn primary block" data-action="open-add-task" data-id="' + p.id + '">+ Add task</button>' +
+        '<button class="btn block" data-action="suggest-steps" data-id="' + p.id + '">✨ Suggest steps (AI)</button>' +
+        '</div>' +
+        '<p class="subtle" style="margin-top:8px">“Suggest steps” uses an offline placeholder in this prototype. The real Claude API breakdown arrives with the server phase.</p>';
+    }
+
+    // Progress log — notes + photos. Everyone (workers included) can comment.
+    var notes = S.notesFor('project', p.id);
+    html += '<div class="section-title">Progress log<span class="count-pill">' + notes.length + '</span></div>' +
+      '<button class="btn block" data-action="open-add-note" data-id="' + p.id + '" style="margin-bottom:10px">+ Add note / photo</button>';
+    if (notes.length) {
+      html += notes.map(function (n) {
+        var canDelete = n.userId === S.currentUser().id || canEdit;
+        return '<div class="card"><div class="item"><div class="item-main">' +
+          '<p class="item-sub"><strong>' + esc(S.userName(n.userId)) + '</strong> · ' + esc(S.fmtDate(n.date)) + '</p>' +
+          (n.body ? '<p style="margin:6px 0 0">' + esc(n.body) + '</p>' : '') +
+          (n.photo ? '<img class="note-photo" src="' + n.photo + '" alt="progress photo" data-action="view-photo" data-id="' + n.id + '" />' : '') +
+          '</div>' +
+          (canDelete ? '<button class="icon-btn" data-action="delete-note" data-id="' + n.id + '" aria-label="Delete note">🗑</button>' : '') +
+          '</div></div>';
+      }).join('');
+    } else {
+      html += '<div class="empty">No progress notes yet.</div>';
+    }
     return html;
   }
 
   function viewMore() {
+    var me = S.currentUser();
+    var isAdmin = S.canManageUsers(me);
+    var prefs = S.getPrefs(me.id);
     var acts = S.listActivity();
     var html = '<div class="view-head"><h1>More</h1></div>';
 
-    html += '<div class="section-title">People</div>';
-    html += S.users().map(function (u) {
-      return '<div class="card"><div class="item"><div class="item-main">' +
-        '<p class="item-title">' + esc(u.name) + '</p>' +
-        '<p class="item-sub">' + esc(u.role) + (u.id === S.currentUser().id ? ' · current' : '') + '</p>' +
-        '</div>' +
-        (u.id === S.currentUser().id ? '<span class="badge upcoming">You</span>' :
-          '<button class="btn small" data-action="switch-to-user" data-id="' + u.id + '">Switch</button>') +
-        '</div></div>';
-    }).join('');
+    // Notification preferences (preview)
+    html += '<div class="section-title">Notifications</div>' +
+      '<div class="card">' +
+        '<div class="notice">Preview — email &amp; push activate with the server phase. Choices are saved per person.</div>' +
+        '<form data-form="save-prefs">' +
+          '<div class="field"><label>Email digest</label><select name="email">' +
+            optTag('off', 'Off', prefs.email) + optTag('daily', 'Daily', prefs.email) + optTag('weekly', 'Weekly', prefs.email) +
+          '</select></div>' +
+          '<div class="field"><label>Digest time</label><select name="digestHour">' + hourOptions(prefs.digestHour) + '</select></div>' +
+          '<label class="inline-check"><input type="checkbox" name="push" ' + (prefs.push ? 'checked' : '') + ' /> Push notifications</label>' +
+          '<button class="btn primary block" type="submit" style="margin-top:12px">Save preferences</button>' +
+        '</form>' +
+      '</div>';
 
+    // People / admin
+    html += '<div class="section-title">People' + (isAdmin ? '' : ' · view only') + '</div>';
+    if (isAdmin) html += '<button class="btn block" data-action="open-add-user" style="margin-bottom:8px">+ Add person</button>';
+    html += S.users().map(function (u) {
+      var isMe = u.id === me.id;
+      var roleCtrl = (isAdmin && !isMe)
+        ? '<select data-action="set-user-role" data-id="' + u.id + '">' + roleOpts(u.role) + '</select>'
+        : '<p class="item-sub">' + esc(u.role) + (isMe ? ' · you' : '') + '</p>';
+      var actions = (isMe ? '<span class="badge upcoming">You</span>' :
+        '<button class="btn small" data-action="switch-to-user" data-id="' + u.id + '">Act as</button>') +
+        (isAdmin && !isMe ? '<button class="btn small ghost danger" data-action="remove-user" data-id="' + u.id + '">Remove</button>' : '');
+      return '<div class="card"><div class="item"><div class="item-main">' +
+        '<p class="item-title">' + esc(u.name) + '</p>' + roleCtrl +
+        '</div><div class="row-actions">' + actions + '</div></div></div>';
+    }).join('');
+    if (!isAdmin) html += '<p class="subtle">Only admins can add or change people — switch to Dale (admin) to try it.</p>';
+
+    // Recent activity
     html += '<div class="section-title">Recent activity</div><div class="card">';
     if (!acts.length) { html += '<p class="subtle">Nothing yet.</p>'; }
     else {
@@ -306,9 +414,15 @@
     }
     html += '</div>';
 
-    html += '<div class="section-title">Prototype</div>' +
-      '<div class="notice">This is a client-side prototype. Data is stored in this browser only (localStorage) — nothing is sent to a server.</div>' +
-      '<button class="btn block danger" data-action="reset-data">Reset demo data</button>';
+    // Data / backup
+    html += '<div class="section-title">Data</div>' +
+      '<div class="stack">' +
+        '<button class="btn block" data-action="export-data">⬇︎ Export backup (JSON)</button>' +
+        '<label class="btn block" style="text-align:center;cursor:pointer">⬆︎ Import backup' +
+          '<input type="file" accept="application/json,.json" data-action="import-file" hidden /></label>' +
+        '<button class="btn block danger" data-action="reset-data">Reset demo data</button>' +
+      '</div>' +
+      '<div class="notice" style="margin-top:10px">Data lives in this browser only. Export to back it up or move it to another device.</div>';
     return html;
   }
 
@@ -489,7 +603,8 @@
     var projectId = form.getAttribute('data-id');
     var title = (fd.get('title') || '').trim();
     if (!title) return;
-    S.addTask(projectId, { title: title, description: fd.get('description'), assignedTo: fd.get('assignedTo') || null, dueDate: fd.get('dueDate') || null });
+    var res = S.addTask(projectId, { title: title, description: fd.get('description'), assignedTo: fd.get('assignedTo') || null, dueDate: fd.get('dueDate') || null });
+    if (res && res.error) { toast(res.error); return; }
     closeModal(); toast('Task added'); render();
   }
 
@@ -519,8 +634,78 @@
     if (!cache) { closeModal(); return; }
     var chosen = cache.steps.filter(function (_, i) { return picks.indexOf(i) !== -1; });
     if (!chosen.length) { toast('Nothing selected'); return; }
-    S.addTasksBulk(cache.projectId, chosen);
+    var res = S.addTasksBulk(cache.projectId, chosen);
+    if (res && res.error) { toast(res.error); return; }
     closeModal(); toast('Added ' + chosen.length + ' step(s)'); render();
+  }
+
+  function formEditProject(id) {
+    var p = S.getProject(id); if (!p) return;
+    openModal('Edit project',
+      '<form data-form="edit-project" data-id="' + p.id + '">' +
+        '<div class="field"><label>Name</label><input type="text" name="name" required value="' + esc(p.name) + '" /></div>' +
+        '<div class="field"><label>Description</label><textarea name="description">' + esc(p.description) + '</textarea></div>' +
+        '<div class="field"><label>Target date</label><input type="date" name="targetDate" value="' + esc(p.targetDate || '') + '" /></div>' +
+        '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button>' +
+        '<button type="submit" class="btn primary">Save</button></div>' +
+      '</form>');
+  }
+  function submitEditProject(form) {
+    var fd = new FormData(form);
+    var res = S.updateProject(form.getAttribute('data-id'), { name: fd.get('name'), description: fd.get('description'), targetDate: fd.get('targetDate') || null });
+    if (res.error) { toast(res.error); return; }
+    closeModal(); toast('Project updated'); render();
+  }
+
+  function formAddNote(projectId) {
+    openModal('Add progress note',
+      '<form data-form="add-note" data-id="' + projectId + '">' +
+        '<div class="field"><label>Note</label><textarea name="body" placeholder="What happened? What&#39;s next?"></textarea></div>' +
+        '<div class="field"><label>Photo (optional)</label><input type="file" name="photo" accept="image/*" capture="environment" /></div>' +
+        '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button>' +
+        '<button type="submit" class="btn primary">Add note</button></div>' +
+      '</form>');
+  }
+  function submitAddNote(form) {
+    var projectId = form.getAttribute('data-id');
+    var body = (new FormData(form).get('body') || '').trim();
+    var fileInput = form.querySelector('input[name="photo"]');
+    var file = fileInput && fileInput.files[0];
+    if (!body && !file) { toast('Add a note or a photo'); return; }
+    var btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    fileToDataURL(file, 1024, function (dataUrl) {
+      var res = S.addNote('project', projectId, { body: body, photo: dataUrl });
+      if (res.error) { toast(res.error); btn.disabled = false; btn.textContent = 'Add note'; return; }
+      closeModal(); toast('Note added'); render();
+    });
+  }
+  function viewPhoto(noteId) {
+    var n = S.noteById(noteId);
+    if (!n || !n.photo) return;
+    openModal('Photo', '<img src="' + n.photo + '" alt="progress photo" style="width:100%;border-radius:10px" />');
+  }
+
+  function formAddUser() {
+    openModal('Add person',
+      '<form data-form="add-user">' +
+        '<div class="field"><label>Name</label><input type="text" name="name" required placeholder="e.g. Riley" /></div>' +
+        '<div class="field"><label>Role</label><select name="role">' + roleOpts('worker') + '</select></div>' +
+        '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button>' +
+        '<button type="submit" class="btn primary">Add person</button></div>' +
+      '</form>');
+  }
+  function submitAddUser(form) {
+    var fd = new FormData(form);
+    var res = S.addUser({ name: fd.get('name'), role: fd.get('role') });
+    if (res.error) { toast(res.error); return; }
+    closeModal(); toast('Added ' + res.user.name); render();
+  }
+
+  function submitSavePrefs(form) {
+    var fd = new FormData(form);
+    S.setPrefs(S.currentUser().id, { email: fd.get('email'), push: fd.get('push') === 'on', digestHour: fd.get('digestHour') });
+    toast('Preferences saved');
   }
 
   /* ---------------- event wiring ---------------- */
@@ -542,10 +727,19 @@
       case 'open-project': ui.projectId = id; ui.view = 'projects'; render(); break;
       case 'back-to-projects': ui.projectId = null; render(); break;
       case 'open-add-project': formAddProject(); break;
+      case 'edit-project': formEditProject(id); break;
       case 'open-add-task': formAddTask(id); break;
       case 'toggle-task': S.toggleTask(id); render(); break;
       case 'suggest-steps': suggestSteps(id); break;
-      case 'delete-project': if (confirm('Delete this project and its tasks?')) { S.deleteProject(id); ui.projectId = null; render(); } break;
+      case 'delete-project': if (confirm('Delete this project and its tasks?')) { var dp = S.deleteProject(id); if (dp && dp.error) toast(dp.error); else { ui.projectId = null; render(); } } break;
+
+      case 'open-add-note': formAddNote(id); break;
+      case 'view-photo': viewPhoto(id); break;
+      case 'delete-note': if (confirm('Delete this note?')) { S.deleteNote(id); render(); } break;
+
+      case 'open-add-user': formAddUser(); break;
+      case 'remove-user': if (confirm('Remove this person?')) { var ru = S.removeUser(id); if (ru.error) toast(ru.error); else { toast('Removed'); render(); } } break;
+      case 'export-data': exportData(); break;
 
       case 'switch-to-user': S.setCurrentUser(id); toast('Now acting as ' + S.userName(id)); render(); break;
       case 'reset-data': if (confirm('Reset all demo data in this browser?')) { S.reset(); ui.projectId = null; ui.view = 'dashboard'; render(); toast('Demo data reset'); } break;
@@ -573,7 +767,9 @@
     var action = el.getAttribute('data-action');
     if (action === 'set-user') { S.setCurrentUser(el.value); ui.projectId = null; render(); return; }
     if (action === 'toggle-task') { S.toggleTask(el.getAttribute('data-id')); render(); return; }
-    if (action === 'set-project-status') { S.updateProjectStatus(el.getAttribute('data-id'), el.value); toast('Status updated'); render(); return; }
+    if (action === 'set-project-status') { var sr = S.updateProjectStatus(el.getAttribute('data-id'), el.value); if (sr && sr.error) toast(sr.error); else toast('Status updated'); render(); return; }
+    if (action === 'set-user-role') { var rr = S.updateUserRole(el.getAttribute('data-id'), el.value); if (rr.error) toast(rr.error); render(); return; }
+    if (action === 'import-file') { handleImportFile(el); return; }
   });
 
   document.addEventListener('submit', function (e) {
@@ -586,8 +782,12 @@
       case 'add-maintenance': submitAddMaintenance(form); break;
       case 'log-service': submitLogService(form); break;
       case 'add-project': submitAddProject(form); break;
+      case 'edit-project': submitEditProject(form); break;
       case 'add-task': submitAddTask(form); break;
       case 'accept-steps': submitAcceptSteps(form); break;
+      case 'add-note': submitAddNote(form); break;
+      case 'add-user': submitAddUser(form); break;
+      case 'save-prefs': submitSavePrefs(form); break;
     }
   });
 
