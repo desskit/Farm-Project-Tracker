@@ -40,6 +40,17 @@
     }
     return s;
   }
+  function requirePhotoCheckbox(checked) {
+    return '<div class="field"><label class="inline-check"><input type="checkbox" name="requirePhoto"' +
+      (checked ? ' checked' : '') + ' /> 📷 Require photo proof to complete</label></div>';
+  }
+  function photoProofField(label) {
+    return '<div class="field"><label>' + esc(label || 'Photo proof (required)') + '</label>' +
+      '<input type="file" name="photo" accept="image/*" capture="environment" required /></div>';
+  }
+  function proofBtn(kind, id) {
+    return '<span class="chip chip-link" data-action="view-proof" data-kind="' + kind + '" data-id="' + id + '">📷 proof</span>';
+  }
   // Downscale a selected image (max longest edge) to a JPEG data URL for localStorage.
   function fileToDataURL(file, maxDim, cb) {
     if (!file) { cb(null); return; }
@@ -143,21 +154,26 @@
         '</div>' +
       '</div>';
   }
-  function kindLabel(k) { return k === 'chore' ? 'Chore' : k === 'maintenance' ? 'Upkeep' : 'Project task'; }
+  function kindLabel(k) { return k === 'chore' ? 'Chore' : k === 'maintenance' ? 'Upkeep' : k === 'rent' ? 'Rent' : 'Project task'; }
 
   /* ---------------- views ---------------- */
   function viewDashboard() {
-    var b = S.dashboard(ui.scope);
-    var total = b.overdue.length + b.today.length + b.upcoming.length;
+    var isMgr = S.isManager();
+    if (ui.scope === 'team' && !isMgr) ui.scope = 'mine';
     var html = '' +
       '<div class="view-head">' +
         '<div><h1>Today</h1><p class="subtle">' + S.fmtDate(S.todayISO()) + ' · ' + esc(S.currentUser().name) + '</p></div>' +
         '<div class="segmented">' +
           '<button class="' + (ui.scope === 'mine' ? 'active' : '') + '" data-action="set-scope" data-scope="mine">Mine</button>' +
-          '<button class="' + (ui.scope === 'all' ? 'active' : '') + '" data-action="set-scope" data-scope="all">Everything</button>' +
+          '<button class="' + (ui.scope === 'all' ? 'active' : '') + '" data-action="set-scope" data-scope="all">All</button>' +
+          (isMgr ? '<button class="' + (ui.scope === 'team' ? 'active' : '') + '" data-action="set-scope" data-scope="team">Team</button>' : '') +
         '</div>' +
       '</div>';
 
+    if (ui.scope === 'team') return html + teamDashboard();
+
+    var b = S.dashboard(ui.scope);
+    var total = b.overdue.length + b.today.length + b.upcoming.length;
     if (total === 0) {
       html += '<div class="empty">Nothing due in the next 7 days' + (ui.scope === 'mine' ? ' for you' : '') + '. 🎉</div>';
     } else {
@@ -172,6 +188,72 @@
       return '<div class="section-title">' + label + '<span class="count-pill">' + items.length + '</span></div>' +
         items.map(dashItemCard).join('');
     }
+  }
+
+  // Manager-only quick-status view: farm-wide tiles, per-person workload,
+  // project progress, and this month's rent at a glance.
+  function teamDashboard() {
+    var b = S.dashboard('all');
+    var mk = S.currentMonthKey();
+    var rs = S.rentSummary(mk);
+    var html = '' +
+      '<div class="tiles">' +
+        '<div class="tile ' + (b.overdue.length ? 'bad' : 'good') + '"><div class="t-num">' + b.overdue.length + '</div><div class="t-lbl">Overdue</div></div>' +
+        '<div class="tile ' + (b.today.length ? 'warn' : 'good') + '"><div class="t-num">' + b.today.length + '</div><div class="t-lbl">Due today</div></div>' +
+        '<div class="tile"><div class="t-num">' + b.upcoming.length + '</div><div class="t-lbl">Next 7 days</div></div>' +
+      '</div>';
+
+    html += '<div class="section-title">People</div>';
+    html += S.users().map(function (u) {
+      var w = S.userWorkload(u.id);
+      var chips = '';
+      if (w.choresOverdue || w.tasksOverdue) chips += '<span class="badge overdue">' + (w.choresOverdue + w.tasksOverdue) + ' overdue</span>';
+      if (w.choresToday) chips += '<span class="badge today">' + w.choresToday + ' due today</span>';
+      if (w.tasksOpen) chips += '<span class="badge neutral">' + w.tasksOpen + ' open task' + (w.tasksOpen === 1 ? '' : 's') + '</span>';
+      if (!chips) chips = '<span class="badge upcoming">All clear</span>';
+      var rentChip = '';
+      var charge = S.rentChargesForMonth(mk).filter(function (c) { return c.userId === u.id; })[0];
+      if (charge) {
+        rentChip = charge.status === 'verified' ? '<span class="badge upcoming">Rent ✓</span>' :
+          charge.status === 'marked' ? '<span class="badge today">Rent: verify</span>' :
+          '<span class="badge overdue">Rent unpaid</span>';
+      }
+      return '<div class="card"><div class="item"><div class="item-main">' +
+        '<p class="item-title">' + esc(u.name) + '</p>' +
+        '<p class="item-sub">' + esc(u.role) + '</p>' +
+        '<div class="item-badges">' + chips + rentChip + '</div>' +
+        '</div></div></div>';
+    }).join('');
+
+    var projects = S.listProjects().filter(function (p) { return p.status !== 'done'; });
+    html += '<div class="section-title">Projects</div>';
+    if (!projects.length) html += '<div class="empty">No active projects.</div>';
+    else html += projects.map(function (p) {
+      var tasks = S.projectTasks(p.id);
+      var done = tasks.filter(function (t) { return t.done; }).length;
+      var pct = tasks.length ? Math.round(done / tasks.length * 100) : 0;
+      return '<div class="card tap" data-action="open-project" data-id="' + p.id + '">' +
+        '<div class="item"><div class="item-main">' +
+          '<p class="item-title">' + esc(p.name) + '</p>' +
+          '<p class="item-sub">' + esc(S.STATUS_LABELS[p.status] || p.status) + ' · ' + done + '/' + tasks.length + ' tasks' +
+            (p.targetDate ? ' · target ' + esc(S.fmtDate(p.targetDate)) : '') + '</p>' +
+          '<div class="progress"><span style="width:' + pct + '%"></span></div>' +
+        '</div></div></div>';
+    }).join('');
+
+    html += '<div class="section-title">Rent · ' + esc(S.monthLabel(mk)) + '</div>' +
+      '<div class="card tap" data-action="switch-view" data-view="more">' +
+        '<div class="item"><div class="item-main">' +
+          '<p class="item-title">$' + rs.collected.toFixed(0) + ' of $' + rs.due.toFixed(0) + ' verified</p>' +
+          '<div class="item-badges">' +
+            (rs.unpaid ? '<span class="badge overdue">' + rs.unpaid + ' unpaid</span>' : '') +
+            (rs.marked ? '<span class="badge today">' + rs.marked + ' to verify</span>' : '') +
+            (rs.verified ? '<span class="badge upcoming">' + rs.verified + ' verified</span>' : '') +
+            (!rs.count ? '<span class="badge neutral">No rent assigned</span>' : '') +
+          '</div>' +
+          '<p class="subtle" style="margin-top:6px">Manage in More ›</p>' +
+        '</div></div></div>';
+    return html;
   }
 
   function viewChores() {
@@ -197,6 +279,7 @@
                 (bucket !== 'later' ? bucketBadge(bucket) : '') +
                 '<span class="badge neutral">Due ' + esc(S.fmtDate(c.nextDue)) + ' · ' + esc(S.relativeLabel(c.nextDue)) + '</span>' +
                 '<span class="badge neutral">' + (c.catchUp === 'mustCatchUp' ? 'Must catch up' : 'Skips if missed') + '</span>' +
+                (c.requirePhoto ? '<span class="badge neutral">📷 proof</span>' : '') +
                 (streak >= 2 ? '<span class="badge upcoming">🔥 ' + streak + '-day streak</span>' : '') +
               '</div>' +
             '</div>' +
@@ -215,7 +298,7 @@
     var streak = c.schedule.type === 'daily' ? S.choreStreak(id) : 0;
     var histHtml = history.length ? history.slice(0, 15).map(function (h) {
       return '<div class="hist-row"><span>' + esc(S.fmtDate(h.date)) + ' · ' + esc(S.userName(h.completedBy)) +
-        (h.notes ? ' · ' + esc(h.notes) : '') + '</span></div>';
+        (h.notes ? ' · ' + esc(h.notes) : '') + (h.photo ? ' ' + proofBtn('chore', h.id) : '') + '</span></div>';
     }).join('') : '<p class="subtle">Never completed yet.</p>';
 
     openModal(c.name,
@@ -227,6 +310,7 @@
         '<span class="chip">' + (c.catchUp === 'mustCatchUp' ? 'must catch up if missed' : 'skips if missed') + '</span>' +
       '</div>' +
       '<form data-form="complete-chore" data-id="' + id + '" style="margin-top:10px">' +
+        (c.requirePhoto ? photoProofField('Photo proof (required by manager)') : '') +
         '<div class="field"><label>Note (optional)</label><input type="text" name="note" placeholder="e.g. water was low, refilled" /></div>' +
         '<button type="submit" class="btn primary block">Mark done' + (c.schedule.type === 'daily' ? ' for today' : '') + '</button>' +
       '</form>' +
@@ -276,6 +360,7 @@
           '<option value="skipToNext"' + (c.catchUp === 'skipToNext' ? ' selected' : '') + '>Skip to next occurrence</option>' +
           '<option value="mustCatchUp"' + (c.catchUp === 'mustCatchUp' ? ' selected' : '') + '>Must catch up (stays overdue)</option>' +
         '</select></div>' +
+        requirePhotoCheckbox(c.requirePhoto) +
         '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button>' +
         '<button type="submit" class="btn primary">Save</button></div>' +
       '</form>');
@@ -286,15 +371,57 @@
     if (schedule.type === 'weekly' && !schedule.weekdays.length) { toast('Pick at least one weekday'); return; }
     var res = S.updateChore(form.getAttribute('data-id'), {
       name: fd.get('name'), schedule: schedule, assignedTo: fd.get('assignedTo') || null,
-      catchUp: fd.get('catchUp'), nextDue: fd.get('nextDue')
+      catchUp: fd.get('catchUp'), nextDue: fd.get('nextDue'), requirePhoto: fd.get('requirePhoto') === 'on'
     });
     if (res.error) { toast(res.error); return; }
     closeModal(); toast('Chore updated'); render();
   }
   function submitCompleteChoreWithNote(form) {
+    var id = form.getAttribute('data-id');
+    var chore = S.choreById(id);
     var note = (new FormData(form).get('note') || '').trim();
-    S.completeChore(form.getAttribute('data-id'), note);
-    closeModal(); toast('Nice — done'); render();
+    var fileInput = form.querySelector('input[name="photo"]');
+    var file = fileInput && fileInput.files[0];
+    if (chore && chore.requirePhoto && !file) { toast('A photo is required for this chore'); return; }
+    fileToDataURL(file, 900, function (dataUrl) {
+      var res = S.completeChore(id, note, dataUrl);
+      if (res.error) { toast(res.error); return; }
+      closeModal(); toast('Nice — done'); render();
+    });
+  }
+  // Quick-complete for a photo-required chore (from the card/dashboard Done button).
+  function formCompleteChore(id) {
+    var c = S.choreById(id); if (!c) return;
+    openModal('Complete: ' + c.name,
+      '<div class="notice">📷 A manager set this chore to require photo proof.</div>' +
+      '<form data-form="complete-chore" data-id="' + id + '">' +
+        photoProofField('Photo proof') +
+        '<div class="field"><label>Note (optional)</label><input type="text" name="note" /></div>' +
+        '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button>' +
+        '<button type="submit" class="btn primary">Mark done</button></div>' +
+      '</form>');
+  }
+  // Photo-required task completion.
+  function formCompleteTask(taskId) {
+    var t = S.taskById(taskId); if (!t) return;
+    openModal('Complete: ' + t.title,
+      '<div class="notice">📷 A manager set this task to require photo proof.</div>' +
+      '<form data-form="complete-task" data-id="' + taskId + '">' +
+        photoProofField('Photo proof') +
+        '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button>' +
+        '<button type="submit" class="btn primary">Mark done</button></div>' +
+      '</form>');
+  }
+  function submitCompleteTask(form) {
+    var id = form.getAttribute('data-id');
+    var fileInput = form.querySelector('input[name="photo"]');
+    var file = fileInput && fileInput.files[0];
+    if (!file) { toast('A photo is required for this task'); return; }
+    fileToDataURL(file, 900, function (dataUrl) {
+      var res = S.toggleTask(id, dataUrl);
+      if (res.error) { toast(res.error); return; }
+      closeModal(); toast('Task done'); render();
+    });
   }
 
   function viewMaintenance() {
@@ -325,6 +452,7 @@
                 '<p class="item-sub">' + esc(st.detail) + '</p>' +
                 '<div class="item-badges">' + (st.bucket !== 'later' ? bucketBadge(st.bucket) : '<span class="badge neutral">On track</span>') +
                   '<span class="badge neutral">' + (m.intervalType === 'usage' ? 'Every ' + m.intervalValue + ' ' + (st.unit || '') : 'Every ' + m.intervalValue + ' ' + m.intervalUnit) + '</span>' +
+                  (m.requirePhoto ? '<span class="badge neutral">📷 proof</span>' : '') +
                 '</div>' +
               '</div>' +
               '<button class="btn small primary" data-action="open-log-service" data-id="' + m.id + '">Log</button>' +
@@ -416,6 +544,7 @@
               '<option value="months"' + (item.intervalUnit !== 'days' ? ' selected' : '') + '>months</option>' +
               '<option value="days"' + (item.intervalUnit === 'days' ? ' selected' : '') + '>days</option>' +
             '</select></div></div>') +
+        requirePhotoCheckbox(item.requirePhoto) +
         '<p class="subtle">The next due point is recalculated from the last completed service.</p>' +
         '<div class="form-actions">' +
           '<button type="button" class="btn danger" data-action="delete-maintenance" data-id="' + itemId + '">Delete</button>' +
@@ -425,7 +554,7 @@
   }
   function submitEditMaintenance(form) {
     var fd = new FormData(form);
-    var res = S.updateMaintenance(form.getAttribute('data-id'), { name: fd.get('name'), intervalValue: fd.get('intervalValue'), intervalUnit: fd.get('intervalUnit') });
+    var res = S.updateMaintenance(form.getAttribute('data-id'), { name: fd.get('name'), intervalValue: fd.get('intervalValue'), intervalUnit: fd.get('intervalUnit'), requirePhoto: fd.get('requirePhoto') === 'on' });
     if (res.error) { toast(res.error); return; }
     closeModal(); toast('Maintenance updated'); render();
   }
@@ -505,7 +634,9 @@
                 '<div class="chips">' +
                   '<span class="chip">' + esc(S.userName(t.assignedTo)) + '</span>' +
                   (t.dueDate ? '<span class="chip">due ' + esc(S.fmtDate(t.dueDate)) + '</span>' : '') +
+                  (t.requirePhoto && !t.done ? '<span class="chip">📷 proof required</span>' : '') +
                   (t.done ? '<span class="chip">done ' + esc(S.fmtDate(t.doneAt)) + ' by ' + esc(S.userName(t.doneBy)) + '</span>' : '') +
+                  (t.done && t.donePhoto ? proofBtn('task', t.id) : '') +
                 '</div>' +
               '</div>' +
               (canEdit ? '<button class="icon-btn" data-action="edit-task" data-id="' + t.id + '" aria-label="Edit task">✎</button>' : '') +
@@ -565,6 +696,37 @@
           '<button class="btn primary block" type="submit" style="margin-top:12px">Save preferences</button>' +
         '</form>' +
       '</div>';
+
+    // Rent
+    var mk = S.currentMonthKey();
+    var isMgr = S.isManager(me);
+    var charges = S.rentChargesForMonth(mk).filter(function (c) { return isMgr || c.userId === me.id; });
+    var rs = S.rentSummary(mk);
+    html += '<div class="section-title">Rent · ' + esc(S.monthLabel(mk)) + '</div>';
+    if (isMgr) {
+      html += '<button class="btn block" data-action="open-rent-assign" style="margin-bottom:8px">+ Assign / edit rent</button>';
+      if (rs.count) {
+        html += '<div class="notice">$' + rs.collected.toFixed(0) + ' of $' + rs.due.toFixed(0) + ' verified · ' +
+          rs.unpaid + ' unpaid · ' + rs.marked + ' awaiting verification</div>';
+      }
+    }
+    if (!charges.length) {
+      html += '<div class="empty">' + (isMgr ? 'No rent assigned yet.' : 'No rent is assigned to you.') + '</div>';
+    } else {
+      html += charges.map(function (c) {
+        var badge = c.status === 'verified'
+          ? '<span class="badge upcoming">Verified ' + esc(S.fmtDate(c.verifiedAt)) + '</span>'
+          : c.status === 'marked'
+            ? '<span class="badge today">Marked paid ' + esc(S.fmtDate(c.markedAt)) + ' — awaiting verification</span>'
+            : '<span class="badge overdue">Unpaid · due ' + esc(S.fmtDate(c.dueDate)) + '</span>';
+        return '<div class="card tap" data-action="open-rent-charge" data-id="' + c.id + '">' +
+          '<div class="item"><div class="item-main">' +
+            '<p class="item-title">' + esc(S.userName(c.userId)) + ' · $' + c.amount + '</p>' +
+            '<div class="item-badges">' + badge + '</div>' +
+            (c.note ? '<p class="item-sub" style="margin-top:6px">“' + esc(c.note) + '”</p>' : '') +
+          '</div></div></div>';
+      }).join('');
+    }
 
     // People / admin
     html += '<div class="section-title">People' + (isAdmin ? '' : ' · view only') + '</div>';
@@ -638,6 +800,7 @@
           '<option value="skipToNext">Skip to next occurrence</option>' +
           '<option value="mustCatchUp">Must catch up (stays overdue)</option>' +
         '</select></div>' +
+        requirePhotoCheckbox(false) +
         '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button>' +
         '<button type="submit" class="btn primary">Add chore</button></div>' +
       '</form>');
@@ -648,7 +811,7 @@
     var name = (fd.get('name') || '').trim();
     if (!name) return;
     if (schedule.type === 'weekly' && !schedule.weekdays.length) { toast('Pick at least one weekday'); return; }
-    var res = S.addChore({ name: name, schedule: schedule, assignedTo: fd.get('assignedTo') || null, catchUp: fd.get('catchUp'), nextDue: fd.get('firstDue') || S.todayISO() });
+    var res = S.addChore({ name: name, schedule: schedule, assignedTo: fd.get('assignedTo') || null, catchUp: fd.get('catchUp'), nextDue: fd.get('firstDue') || S.todayISO(), requirePhoto: fd.get('requirePhoto') === 'on' });
     if (res.error) { toast(res.error); return; }
     closeModal(); toast('Chore added'); render();
   }
@@ -688,6 +851,7 @@
           '<div style="display:flex;gap:8px"><input type="number" name="calValue" min="1" value="6" style="flex:1" />' +
           '<select name="calUnit" style="flex:1"><option value="months">months</option><option value="days">days</option></select></div></div>' +
         (usageAllowed ? '<div class="field" data-show-when="intervalType=usage"><label>Every (' + asset.meterUnit + ')</label><input type="number" name="usageValue" min="1" value="50" /></div>' : '') +
+        requirePhotoCheckbox(false) +
         '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button>' +
         '<button type="submit" class="btn primary">Add item</button></div>' +
       '</form>');
@@ -698,7 +862,7 @@
     var name = (fd.get('name') || '').trim();
     if (!name) return;
     var type = fd.get('intervalType');
-    var data = { assetId: assetId, name: name, intervalType: type };
+    var data = { assetId: assetId, name: name, intervalType: type, requirePhoto: fd.get('requirePhoto') === 'on' };
     if (type === 'calendar') { data.intervalValue = fd.get('calValue'); data.intervalUnit = fd.get('calUnit'); }
     else { data.intervalValue = fd.get('usageValue'); }
     var res = S.addMaintenance(data);
@@ -715,7 +879,7 @@
     var histHtml = logs.length ? logs.map(function (l) {
       return '<div class="hist-row"><span>' + esc(S.fmtDate(l.date)) + ' · ' + esc(S.userName(l.userId)) +
         (l.reading != null ? ' · ' + l.reading : '') + (l.cost ? ' · $' + l.cost : '') +
-        (l.notes ? ' · ' + esc(l.notes) : '') + '</span></div>';
+        (l.notes ? ' · ' + esc(l.notes) : '') + (l.photo ? ' ' + proofBtn('service', l.id) : '') + '</span></div>';
     }).join('') : '<p class="subtle">No history yet.</p>';
 
     var totalCost = S.itemCostTotal(itemId);
@@ -730,6 +894,7 @@
         '<div class="field"><label>Date</label><input type="date" name="date" value="' + S.todayISO() + '" /></div>' +
         (asset && asset.meterUnit ? '<div class="field"><label>Meter reading (' + asset.meterUnit + ')</label><input type="number" name="reading" placeholder="current ' + asset.meterUnit + '" /></div>' : '') +
         '<div class="field"><label>Cost ($, optional)</label><input type="number" name="cost" min="0" step="0.01" /></div>' +
+        (item.requirePhoto ? photoProofField('Photo of completed work (required by manager)') : '') +
         '<div class="field"><label>Notes</label><textarea name="notes" placeholder="Parts used, observations…"></textarea></div>' +
         '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button>' +
         '<button type="submit" class="btn primary">Mark serviced</button></div>' +
@@ -739,8 +904,15 @@
   function submitLogService(form) {
     var fd = new FormData(form);
     var itemId = form.getAttribute('data-id');
-    S.logService(itemId, { date: fd.get('date'), reading: fd.get('reading'), cost: fd.get('cost'), notes: fd.get('notes') });
-    closeModal(); toast('Service logged'); render();
+    var item = S.maintenanceById(itemId);
+    var fileInput = form.querySelector('input[name="photo"]');
+    var file = fileInput && fileInput.files[0];
+    if (item && item.requirePhoto && !file) { toast('A photo of the completed work is required'); return; }
+    fileToDataURL(file, 900, function (dataUrl) {
+      var res = S.logService(itemId, { date: fd.get('date'), reading: fd.get('reading'), cost: fd.get('cost'), notes: fd.get('notes'), photo: dataUrl });
+      if (res.error) { toast(res.error); return; }
+      closeModal(); toast('Service logged'); render();
+    });
   }
 
   function formAddProject() {
@@ -772,6 +944,7 @@
         '<div class="field"><label>Details (optional)</label><textarea name="description"></textarea></div>' +
         '<div class="field"><label>Assign to</label><select name="assignedTo">' + userOptions('', true) + '</select></div>' +
         '<div class="field"><label>Due date (optional)</label><input type="date" name="dueDate" /></div>' +
+        requirePhotoCheckbox(false) +
         '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button>' +
         '<button type="submit" class="btn primary">Add task</button></div>' +
       '</form>');
@@ -781,7 +954,7 @@
     var projectId = form.getAttribute('data-id');
     var title = (fd.get('title') || '').trim();
     if (!title) return;
-    var res = S.addTask(projectId, { title: title, description: fd.get('description'), assignedTo: fd.get('assignedTo') || null, dueDate: fd.get('dueDate') || null });
+    var res = S.addTask(projectId, { title: title, description: fd.get('description'), assignedTo: fd.get('assignedTo') || null, dueDate: fd.get('dueDate') || null, requirePhoto: fd.get('requirePhoto') === 'on' });
     if (res && res.error) { toast(res.error); return; }
     closeModal(); toast('Task added'); render();
   }
@@ -888,6 +1061,7 @@
         '<div class="field"><label>Details</label><textarea name="description">' + esc(t.description || '') + '</textarea></div>' +
         '<div class="field"><label>Assign to</label><select name="assignedTo">' + userOptions(t.assignedTo, true) + '</select></div>' +
         '<div class="field"><label>Due date</label><input type="date" name="dueDate" value="' + esc(t.dueDate || '') + '" /></div>' +
+        requirePhotoCheckbox(t.requirePhoto) +
         '<div class="form-actions">' +
           '<button type="button" class="btn danger" data-action="delete-task" data-id="' + taskId + '">Delete</button>' +
           '<button type="submit" class="btn primary">Save</button>' +
@@ -898,10 +1072,89 @@
     var fd = new FormData(form);
     var res = S.updateTask(form.getAttribute('data-id'), {
       title: fd.get('title'), description: fd.get('description'),
-      assignedTo: fd.get('assignedTo') || null, dueDate: fd.get('dueDate') || null
+      assignedTo: fd.get('assignedTo') || null, dueDate: fd.get('dueDate') || null,
+      requirePhoto: fd.get('requirePhoto') === 'on'
     });
     if (res.error) { toast(res.error); return; }
     closeModal(); toast('Task updated'); render();
+  }
+
+  /* ---------------- rent modals ---------------- */
+  function formRentCharge(chargeId) {
+    var c = S.rentChargeById(chargeId); if (!c) return;
+    var me = S.currentUser();
+    var isMgr = S.isManager();
+    var mine = c.userId === me.id;
+    var statusLine = c.status === 'verified'
+      ? 'Verified by ' + S.userName(c.verifiedBy) + ' on ' + S.fmtDate(c.verifiedAt)
+      : c.status === 'marked'
+        ? 'Marked paid by ' + S.userName(c.markedBy) + ' on ' + S.fmtDate(c.markedAt) + ' — awaiting verification'
+        : 'Unpaid · due ' + S.fmtDate(c.dueDate);
+
+    var body = '<p class="subtle">' + esc(S.userName(c.userId)) + ' · ' + esc(S.monthLabel(c.month)) + '</p>' +
+      '<p style="font-size:26px;font-weight:800;margin:4px 0">$' + c.amount + '</p>' +
+      '<p class="subtle">' + esc(statusLine) + '</p>' +
+      (c.note ? '<p class="subtle">Note: “' + esc(c.note) + '”</p>' : '');
+
+    if (c.status === 'unpaid' && (mine || isMgr)) {
+      body += '<form data-form="mark-rent" data-id="' + c.id + '" style="margin-top:10px">' +
+        '<div class="field"><label>Payment note (optional)</label><input type="text" name="note" placeholder="e.g. cash, check #204, Venmo" /></div>' +
+        '<button type="submit" class="btn primary block">Mark as paid</button>' +
+      '</form>';
+    }
+    if (isMgr) {
+      body += '<div class="row-actions" style="margin-top:10px">' +
+        (c.status !== 'verified' ? '<button class="btn small primary" data-action="verify-rent" data-id="' + c.id + '">✓ Verify received</button>' : '') +
+        (c.status !== 'unpaid' ? '<button class="btn small ghost danger" data-action="reopen-rent" data-id="' + c.id + '">Reopen</button>' : '') +
+      '</div>';
+    }
+
+    var hist = S.rentHistoryFor(c.userId);
+    if (hist.length > 1) {
+      body += '<div class="section-title">History</div><div class="card">' +
+        hist.map(function (h) {
+          var label = h.status === 'verified' ? '✓ verified' : h.status === 'marked' ? 'awaiting verification' : 'unpaid';
+          return '<div class="hist-row"><span>' + esc(S.monthLabel(h.month)) + ' · $' + h.amount + '</span><span class="subtle">' + esc(label) + '</span></div>';
+        }).join('') + '</div>';
+    }
+    openModal('Rent', body);
+  }
+  function submitMarkRent(form) {
+    var note = (new FormData(form).get('note') || '').trim();
+    var res = S.markRentPaid(form.getAttribute('data-id'), note);
+    if (res.error) { toast(res.error); return; }
+    closeModal(); toast('Marked as paid — a manager will verify'); render();
+  }
+
+  function formRentAssign() {
+    var opts = S.users().map(function (u) {
+      var a = S.rentAssignmentFor(u.id);
+      var suffix = a && a.active ? ' — currently $' + a.amount + '/mo' : '';
+      return '<option value="' + u.id + '">' + esc(u.name + suffix) + '</option>';
+    }).join('');
+    openModal('Assign monthly rent',
+      '<form data-form="assign-rent">' +
+        '<div class="field"><label>Person</label><select name="userId">' + opts + '</select></div>' +
+        '<div class="field"><label>Monthly amount ($)</label><input type="number" name="amount" min="1" step="0.01" required placeholder="e.g. 500" /></div>' +
+        '<div class="field"><label>Due on day of month</label><input type="number" name="dueDay" min="1" max="28" value="1" /></div>' +
+        '<p class="subtle">A charge is created automatically each month. To stop charging someone, use “Stop rent”.</p>' +
+        '<div class="form-actions">' +
+          '<button type="button" class="btn danger" data-action="stop-rent">Stop rent</button>' +
+          '<button type="submit" class="btn primary">Save</button>' +
+        '</div>' +
+      '</form>');
+  }
+  function submitAssignRent(form) {
+    var fd = new FormData(form);
+    var res = S.setRent(fd.get('userId'), fd.get('amount'), fd.get('dueDay'));
+    if (res.error) { toast(res.error); return; }
+    closeModal(); toast('Rent saved'); render();
+  }
+
+  function viewProof(kind, id) {
+    var photo = S.proofPhoto(kind, id);
+    if (!photo) { toast('No photo attached'); return; }
+    openModal('Photo proof', '<img src="' + photo + '" alt="photo proof" style="width:100%;border-radius:10px" />');
   }
 
   function submitSavePrefs(form) {
@@ -918,7 +1171,13 @@
       case 'set-scope': ui.scope = el.getAttribute('data-scope'); render(); break;
       case 'close-modal': closeModal(); break;
 
-      case 'complete-chore': S.completeChore(id); toast('Nice — done'); render(); break;
+      case 'complete-chore': {
+        var ch = S.choreById(id);
+        if (ch && ch.requirePhoto) { formCompleteChore(id); break; }
+        var cr = S.completeChore(id);
+        if (cr.error) toast(cr.error); else { toast('Nice — done'); render(); }
+        break;
+      }
       case 'open-chore': formChoreDetail(id); break;
       case 'edit-chore': formEditChore(id); break;
       case 'delete-chore': if (confirm('Delete this chore and its history?')) { var dc = S.deleteChore(id); if (dc.error) toast(dc.error); else { closeModal(); render(); } } break;
@@ -939,7 +1198,29 @@
       case 'open-add-task': formAddTask(id); break;
       case 'edit-task': formEditTask(id); break;
       case 'delete-task': if (confirm('Delete this task?')) { var dt = S.deleteTask(id); if (dt.error) toast(dt.error); else { closeModal(); toast('Task deleted'); render(); } } break;
-      case 'toggle-task': S.toggleTask(id); render(); break;
+      case 'toggle-task': {
+        var tk = S.taskById(id);
+        if (tk && !tk.done && tk.requirePhoto) { formCompleteTask(id); break; }
+        var tr = S.toggleTask(id);
+        if (tr.error) toast(tr.error);
+        render();
+        break;
+      }
+      case 'view-proof': viewProof(el.getAttribute('data-kind'), id); break;
+
+      case 'open-rent-charge': formRentCharge(id); break;
+      case 'open-rent-assign': formRentAssign(); break;
+      case 'verify-rent': { var vr = S.verifyRent(id); if (vr.error) toast(vr.error); else { closeModal(); toast('Rent verified'); render(); } break; }
+      case 'reopen-rent': if (confirm('Reopen this charge as unpaid?')) { var rr2 = S.reopenRent(id); if (rr2.error) toast(rr2.error); else { closeModal(); toast('Charge reopened'); render(); } } break;
+      case 'stop-rent': {
+        var f = el.closest('form');
+        var uid2 = f && f.querySelector('select[name="userId"]') ? f.querySelector('select[name="userId"]').value : null;
+        if (uid2 && confirm('Stop charging ' + S.userName(uid2) + ' rent?')) {
+          var sr2 = S.stopRent(uid2);
+          if (sr2.error) toast(sr2.error); else { closeModal(); toast('Rent stopped'); render(); }
+        }
+        break;
+      }
       case 'suggest-steps': suggestSteps(id); break;
       case 'delete-project': if (confirm('Delete this project and its tasks?')) { var dp = S.deleteProject(id); if (dp && dp.error) toast(dp.error); else { ui.projectId = null; render(); } } break;
 
@@ -976,7 +1257,14 @@
     if (!el) return;
     var action = el.getAttribute('data-action');
     if (action === 'set-user') { S.setCurrentUser(el.value); ui.projectId = null; render(); return; }
-    if (action === 'toggle-task') { S.toggleTask(el.getAttribute('data-id')); render(); return; }
+    if (action === 'toggle-task') {
+      var tid = el.getAttribute('data-id');
+      var task = S.taskById(tid);
+      if (task && !task.done && task.requirePhoto) { formCompleteTask(tid); render(); return; }
+      var tres = S.toggleTask(tid);
+      if (tres.error) toast(tres.error);
+      render(); return;
+    }
     if (action === 'set-project-status') { var sr = S.updateProjectStatus(el.getAttribute('data-id'), el.value); if (sr && sr.error) toast(sr.error); else toast('Status updated'); render(); return; }
     if (action === 'set-user-role') { var rr = S.updateUserRole(el.getAttribute('data-id'), el.value); if (rr.error) toast(rr.error); render(); return; }
     if (action === 'import-file') { handleImportFile(el); return; }
@@ -1001,6 +1289,9 @@
       case 'add-task': submitAddTask(form); break;
       case 'edit-task': submitEditTask(form); break;
       case 'accept-steps': submitAcceptSteps(form); break;
+      case 'complete-task': submitCompleteTask(form); break;
+      case 'mark-rent': submitMarkRent(form); break;
+      case 'assign-rent': submitAssignRent(form); break;
       case 'add-note': submitAddNote(form); break;
       case 'add-user': submitAddUser(form); break;
       case 'save-prefs': submitSavePrefs(form); break;

@@ -64,6 +64,24 @@ overhaul irrigation.
   breakdown. The user reviews, edits, and accepts the suggestions into the checklist —
   nothing is added without review. See §6 for the technical design.
 
+### 2.4 Photo proof (cross-cutting)
+
+Managers can flag any **chore, maintenance item, or project task** as requiring a photo
+before it can be marked complete. Completion is blocked (server-side in the real app)
+until a photo is attached; the photo is stored with the completion record and viewable
+from the item's history as proof of work.
+
+### 2.5 Rent
+
+Managers assign **monthly rent** to workers (amount + due day of month). A charge is
+generated automatically each month with a two-step ledger:
+
+1. The worker (or a manager) **marks it paid**, optionally noting how (cash, check, app).
+2. A manager **verifies** the payment was received — or reopens the charge if not.
+
+Unpaid rent appears on the worker's dashboard like any other due item, and the manager
+view shows collected vs. outstanding totals for the month plus full per-person history.
+
 ## 3. Users & Roles
 
 | Capability | Admin | Manager | Worker |
@@ -99,7 +117,9 @@ Three channels, all opt-in per user via a notification preferences page:
 
 ## 5. Key Screens
 
-- **Dashboard** — Overdue / Due Today / Coming Up, mine vs. everything.
+- **Dashboard** — Overdue / Due Today / Coming Up, mine vs. everything. Managers get a
+  third **Team** view: farm-wide status tiles, per-person workload, project progress,
+  and this month's rent at a glance.
 - **Chores** — list with next-due dates; chore detail with schedule, assignment, history.
 - **Assets & Maintenance** — asset list; asset detail with upcoming service, full service
   history, and meter-reading entry.

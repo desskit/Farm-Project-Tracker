@@ -21,6 +21,17 @@
   function diffDays(a, b) { return Math.round((parseISO(a) - parseISO(b)) / 86400000); }
   function weekday(s) { return parseISO(s).getDay(); }
 
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function currentMonthKey() { return todayISO().slice(0, 7); }
+  function shiftMonthKey(mk, delta) {
+    var p = mk.split('-').map(Number);
+    var d = new Date(p[0], p[1] - 1 + delta, 1);
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1);
+  }
+  function monthLabel(mk) {
+    var p = mk.split('-').map(Number);
+    return new Date(p[0], p[1] - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  }
   function fmtDate(s) {
     var d = parseISO(s);
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -114,7 +125,7 @@
     ];
     var chores = [
       { id: 'c_feed', name: 'Feed the chickens', schedule: { type: 'daily' }, catchUp: 'mustCatchUp', assignedTo: 'u_sam', nextDue: addDays(T, -1) },
-      { id: 'c_muck', name: 'Muck out the stalls', schedule: { type: 'daily' }, catchUp: 'skipToNext', assignedTo: 'u_jamie', nextDue: T },
+      { id: 'c_muck', name: 'Muck out the stalls', schedule: { type: 'daily' }, catchUp: 'skipToNext', assignedTo: 'u_jamie', nextDue: T, requirePhoto: true },
       { id: 'c_troughs', name: 'Check water troughs', schedule: { type: 'daily' }, catchUp: 'mustCatchUp', assignedTo: null, nextDue: T },
       { id: 'c_water', name: 'Water the greenhouse', schedule: { type: 'everyNDays', n: 2 }, catchUp: 'skipToNext', assignedTo: 'u_sam', nextDue: addDays(T, 1) },
       { id: 'c_cattle', name: 'Move cattle to fresh paddock', schedule: { type: 'weekly', weekdays: [1, 4] }, catchUp: 'skipToNext', assignedTo: 'u_morgan', nextDue: addDays(T, 2) },
@@ -131,7 +142,7 @@
       { id: uid('mr'), assetId: 'a_truck', reading: 84230, userId: 'u_sam', date: addDays(T, -2) }
     ];
     var maintenanceItems = [
-      { id: 'm_oil', assetId: 'a_tractor', name: 'Engine oil & filter', intervalType: 'usage', intervalValue: 50, lastDoneDate: addDays(T, -30), lastDoneReading: 470, dueAtReading: 520, nextDueDate: null },
+      { id: 'm_oil', assetId: 'a_tractor', name: 'Engine oil & filter', intervalType: 'usage', intervalValue: 50, lastDoneDate: addDays(T, -30), lastDoneReading: 470, dueAtReading: 520, nextDueDate: null, requirePhoto: true },
       { id: 'm_grease', assetId: 'a_tractor', name: 'Grease all fittings', intervalType: 'calendar', intervalValue: 1, intervalUnit: 'months', lastDoneDate: addDays(T, -40), lastDoneReading: null, dueAtReading: null, nextDueDate: addDays(T, -10) },
       { id: 'm_truckoil', assetId: 'a_truck', name: 'Oil change', intervalType: 'usage', intervalValue: 3000, lastDoneDate: addDays(T, -60), lastDoneReading: 81500, dueAtReading: 84500, nextDueDate: null },
       { id: 'm_well', assetId: 'a_well', name: 'Pressure & seal inspection', intervalType: 'calendar', intervalValue: 6, intervalUnit: 'months', lastDoneDate: addDays(T, -170), lastDoneReading: null, dueAtReading: null, nextDueDate: addDays(T, 10) }
@@ -145,7 +156,7 @@
     var projectTasks = [
       { id: uid('t'), projectId: 'p_shed', title: 'Pour concrete footings', description: '', assignedTo: 'u_jamie', dueDate: addDays(T, -5), done: true, doneBy: 'u_jamie', doneAt: addDays(T, -4), sort: 0 },
       { id: uid('t'), projectId: 'p_shed', title: 'Frame the three walls', description: 'Pressure-treated posts, 2x6 girts.', assignedTo: 'u_sam', dueDate: addDays(T, 3), done: false, doneBy: null, doneAt: null, sort: 1 },
-      { id: uid('t'), projectId: 'p_shed', title: 'Install the roof', description: '', assignedTo: 'u_jamie', dueDate: addDays(T, 12), done: false, doneBy: null, doneAt: null, sort: 2 },
+      { id: uid('t'), projectId: 'p_shed', title: 'Install the roof', description: '', assignedTo: 'u_jamie', dueDate: addDays(T, 12), done: false, doneBy: null, doneAt: null, sort: 2, requirePhoto: true },
       { id: uid('t'), projectId: 'p_shed', title: 'Hang the gate & trim', description: '', assignedTo: null, dueDate: null, done: false, doneBy: null, doneAt: null, sort: 3 },
       { id: uid('t'), projectId: 'p_fence', title: 'Walk the line & mark corners', description: '', assignedTo: 'u_morgan', dueDate: addDays(T, 5), done: false, doneBy: null, doneAt: null, sort: 0 }
     ];
@@ -156,6 +167,18 @@
 
     var notes = [
       { id: uid('n'), parentType: 'project', parentId: 'p_shed', userId: 'u_jamie', date: addDays(T, -4), ts: Date.now() - 86400000 * 4, body: 'Footings poured and cured — ready for framing.', photo: null }
+    ];
+    var mk = T.slice(0, 7);
+    var lastMk = shiftMonthKey(mk, -1);
+    var rentAssignments = [
+      { userId: 'u_sam', amount: 500, dueDay: 1, active: true },
+      { userId: 'u_jamie', amount: 450, dueDay: 1, active: true }
+    ];
+    var rentCharges = [
+      { id: uid('rc'), userId: 'u_sam', month: lastMk, amount: 500, dueDate: lastMk + '-01', status: 'verified', markedAt: lastMk + '-01', markedBy: 'u_sam', verifiedAt: lastMk + '-02', verifiedBy: 'u_morgan', note: '' },
+      { id: uid('rc'), userId: 'u_jamie', month: lastMk, amount: 450, dueDate: lastMk + '-01', status: 'verified', markedAt: lastMk + '-03', markedBy: 'u_jamie', verifiedAt: lastMk + '-03', verifiedBy: 'u_morgan', note: '' },
+      { id: uid('rc'), userId: 'u_sam', month: mk, amount: 500, dueDate: mk + '-01', status: 'marked', markedAt: T, markedBy: 'u_sam', verifiedAt: null, verifiedBy: null, note: 'Left cash in the office' },
+      { id: uid('rc'), userId: 'u_jamie', month: mk, amount: 450, dueDate: mk + '-01', status: 'unpaid', markedAt: null, markedBy: null, verifiedAt: null, verifiedBy: null, note: '' }
     ];
     var notificationPrefs = {};
     users.forEach(function (u) { notificationPrefs[u.id] = defaultPrefs(); });
@@ -174,17 +197,21 @@
       projectTasks: projectTasks,
       notes: notes,
       notificationPrefs: notificationPrefs,
+      rentAssignments: rentAssignments,
+      rentCharges: rentCharges,
       activity: activity
     };
   }
 
-  var CURRENT_VERSION = 3;
+  var CURRENT_VERSION = 4;
   function defaultPrefs() { return { email: 'daily', push: true, digestHour: 6 }; }
   // Forward-migrate an older saved state so testers don't lose their data on upgrades.
   function migrate(s) {
     if (!Array.isArray(s.notes)) s.notes = [];
     if (!s.notificationPrefs || typeof s.notificationPrefs !== 'object') s.notificationPrefs = {};
     (s.users || []).forEach(function (u) { if (!s.notificationPrefs[u.id]) s.notificationPrefs[u.id] = defaultPrefs(); });
+    if (!Array.isArray(s.rentAssignments)) s.rentAssignments = [];
+    if (!Array.isArray(s.rentCharges)) s.rentCharges = [];
     s.version = CURRENT_VERSION;
     return s;
   }
@@ -224,7 +251,8 @@
       id: uid('c'), name: data.name, schedule: data.schedule,
       catchUp: data.catchUp || 'skipToNext',
       assignedTo: data.assignedTo || null,
-      nextDue: data.nextDue || todayISO()
+      nextDue: data.nextDue || todayISO(),
+      requirePhoto: !!data.requirePhoto
     };
     state.chores.push(chore);
     logActivity('added chore "' + chore.name + '"');
@@ -239,6 +267,7 @@
     if (data.catchUp) chore.catchUp = data.catchUp;
     chore.assignedTo = data.assignedTo || null;
     if (data.nextDue) chore.nextDue = data.nextDue;
+    chore.requirePhoto = !!data.requirePhoto;
     logActivity('edited chore "' + chore.name + '"');
     save();
     return { chore: chore };
@@ -258,18 +287,22 @@
     while (days[d]) { streak++; d = addDays(d, -1); }
     return streak;
   }
-  function completeChore(id, notes) {
-    var chore = state.chores.filter(function (c) { return c.id === id; })[0];
-    if (!chore) return;
+  function completeChore(id, notes, photo) {
+    var chore = choreById(id);
+    if (!chore) return { error: 'No such chore.' };
+    if (chore.requirePhoto && !photo) return { error: 'This chore requires a photo to complete.' };
     var today = todayISO();
-    state.choreCompletions.push({ id: uid('cc'), choreId: id, completedBy: state.currentUserId, date: today, notes: notes || '' });
+    var prevDue = chore.nextDue;
+    state.choreCompletions.push({ id: uid('cc'), choreId: id, completedBy: state.currentUserId, date: today, notes: notes || '', photo: photo || null });
     if (chore.catchUp === 'mustCatchUp') {
       chore.nextDue = nextOccurrenceAfter(chore.schedule, chore.nextDue);
     } else {
       chore.nextDue = nextOccurrenceAfter(chore.schedule, today);
     }
+    if (!save()) { state.choreCompletions.pop(); chore.nextDue = prevDue; return { error: 'Storage is full — could not save the photo.' }; }
     logActivity('completed chore "' + chore.name + '"');
     save();
+    return { ok: true };
   }
   function deleteChore(id) {
     if (!isManager()) return { error: 'Only managers and admins can delete chores.' };
@@ -353,7 +386,8 @@
       id: uid('m'), assetId: data.assetId, name: data.name,
       intervalType: data.intervalType, intervalValue: Number(data.intervalValue),
       intervalUnit: data.intervalUnit || 'months',
-      lastDoneDate: today, lastDoneReading: null, dueAtReading: null, nextDueDate: null
+      lastDoneDate: today, lastDoneReading: null, dueAtReading: null, nextDueDate: null,
+      requirePhoto: !!data.requirePhoto
     };
     if (item.intervalType === 'calendar') {
       item.nextDueDate = item.intervalUnit === 'days' ? addDays(today, item.intervalValue) : addMonths(today, item.intervalValue);
@@ -373,6 +407,7 @@
     if (!isManager()) return { error: 'Only managers and admins can edit maintenance items.' };
     var item = maintenanceById(id); if (!item) return { error: 'No such item.' };
     if (data.name != null && String(data.name).trim()) item.name = String(data.name).trim();
+    item.requirePhoto = !!data.requirePhoto;
     var v = Number(data.intervalValue);
     if (isFinite(v) && v > 0) item.intervalValue = v;
     if (item.intervalType === 'calendar') {
@@ -403,10 +438,11 @@
   }
   function logService(itemId, data) {
     var item = state.maintenanceItems.filter(function (m) { return m.id === itemId; })[0];
-    if (!item) return;
+    if (!item) return { error: 'No such item.' };
+    if (item.requirePhoto && !data.photo) return { error: 'This item requires a photo of the completed work.' };
     var date = data.date || todayISO();
     var reading = (data.reading === '' || data.reading == null) ? null : Number(data.reading);
-    state.maintenanceLogs.push({ id: uid('ml'), itemId: itemId, userId: state.currentUserId, date: date, reading: reading, notes: data.notes || '', cost: data.cost ? Number(data.cost) : 0 });
+    state.maintenanceLogs.push({ id: uid('ml'), itemId: itemId, userId: state.currentUserId, date: date, reading: reading, notes: data.notes || '', cost: data.cost ? Number(data.cost) : 0, photo: data.photo || null });
     if (reading != null && assetById(item.assetId) && assetById(item.assetId).meterUnit) {
       state.meterReadings.push({ id: uid('mr'), assetId: item.assetId, reading: reading, userId: state.currentUserId, date: date });
     }
@@ -419,7 +455,8 @@
     }
     var asset = assetById(item.assetId);
     logActivity('logged "' + item.name + '" on ' + (asset ? asset.name : 'asset'));
-    save();
+    if (!save()) return { error: 'Storage is full — could not save.' };
+    return { ok: true };
   }
   function maintenanceLogsFor(itemId) {
     return state.maintenanceLogs.filter(function (l) { return l.itemId === itemId; })
@@ -491,7 +528,8 @@
     var task = {
       id: uid('t'), projectId: projectId, title: data.title, description: data.description || '',
       assignedTo: data.assignedTo || null, dueDate: data.dueDate || null,
-      done: false, doneBy: null, doneAt: null, sort: existing.length
+      done: false, doneBy: null, doneAt: null, sort: existing.length,
+      requirePhoto: !!data.requirePhoto
     };
     state.projectTasks.push(task);
     save();
@@ -510,13 +548,16 @@
     save();
     return { ok: true };
   }
-  function toggleTask(taskId) {
+  function toggleTask(taskId, photo) {
     var t = state.projectTasks.filter(function (x) { return x.id === taskId; })[0];
-    if (!t) return;
+    if (!t) return { error: 'No such task.' };
+    if (!t.done && t.requirePhoto && !photo) return { error: 'This task requires a photo to complete.' };
     t.done = !t.done;
     t.doneBy = t.done ? state.currentUserId : null;
     t.doneAt = t.done ? todayISO() : null;
+    t.donePhoto = t.done ? (photo || null) : null;
     save();
+    return { ok: true, task: t };
   }
   function taskById(id) { return state.projectTasks.filter(function (t) { return t.id === id; })[0] || null; }
   function updateTask(taskId, data) {
@@ -526,6 +567,7 @@
     t.description = data.description || '';
     t.assignedTo = data.assignedTo || null;
     t.dueDate = data.dueDate || null;
+    t.requirePhoto = !!data.requirePhoto;
     save();
     return { task: t };
   }
@@ -585,6 +627,138 @@
     ];
   }
 
+  /* ---------------- proof photos ---------------- */
+  function proofPhoto(kind, id) {
+    if (kind === 'chore') { var c = state.choreCompletions.filter(function (x) { return x.id === id; })[0]; return c ? c.photo : null; }
+    if (kind === 'service') { var l = state.maintenanceLogs.filter(function (x) { return x.id === id; })[0]; return l ? l.photo : null; }
+    if (kind === 'task') { var t = taskById(id); return t ? t.donePhoto : null; }
+    return null;
+  }
+
+  /* ---------------- rent ---------------- */
+  function rentAssignmentFor(userId) {
+    return state.rentAssignments.filter(function (a) { return a.userId === userId; })[0] || null;
+  }
+  function setRent(userId, amount, dueDay) {
+    if (!isManager()) return { error: 'Only managers and admins can assign rent.' };
+    var amt = Number(amount);
+    var day = Math.min(28, Math.max(1, Number(dueDay) || 1));
+    if (!isFinite(amt) || amt <= 0) return { error: 'Enter a valid monthly amount.' };
+    if (!userById(userId)) return { error: 'No such person.' };
+    var a = rentAssignmentFor(userId);
+    if (a) { a.amount = amt; a.dueDay = day; a.active = true; }
+    else state.rentAssignments.push({ userId: userId, amount: amt, dueDay: day, active: true });
+    // Keep this month's still-unpaid charge in sync with the new terms.
+    var mk = currentMonthKey();
+    var ch = state.rentCharges.filter(function (c) { return c.userId === userId && c.month === mk; })[0];
+    if (ch && ch.status === 'unpaid') { ch.amount = amt; ch.dueDate = mk + '-' + pad2(day); }
+    logActivity('set rent for ' + userName(userId) + ' to $' + amt + '/mo');
+    save();
+    return { ok: true };
+  }
+  function stopRent(userId) {
+    if (!isManager()) return { error: 'Only managers and admins can stop rent.' };
+    var a = rentAssignmentFor(userId);
+    if (a) a.active = false;
+    var mk = currentMonthKey();
+    state.rentCharges = state.rentCharges.filter(function (c) {
+      return !(c.userId === userId && c.month === mk && c.status === 'unpaid');
+    });
+    logActivity('stopped rent for ' + userName(userId));
+    save();
+    return { ok: true };
+  }
+  // Lazily create this month's charge for every active assignment.
+  function ensureRentCharges() {
+    var mk = currentMonthKey();
+    var changed = false;
+    state.rentAssignments.forEach(function (a) {
+      if (!a.active) return;
+      var exists = state.rentCharges.some(function (c) { return c.userId === a.userId && c.month === mk; });
+      if (!exists) {
+        state.rentCharges.push({
+          id: uid('rc'), userId: a.userId, month: mk, amount: a.amount,
+          dueDate: mk + '-' + pad2(a.dueDay), status: 'unpaid',
+          markedAt: null, markedBy: null, verifiedAt: null, verifiedBy: null, note: ''
+        });
+        changed = true;
+      }
+    });
+    if (changed) save();
+  }
+  function rentChargesForMonth(mk) {
+    ensureRentCharges();
+    return state.rentCharges.filter(function (c) { return c.month === mk; })
+      .sort(function (a, b) { return userName(a.userId) < userName(b.userId) ? -1 : 1; });
+  }
+  function rentChargeById(id) { return state.rentCharges.filter(function (c) { return c.id === id; })[0] || null; }
+  function rentHistoryFor(userId) {
+    return state.rentCharges.filter(function (c) { return c.userId === userId; })
+      .sort(function (a, b) { return a.month < b.month ? 1 : -1; });
+  }
+  function markRentPaid(chargeId, note) {
+    var c = rentChargeById(chargeId); if (!c) return { error: 'No such charge.' };
+    if (c.userId !== state.currentUserId && !isManager()) return { error: 'Only ' + userName(c.userId) + ' or a manager can mark this paid.' };
+    if (c.status === 'verified') return { error: 'Already verified.' };
+    c.status = 'marked';
+    c.markedAt = todayISO();
+    c.markedBy = state.currentUserId;
+    if (note != null) c.note = note;
+    logActivity('marked rent paid for ' + userName(c.userId) + ' (' + monthLabel(c.month) + ')');
+    save();
+    return { ok: true };
+  }
+  function verifyRent(chargeId) {
+    if (!isManager()) return { error: 'Only managers and admins can verify rent.' };
+    var c = rentChargeById(chargeId); if (!c) return { error: 'No such charge.' };
+    if (c.status === 'verified') return { error: 'Already verified.' };
+    if (c.status === 'unpaid') { c.markedAt = todayISO(); c.markedBy = state.currentUserId; }
+    c.status = 'verified';
+    c.verifiedAt = todayISO();
+    c.verifiedBy = state.currentUserId;
+    logActivity('verified rent from ' + userName(c.userId) + ' (' + monthLabel(c.month) + ')');
+    save();
+    return { ok: true };
+  }
+  function reopenRent(chargeId) {
+    if (!isManager()) return { error: 'Only managers and admins can reopen a charge.' };
+    var c = rentChargeById(chargeId); if (!c) return { error: 'No such charge.' };
+    c.status = 'unpaid';
+    c.markedAt = null; c.markedBy = null; c.verifiedAt = null; c.verifiedBy = null;
+    logActivity('reopened rent charge for ' + userName(c.userId));
+    save();
+    return { ok: true };
+  }
+  function rentSummary(mk) {
+    var charges = rentChargesForMonth(mk);
+    var s = { count: charges.length, unpaid: 0, marked: 0, verified: 0, due: 0, collected: 0 };
+    charges.forEach(function (c) {
+      s.due += c.amount;
+      if (c.status === 'verified') { s.verified++; s.collected += c.amount; }
+      else if (c.status === 'marked') s.marked++;
+      else s.unpaid++;
+    });
+    return s;
+  }
+
+  /* ---------------- team workload ---------------- */
+  function userWorkload(userId) {
+    var w = { choresOverdue: 0, choresToday: 0, choresUpcoming: 0, tasksOpen: 0, tasksOverdue: 0 };
+    state.chores.forEach(function (c) {
+      if (c.assignedTo !== userId) return;
+      var b = bucketForDate(c.nextDue);
+      if (b === 'overdue') w.choresOverdue++;
+      else if (b === 'today') w.choresToday++;
+      else if (b === 'upcoming') w.choresUpcoming++;
+    });
+    state.projectTasks.forEach(function (t) {
+      if (t.done || t.assignedTo !== userId) return;
+      w.tasksOpen++;
+      if (t.dueDate && bucketForDate(t.dueDate) === 'overdue') w.tasksOverdue++;
+    });
+    return w;
+  }
+
   /* ---------------- dashboard ---------------- */
   function dashboard(scope) {
     var me = state.currentUserId;
@@ -627,6 +801,19 @@
         subtitle: (proj ? proj.name : 'Project') + ' · ' + userName(t.assignedTo),
         dueDate: t.dueDate, sortKey: t.dueDate, bucket: b,
         action: 'toggle-task', actionLabel: 'Done'
+      });
+    });
+
+    rentChargesForMonth(currentMonthKey()).forEach(function (c) {
+      if (c.status === 'verified') return;
+      if (scope === 'mine' && (c.userId !== me || c.status === 'marked')) return;
+      var b = bucketForDate(c.dueDate);
+      if (b === 'later') return;
+      push({
+        kind: 'rent', id: c.id, title: 'Rent · $' + c.amount,
+        subtitle: userName(c.userId) + ' · ' + (c.status === 'marked' ? 'awaiting verification' : 'unpaid'),
+        dueDate: c.dueDate, sortKey: c.dueDate, bucket: b,
+        action: 'open-rent-charge', actionLabel: c.status === 'marked' ? 'Review' : 'Pay'
       });
     });
 
@@ -740,8 +927,13 @@
     addTask: addTask, addTasksBulk: addTasksBulk, toggleTask: toggleTask,
     taskById: taskById, updateTask: updateTask, deleteTask: deleteTask, suggestSteps: suggestSteps,
     // notes & photos
-    notesFor: notesFor, noteById: noteById, addNote: addNote, deleteNote: deleteNote,
+    notesFor: notesFor, noteById: noteById, addNote: addNote, deleteNote: deleteNote, proofPhoto: proofPhoto,
+    // rent
+    currentMonthKey: currentMonthKey, monthLabel: monthLabel,
+    rentAssignmentFor: rentAssignmentFor, setRent: setRent, stopRent: stopRent,
+    rentChargesForMonth: rentChargesForMonth, rentChargeById: rentChargeById, rentHistoryFor: rentHistoryFor,
+    markRentPaid: markRentPaid, verifyRent: verifyRent, reopenRent: reopenRent, rentSummary: rentSummary,
     // dashboard / activity
-    dashboard: dashboard, counts: counts, listActivity: listActivity
+    dashboard: dashboard, counts: counts, listActivity: listActivity, userWorkload: userWorkload
   };
 })();
