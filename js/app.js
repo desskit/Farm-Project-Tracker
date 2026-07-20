@@ -4,7 +4,7 @@
   'use strict';
 
   var S = window.Store;
-  var ui = { view: 'dashboard', scope: 'mine', projectId: null, lbWindow: 'month', dashMode: 'list', calMonth: null, calDay: null, searchQ: '' };
+  var ui = { view: 'dashboard', scope: 'mine', projectId: null, lbWindow: 'month', dashMode: 'list', calMonth: null, calDay: null, searchQ: '', moreSection: null };
 
   /* ---------------- helpers ---------------- */
   function $(sel) { return document.querySelector(sel); }
@@ -738,38 +738,100 @@
     return html;
   }
 
+  /* ---------------- More: hub of tiles + subsections ---------------- */
   function viewMore() {
+    if (ui.moreSection) return moreSubsection(ui.moreSection);
+    return moreHub();
+  }
+
+  // A single launcher tile. `badge` (optional) shows a small count/status pill.
+  function moreTile(section, icon, label, sub, badge, cls) {
+    return '<button class="more-tile ' + (cls || '') + '" data-action="more-open" data-section="' + section + '">' +
+      (badge ? '<span class="more-tile-badge">' + badge + '</span>' : '') +
+      '<span class="more-tile-ico">' + icon + '</span>' +
+      '<span class="more-tile-lbl">' + esc(label) + '</span>' +
+      (sub ? '<span class="more-tile-sub">' + esc(sub) + '</span>' : '') +
+      '</button>';
+  }
+
+  function moreHub() {
     var me = S.currentUser();
     var isAdmin = S.canManageUsers(me);
-    var prefs = S.getPrefs(me.id);
-    var acts = S.listActivity();
-    var html = '<div class="view-head"><h1>More</h1></div>';
+    var isMgr = S.isManager(me);
+    var mk = S.currentMonthKey();
 
-    // Notification preferences (preview)
-    html += '<div class="section-title">Notifications</div>' +
-      '<div class="card">' +
-        '<div class="notice">Preview — email &amp; push activate with the server phase. Choices are saved per person.</div>' +
-        '<form data-form="save-prefs">' +
-          '<div class="field"><label>Email digest</label><select name="email">' +
-            optTag('off', 'Off', prefs.email) + optTag('daily', 'Daily', prefs.email) + optTag('weekly', 'Weekly', prefs.email) +
-          '</select></div>' +
-          '<div class="field"><label>Digest time</label><select name="digestHour">' + hourOptions(prefs.digestHour) + '</select></div>' +
-          '<label class="inline-check"><input type="checkbox" name="push" ' + (prefs.push ? 'checked' : '') + ' /> Push notifications</label>' +
-          '<button class="btn primary block" type="submit" style="margin-top:12px">Save preferences</button>' +
-        '</form>' +
-      '</div>';
+    // Contextual counts for tile badges.
+    var low = S.lowStockItems().length;
+    var rs = S.rentSummary(mk);
+    var myUnpaid = S.rentChargesForMonth(mk).filter(function (c) { return c.userId === me.id && c.status !== 'verified'; }).length;
+    var rentBadge = isMgr ? (rs.unpaid ? String(rs.unpaid) : '') : (myUnpaid ? String(myUnpaid) : '');
+    var myPts = S.userPoints ? S.userPoints(me.id, S.currentMonthKey()) : null;
 
-    // Rent
+    var html = '<div class="view-head"><div><h1>More</h1>' +
+      '<p class="subtle">Everything beyond today’s work</p></div></div>';
+
+    // Who am I — quick identity card.
+    html += '<div class="card who-card"><div class="who-avatar">' + esc((me.name || '?').charAt(0)) + '</div>' +
+      '<div class="who-main"><p class="who-name">' + esc(me.name) + '</p>' +
+      '<p class="who-role">' + esc(me.role) + '</p></div>' +
+      '<button class="btn small ghost" data-action="more-open" data-section="people">Switch</button></div>';
+
+    // Primary work tiles.
+    html += '<div class="section-title">Farm</div><div class="tile-grid">';
+    html += moreTile('supplies', '📦', 'Supplies', 'Feed, fuel & parts', low ? String(low) : '', low ? 'warn' : '');
+    html += moreTile('board', '🏆', 'Leaderboard', myPts != null ? myPts + ' pts this month' : 'Points & streaks', '');
+    html += moreTile('rent', '💵', 'Rent', isMgr ? 'Collect & verify' : 'Your charges', rentBadge, rentBadge ? 'warn' : '');
+    if (isMgr) html += moreTile('team', '👥', 'Team', 'Farm-wide status', '');
+    html += '</div>';
+
+    // People & settings tiles.
+    html += '<div class="section-title">People &amp; settings</div><div class="tile-grid">';
+    html += moreTile('people', '🧑‍🌾', 'People', isAdmin ? 'Manage the crew' : 'The crew', '');
+    html += moreTile('activity', '🕙', 'Activity', 'Recent history', '');
+    html += moreTile('notifications', '🔔', 'Notifications', 'Digests & push', '');
+    html += moreTile('weather', '🌤️', 'Weather', 'Forecast location', '');
+    html += moreTile('data', '💾', 'Data', 'Backup & reset', '');
+    html += '</div>';
+
+    return html;
+  }
+
+  var MORE_TITLES = {
+    supplies: 'Supplies', board: 'Leaderboard', rent: 'Rent', team: 'Team',
+    people: 'People', activity: 'Activity', notifications: 'Notifications', data: 'Data & backup'
+  };
+  function moreSubHead(section) {
+    return '<div class="sub-head"><button class="btn small ghost back-btn" data-action="more-back">‹ More</button>' +
+      '<h1>' + esc(MORE_TITLES[section] || 'More') + '</h1></div>';
+  }
+  function moreSubsection(section) {
+    if (section === 'supplies') return moreSubHead(section) + inventoryBody();
+    if (section === 'board') return moreSubHead(section) + leaderboardBody();
+    if (section === 'team') return moreSubHead(section) + teamDashboard();
+    if (section === 'rent') return moreSubHead(section) + rentBody();
+    if (section === 'people') return moreSubHead(section) + peopleBody();
+    if (section === 'activity') return moreSubHead(section) + activityBody();
+    if (section === 'notifications') return moreSubHead(section) + notificationsBody();
+    if (section === 'data') return moreSubHead(section) + dataBody();
+    // Fallback
+    ui.moreSection = null; return moreHub();
+  }
+
+  function rentBody() {
+    var me = S.currentUser();
     var mk = S.currentMonthKey();
     var isMgr = S.isManager(me);
     var charges = S.rentChargesForMonth(mk).filter(function (c) { return isMgr || c.userId === me.id; });
     var rs = S.rentSummary(mk);
-    html += '<div class="section-title">Rent · ' + esc(S.monthLabel(mk)) + '</div>';
+    var html = '<p class="subtle" style="margin:-4px 0 10px">' + esc(S.monthLabel(mk)) + '</p>';
     if (isMgr) {
-      html += '<button class="btn block" data-action="open-rent-assign" style="margin-bottom:8px">+ Assign / edit rent</button>';
+      html += '<button class="btn block primary" data-action="open-rent-assign" style="margin-bottom:10px">+ Assign / edit rent</button>';
       if (rs.count) {
-        html += '<div class="notice">$' + rs.collected.toFixed(0) + ' of $' + rs.due.toFixed(0) + ' verified · ' +
-          rs.unpaid + ' unpaid · ' + rs.marked + ' awaiting verification</div>';
+        html += '<div class="stat-row">' +
+          statTile('$' + rs.collected.toFixed(0), 'collected') +
+          statTile('$' + rs.due.toFixed(0), 'due') +
+          statTile(String(rs.unpaid), 'unpaid', rs.unpaid ? 'warn' : '') +
+          statTile(String(rs.marked), 'to verify', rs.marked ? 'today' : '') + '</div>';
       }
     }
     if (!charges.length) {
@@ -789,10 +851,14 @@
           '</div></div></div>';
       }).join('');
     }
+    return html;
+  }
 
-    // People / admin
-    html += '<div class="section-title">People' + (isAdmin ? '' : ' · view only') + '</div>';
-    if (isAdmin) html += '<button class="btn block" data-action="open-add-user" style="margin-bottom:8px">+ Add person</button>';
+  function peopleBody() {
+    var me = S.currentUser();
+    var isAdmin = S.canManageUsers(me);
+    var html = '';
+    if (isAdmin) html += '<button class="btn block primary" data-action="open-add-user" style="margin-bottom:10px">+ Add person</button>';
     html += S.users().map(function (u) {
       var isMe = u.id === me.id;
       var roleCtrl = (isAdmin && !isMe)
@@ -801,49 +867,67 @@
       var actions = (isMe ? '<span class="badge upcoming">You</span>' :
         '<button class="btn small" data-action="switch-to-user" data-id="' + u.id + '">Act as</button>') +
         (isAdmin && !isMe ? '<button class="btn small ghost danger" data-action="remove-user" data-id="' + u.id + '">Remove</button>' : '');
-      return '<div class="card"><div class="item"><div class="item-main">' +
+      return '<div class="card"><div class="item">' +
+        '<div class="who-avatar sm">' + esc((u.name || '?').charAt(0)) + '</div>' +
+        '<div class="item-main">' +
         '<p class="item-title">' + esc(u.name) + '</p>' + roleCtrl +
         '</div><div class="row-actions">' + actions + '</div></div></div>';
     }).join('');
     if (!isAdmin) html += '<p class="subtle">Only admins can add or change people — switch to Dale (admin) to try it.</p>';
+    return html;
+  }
 
-    // Recent activity
-    html += '<div class="section-title">Recent activity</div><div class="card">';
-    if (!acts.length) { html += '<p class="subtle">Nothing yet.</p>'; }
-    else {
-      html += acts.map(function (a) {
-        var when = new Date(a.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-        return '<div class="hist-row"><span>' + esc(S.userName(a.userId)) + ' ' + esc(a.text) + '</span><span class="subtle">' + when + '</span></div>';
-      }).join('');
-    }
-    html += '</div>';
+  function activityBody() {
+    var acts = S.listActivity();
+    if (!acts.length) return '<div class="empty">Nothing yet.</div>';
+    return '<div class="card">' + acts.map(function (a) {
+      var when = new Date(a.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      return '<div class="hist-row"><span>' + esc(S.userName(a.userId)) + ' ' + esc(a.text) + '</span><span class="subtle">' + when + '</span></div>';
+    }).join('') + '</div>';
+  }
 
-    // Data / backup
-    html += '<div class="section-title">Data</div>' +
-      '<div class="stack">' +
+  function notificationsBody() {
+    var me = S.currentUser();
+    var prefs = S.getPrefs(me.id);
+    return '<div class="notice">Preview — email &amp; push activate with the server phase. Choices are saved per person.</div>' +
+      '<form data-form="save-prefs">' +
+        '<div class="field"><label>Email digest</label><select name="email">' +
+          optTag('off', 'Off', prefs.email) + optTag('daily', 'Daily', prefs.email) + optTag('weekly', 'Weekly', prefs.email) +
+        '</select></div>' +
+        '<div class="field"><label>Digest time</label><select name="digestHour">' + hourOptions(prefs.digestHour) + '</select></div>' +
+        '<label class="inline-check"><input type="checkbox" name="push" ' + (prefs.push ? 'checked' : '') + ' /> Push notifications</label>' +
+        '<button class="btn primary block" type="submit" style="margin-top:12px">Save preferences</button>' +
+      '</form>';
+  }
+
+  function dataBody() {
+    return '<div class="stack">' +
         '<button class="btn block" data-action="export-data">⬇︎ Export backup (JSON)</button>' +
         '<label class="btn block" style="text-align:center;cursor:pointer">⬆︎ Import backup' +
           '<input type="file" accept="application/json,.json" data-action="import-file" hidden /></label>' +
         '<button class="btn block danger" data-action="reset-data">Reset demo data</button>' +
       '</div>' +
       '<div class="notice" style="margin-top:10px">Data lives in this browser only. Export to back it up or move it to another device.</div>';
-    return html;
   }
 
-  function viewLeaderboard() {
+  // Small labeled stat tile used in headers/summaries.
+  function statTile(value, label, cls) {
+    return '<div class="stat-tile ' + (cls || '') + '"><span class="stat-val">' + value + '</span>' +
+      '<span class="stat-lbl">' + esc(label) + '</span></div>';
+  }
+
+  function leaderboardBody() {
     var win = ui.lbWindow || 'month';
     var rows = S.leaderboard(win);
     var meId = S.currentUser().id;
     var top = rows[0];
     var anyPoints = rows.some(function (r) { return r.points > 0; });
     var html = '' +
-      '<div class="view-head">' +
-        '<div><h1>🏆 Leaderboard</h1><p class="subtle">Celebrating great work · ' +
-          (win === 'month' ? esc(S.monthLabel(S.currentMonthKey())) : 'all time') + '</p></div>' +
-        '<div class="segmented">' +
-          '<button class="' + (win === 'month' ? 'active' : '') + '" data-action="set-lb" data-win="month">Month</button>' +
-          '<button class="' + (win === 'all' ? 'active' : '') + '" data-action="set-lb" data-win="all">All time</button>' +
-        '</div>' +
+      '<p class="subtle" style="margin:-4px 0 10px">Celebrating great work · ' +
+        (win === 'month' ? esc(S.monthLabel(S.currentMonthKey())) : 'all time') + '</p>' +
+      '<div class="segmented" style="margin-bottom:12px">' +
+        '<button class="' + (win === 'month' ? 'active' : '') + '" data-action="set-lb" data-win="month">Month</button>' +
+        '<button class="' + (win === 'all' ? 'active' : '') + '" data-action="set-lb" data-win="all">All time</button>' +
       '</div>';
 
     if (!anyPoints) {
@@ -1079,12 +1163,11 @@
       (low ? '<div class="item-badges"><span class="badge overdue">Low — reorder</span></div>' : '') + '</div>' +
       '<div class="inv-qty">' + i.qty + '<span>' + esc(i.unit) + '</span></div></div></div>';
   }
-  function viewInventory() {
+  function inventoryBody() {
     var items = S.listInventory();
     var canEdit = S.isManager();
     var low = S.lowStockItems();
-    var html = '<div class="view-head"><h1>Inventory</h1>' +
-      (canEdit ? '<button class="btn primary small" data-action="open-add-inventory">+ Add</button>' : '') + '</div>';
+    var html = canEdit ? '<button class="btn primary block" data-action="open-add-inventory" style="margin-bottom:10px">+ Add supply</button>' : '';
     if (low.length) {
       html += '<div class="section-title">⚠️ Reorder list<span class="count-pill">' + low.length + '</span></div>';
       html += low.map(invCard).join('');
@@ -1184,8 +1267,8 @@
     else if (type === 'maintenance') { ui.view = 'maintenance'; render(); formLogService(id); }
     else if (type === 'project') { ui.projectId = id; ui.view = 'projects'; render(); }
     else if (type === 'task') { ui.projectId = el.getAttribute('data-project'); ui.view = 'projects'; render(); }
-    else if (type === 'inventory') { ui.view = 'inventory'; render(); formInventoryDetail(id); }
-    else if (type === 'user') { ui.view = 'more'; render(); }
+    else if (type === 'inventory') { ui.view = 'more'; ui.moreSection = 'supplies'; render(); formInventoryDetail(id); }
+    else if (type === 'user') { ui.view = 'more'; ui.moreSection = 'people'; render(); }
   }
 
   /* ---------------- asset docs & QR ---------------- */
@@ -1257,13 +1340,14 @@
   function render() {
     renderUserArea();
     var main = $('#view');
+    // Legacy view ids now live inside the More hub.
+    if (ui.view === 'inventory') { ui.view = 'more'; ui.moreSection = 'supplies'; }
+    else if (ui.view === 'leaderboard') { ui.view = 'more'; ui.moreSection = 'board'; }
     var v = ui.view;
     if (v === 'dashboard') main.innerHTML = viewDashboard();
     else if (v === 'chores') main.innerHTML = viewChores();
     else if (v === 'maintenance') main.innerHTML = viewMaintenance();
     else if (v === 'projects') main.innerHTML = viewProjects();
-    else if (v === 'inventory') main.innerHTML = viewInventory();
-    else if (v === 'leaderboard') main.innerHTML = viewLeaderboard();
     else if (v === 'search') main.innerHTML = viewSearch();
     else if (v === 'more') main.innerHTML = viewMore();
     document.querySelectorAll('.nav-btn').forEach(function (btn) {
@@ -1273,6 +1357,18 @@
     var badge = $('#nav-badge');
     badge.hidden = overdue === 0;
     badge.textContent = overdue > 9 ? '9+' : String(overdue);
+    // "More" badge: sum of things needing attention that live under More.
+    var mBadge = $('#more-badge');
+    if (mBadge) {
+      var mk = S.currentMonthKey();
+      var me = S.currentUser();
+      var attn = S.lowStockItems().length;
+      attn += S.isManager(me)
+        ? S.rentSummary(mk).unpaid
+        : S.rentChargesForMonth(mk).filter(function (c) { return c.userId === me.id && c.status === 'unpaid'; }).length;
+      mBadge.hidden = attn === 0;
+      mBadge.textContent = attn > 9 ? '9+' : String(attn);
+    }
     window.scrollTo(0, 0);
   }
 
@@ -1670,7 +1766,13 @@
   function handleAction(action, el) {
     var id = el.getAttribute('data-id');
     switch (action) {
-      case 'switch-view': ui.view = el.getAttribute('data-view'); ui.projectId = null; render(); break;
+      case 'switch-view': ui.view = el.getAttribute('data-view'); ui.projectId = null; ui.moreSection = null; render(); break;
+      case 'more-open': {
+        var sec = el.getAttribute('data-section');
+        if (sec === 'weather') { formWeatherSetup(); break; }
+        ui.moreSection = sec; render(); break;
+      }
+      case 'more-back': ui.moreSection = null; render(); break;
       case 'set-scope': ui.scope = el.getAttribute('data-scope'); render(); break;
       case 'set-lb': ui.lbWindow = el.getAttribute('data-win'); render(); break;
       case 'close-modal': closeModal(); break;

@@ -340,6 +340,7 @@
       chore.nextDue = nextOccurrenceAfter(chore.schedule, today);
     }
     chore.sentBack = null;
+    stopTimersFor('chore', id);
     if (!save()) { state.choreCompletions.pop(); chore.nextDue = prevDue; return { error: 'Storage is full — could not save the photo.' }; }
     logActivity('completed chore "' + chore.name + '"');
     save();
@@ -495,6 +496,7 @@
       item.dueAtReading = (item.lastDoneReading || 0) + item.intervalValue;
     }
     item.sentBack = null;
+    stopTimersFor('maintenance', itemId);
     var asset = assetById(item.assetId);
     logActivity('logged "' + item.name + '" on ' + (asset ? asset.name : 'asset'));
     if (!save()) return { error: 'Storage is full — could not save.' };
@@ -598,7 +600,7 @@
     t.doneBy = t.done ? state.currentUserId : null;
     t.doneAt = t.done ? todayISO() : null;
     t.donePhoto = t.done ? (photo || null) : null;
-    if (t.done) t.sentBack = null;
+    if (t.done) { t.sentBack = null; stopTimersFor('task', taskId); }
     save();
     return { ok: true, task: t };
   }
@@ -1162,6 +1164,17 @@
     e.end = Date.now(); e.seconds = Math.max(1, Math.round((e.end - e.start) / 1000));
     logActivity('logged ' + fmtDur(e.seconds) + ' of work');
     save(); return { ok: true, entry: e };
+  }
+  // End every still-running timer for an item (all users) — called when the
+  // item is completed so the clock stops automatically.
+  function stopTimersFor(kind, refId) {
+    var stopped = false;
+    state.timeEntries.forEach(function (e) {
+      if (e.kind === kind && e.refId === refId && !e.end) {
+        e.end = Date.now(); e.seconds = Math.max(1, Math.round((e.end - e.start) / 1000)); stopped = true;
+      }
+    });
+    return stopped;
   }
   function timeEntriesFor(kind, refId) { return state.timeEntries.filter(function (e) { return e.kind === kind && e.refId === refId && e.end; }).sort(function (a, b) { return b.start - a.start; }); }
   function totalSeconds(kind, refId) { return state.timeEntries.reduce(function (s, e) { return (e.kind === kind && e.refId === refId && e.end) ? s + (e.seconds || 0) : s; }, 0); }

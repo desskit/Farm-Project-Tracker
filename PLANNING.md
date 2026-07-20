@@ -119,7 +119,9 @@ per-item history. Managers add, edit, and delete items; anyone can log usage.
 Each chore, maintenance item, and project task has a lightweight **Start / Stop timer** so
 workers can measure roughly how long work takes. Running timers show a live elapsed count and
 collect in a **timers strip** on the dashboard for easy stopping. Stopping logs the elapsed
-seconds; total logged time is shown on the item. Nothing heavyweight — just a stopwatch per item.
+seconds; total logged time is shown on the item. **Marking an item done automatically stops its
+running timer** (any user's) so the clock never keeps ticking after the work is finished.
+Nothing heavyweight — just a stopwatch per item.
 
 ### 2.11 Multi-step checklists (chores)
 
@@ -190,8 +192,18 @@ Three channels, all opt-in per user via a notification preferences page:
 - **History** — activity log across the whole farm (who did what, when).
 - **Admin** — user management, notification settings, backup/export.
 
+### Navigation (prototype)
+
+The prototype keeps a focused **five-tab bottom bar** — **Today · Chores · Upkeep · Projects ·
+More** — with global **search** in the top bar. **More** is a **hub of tiles** that launch every
+secondary area (Supplies, Leaderboard, Rent, Team, People, Activity, Notifications, Weather
+location, Data & backup); each opens as a subsection with a back arrow. This keeps the bar
+uncluttered while giving a single, scalable home for everything beyond the day's core work — new
+sections simply become new tiles. Tiles surface small attention badges (e.g. low-stock count,
+unpaid rent), and the More tab itself shows a combined badge.
+
 All screens are designed phone-first (large tap targets, works one-handed at the barn),
-scaling up to desktop.
+scaling up to desktop, and adapt to light or dark mode.
 
 ## 6. Tech Stack
 

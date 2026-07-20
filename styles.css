@@ -1,42 +1,51 @@
 /* Farm Project Tracker — static prototype styles (mobile-first) */
 
 :root {
-  --bg: #f5f4ef;
+  --bg: #f3f2ec;
   --surface: #ffffff;
-  --surface-2: #efeee7;
-  --text: #1e2420;
+  --surface-2: #ecebe3;
+  --text: #1c221e;
   --muted: #6b7269;
-  --border: #e0ded4;
+  --border: #e2e0d6;
   --brand: #2f6f4f;
+  --brand-2: #3f855f;
   --brand-ink: #ffffff;
+  --brand-soft: #e7f1ea;
+  --accent: #b8860b;
   --overdue: #c0392b;
   --overdue-bg: #fbeae7;
   --today: #b8860b;
   --today-bg: #fbf3df;
   --upcoming: #2f6f4f;
   --upcoming-bg: #e7f1ea;
-  --radius: 14px;
-  --shadow: 0 1px 3px rgba(0, 0, 0, .08), 0 4px 14px rgba(0, 0, 0, .05);
-  --nav-h: 62px;
+  --radius: 16px;
+  --radius-sm: 11px;
+  --shadow: 0 1px 2px rgba(30, 40, 30, .06), 0 6px 18px rgba(30, 40, 30, .05);
+  --shadow-lg: 0 6px 26px rgba(30, 40, 30, .12);
+  --nav-h: 64px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #14181500;
-    --bg: #141815;
-    --surface: #1e231f;
-    --surface-2: #262c26;
+    --bg: #12160f;
+    --surface: #1c211c;
+    --surface-2: #262c25;
     --text: #e8ebe6;
     --muted: #9aa39a;
-    --border: #313a32;
+    --border: #303a30;
     --brand: #4c9a72;
+    --brand-2: #5aad82;
+    --brand-ink: #ffffff;
+    --brand-soft: #1f2f26;
+    --accent: #e0b24a;
     --overdue: #e57368;
     --overdue-bg: #3a2320;
     --today: #e0b24a;
     --today-bg: #352d19;
     --upcoming: #66b98d;
     --upcoming-bg: #1f2f26;
-    --shadow: 0 1px 3px rgba(0, 0, 0, .4);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .35);
+    --shadow-lg: 0 8px 28px rgba(0, 0, 0, .5);
   }
 }
 
@@ -61,9 +70,10 @@ p { margin: 0 0 .6em; }
   position: sticky;
   top: 0;
   z-index: 20;
-  background: var(--brand);
+  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
   color: var(--brand-ink);
   padding-top: env(safe-area-inset-top);
+  box-shadow: 0 2px 10px rgba(20, 40, 25, .12);
 }
 .topbar-inner {
   display: flex;
@@ -111,19 +121,37 @@ p { margin: 0 0 .6em; }
   gap: 12px;
   margin-bottom: 12px;
 }
-.view-head h1 { font-size: 22px; }
+.view-head h1 { font-size: 25px; letter-spacing: -.3px; }
 .subtle { color: var(--muted); font-size: 14px; }
 .section-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 18px 0 8px;
-  font-size: 14px;
-  font-weight: 700;
+  margin: 22px 0 9px;
+  font-size: 12.5px;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: .6px;
+  letter-spacing: .8px;
   color: var(--muted);
 }
+.section-title::before {
+  content: "";
+  width: 3px;
+  height: 13px;
+  border-radius: 2px;
+  background: var(--brand);
+  opacity: .55;
+}
+
+/* Subsection header with a back arrow (More hub, etc.) */
+.sub-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.sub-head h1 { font-size: 23px; letter-spacing: -.3px; }
+.back-btn { padding-left: 4px; padding-right: 10px; }
 .count-pill {
   font-size: 12px;
   background: var(--surface-2);
@@ -248,7 +276,8 @@ button { font-family: inherit; }
   right: 0;
   z-index: 20;
   display: flex;
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(10px);
   border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -260,15 +289,23 @@ button { font-family: inherit; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   padding: 8px 4px;
   min-height: var(--nav-h);
   justify-content: center;
   cursor: pointer;
   font-size: 11px;
+  transition: color .15s;
 }
-.nav-btn .nav-ico { font-size: 20px; line-height: 1; position: relative; }
+.nav-btn .nav-ico {
+  font-size: 20px; line-height: 1; position: relative;
+  width: 46px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 999px;
+  transition: background .18s;
+}
 .nav-btn.active { color: var(--brand); font-weight: 700; }
+.nav-btn.active .nav-ico { background: var(--brand-soft); }
 .nav-badge {
   position: absolute; top: -5px; right: -12px;
   min-width: 17px; height: 17px; padding: 0 4px;
@@ -475,3 +512,78 @@ button { font-family: inherit; }
 
 /* ---------------- top-bar search icon ---------------- */
 .topbar-icon { font-size: 18px; }
+
+/* ---------------- More hub: launcher tiles ---------------- */
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.more-tile {
+  position: relative;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 14px;
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: transform .12s, box-shadow .12s, border-color .12s;
+  color: var(--text);
+}
+.more-tile:active { transform: translateY(1px) scale(.995); }
+.more-tile:hover { box-shadow: var(--shadow-lg); border-color: color-mix(in srgb, var(--brand) 30%, var(--border)); }
+.more-tile-ico {
+  font-size: 26px;
+  line-height: 1;
+  width: 46px; height: 46px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 12px;
+  background: var(--brand-soft);
+  margin-bottom: 8px;
+}
+.more-tile-lbl { font-size: 15.5px; font-weight: 700; }
+.more-tile-sub { font-size: 12.5px; color: var(--muted); }
+.more-tile-badge {
+  position: absolute; top: 12px; right: 12px;
+  min-width: 20px; height: 20px; padding: 0 6px;
+  border-radius: 999px;
+  background: var(--overdue); color: #fff;
+  font-size: 12px; font-weight: 800; line-height: 20px; text-align: center;
+}
+.more-tile.warn .more-tile-ico { background: var(--overdue-bg); }
+
+/* ---------------- "Who am I" identity card ---------------- */
+.who-card { display: flex; align-items: center; gap: 12px; }
+.who-avatar {
+  width: 46px; height: 46px; flex: 0 0 46px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--brand), var(--brand-2));
+  color: #fff; font-weight: 800; font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+  text-transform: uppercase;
+}
+.who-avatar.sm { width: 38px; height: 38px; flex-basis: 38px; font-size: 16px; }
+.who-main { flex: 1; min-width: 0; }
+.who-name { font-size: 16px; font-weight: 700; }
+.who-role { font-size: 13px; color: var(--muted); text-transform: capitalize; }
+
+/* ---------------- stat tiles (summaries) ---------------- */
+.stat-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.stat-tile {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 8px;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+.stat-val { display: block; font-size: 20px; font-weight: 800; line-height: 1.1; }
+.stat-lbl { display: block; font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-top: 3px; }
+.stat-tile.warn .stat-val { color: var(--overdue); }
+.stat-tile.today .stat-val { color: var(--today); }
