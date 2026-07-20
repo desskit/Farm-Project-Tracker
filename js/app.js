@@ -1039,6 +1039,27 @@
     if (code >= 95) return '⛈️';
     return '🌡️';
   }
+  // Fosberg Fire Weather Index (FFWI) from temperature (°F), relative
+  // humidity (%), and wind (mph) — a standard keyless estimate of fire danger.
+  // Returns null when inputs are missing (older/partial forecasts).
+  var FIRE_RANK = { low: 0, mod: 1, high: 2, vhigh: 3, extreme: 4 };
+  function fireDanger(t, h, u) {
+    if (t == null || h == null || u == null) return null;
+    var m;
+    if (h <= 10) m = 0.03229 + 0.281073 * h - 0.000578 * h * t;
+    else if (h <= 50) m = 2.22749 + 0.160107 * h - 0.014784 * t;
+    else m = 21.0606 + 0.005565 * h * h - 0.00035 * h * t - 0.483199 * h;
+    var mr = m / 30;
+    var eta = 1 - 2 * mr + 1.5 * mr * mr - 0.5 * mr * mr * mr;
+    var idx = Math.round(eta * Math.sqrt(1 + u * u) / 0.3002);
+    idx = Math.max(0, Math.min(100, idx));
+    var lv = idx < 15 ? { key: 'low', label: 'Low' }
+      : idx < 30 ? { key: 'mod', label: 'Moderate' }
+        : idx < 45 ? { key: 'high', label: 'High' }
+          : idx < 60 ? { key: 'vhigh', label: 'Very High' }
+            : { key: 'extreme', label: 'Extreme' };
+    return { index: idx, key: lv.key, label: lv.label, rank: FIRE_RANK[lv.key] };
+  }
   function weatherCard() {
     var w = S.getWeather();
     if (!w.lat || !w.forecast) {
@@ -1047,18 +1068,38 @@
         '<p class="item-sub">Add your farm location for a 7-day forecast.</p></div>' +
         '<button class="btn small primary" data-action="weather-setup">Set location</button></div></div>';
     }
+    var fires = [];
     var days = w.forecast.slice(0, 7).map(function (d) {
+      var fire = fireDanger(d.hi, d.rh, d.wind);
+      fires.push(fire);
       return '<div class="wx-day"><div class="wx-dow">' + esc(d.dow) + '</div>' +
         '<div class="wx-emoji">' + weatherEmoji(d.code) + '</div>' +
         '<div class="wx-hi">' + Math.round(d.hi) + '°</div>' +
         '<div class="wx-lo">' + Math.round(d.lo) + '°</div>' +
-        (d.precip != null ? '<div class="wx-precip">💧' + Math.round(d.precip) + '%</div>' : '') + '</div>';
+        (d.precip != null ? '<div class="wx-precip">💧' + Math.round(d.precip) + '%</div>' : '') +
+        (fire ? '<div class="wx-fire fire-' + fire.key + '" title="Fire danger: ' + fire.label + '"></div>' : '') +
+        '</div>';
     }).join('');
+
+    // Fire-danger banner: today's level, plus a heads-up if the week peaks higher.
+    var fireBanner = '';
+    var today = fires[0];
+    if (today) {
+      var peak = today, peakIdx = 0;
+      fires.forEach(function (f, i) { if (f && f.rank > peak.rank) { peak = f; peakIdx = i; } });
+      var peakNote = (peak.rank > today.rank && w.forecast[peakIdx])
+        ? ' · <strong>' + peak.label + '</strong> by ' + esc(w.forecast[peakIdx].dow) : '';
+      fireBanner = '<div class="wx-fire-banner fire-' + today.key + '">' +
+        '<span>🔥 Fire danger: <strong>' + today.label + '</strong>' + peakNote + '</span>' +
+        '<span class="wx-fire-est" title="Estimated from temperature, humidity &amp; wind (Fosberg index). Not an official warning.">est.</span></div>';
+    }
+
     var ago = w.fetchedAt ? Math.round((Date.now() - w.fetchedAt) / 3600000) : null;
     return '<div class="card wx-card">' +
       '<div class="wx-head"><span>🌤️ ' + esc(w.label || '7-day forecast') + '</span>' +
       '<button class="btn small ghost" data-action="weather-refresh" aria-label="Refresh">↻</button></div>' +
       '<div class="wx-row">' + days + '</div>' +
+      fireBanner +
       '<p class="subtle" style="margin-top:6px">' + (ago != null ? 'Updated ' + (ago === 0 ? 'just now' : ago + 'h ago') : '') +
       ' · <span class="chip-link" data-action="weather-setup">change location</span></p></div>';
   }
@@ -1067,15 +1108,35 @@
     if (!w.lat) { formWeatherSetup(); return; }
     toast('Fetching forecast…');
     var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + w.lat + '&longitude=' + w.lon +
-      '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=7&temperature_unit=fahrenheit';
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max' +
+      '&hourly=relative_humidity_2m,wind_speed_10m' +
+      '&timezone=auto&forecast_days=7&temperature_unit=fahrenheit&wind_speed_unit=mph';
     fetch(url).then(function (r) { return r.json(); }).then(function (j) {
       if (!j || !j.daily) throw new Error('bad');
+      // Aggregate hourly humidity/wind into each day's fire-relevant extremes:
+      // the day's lowest humidity and highest wind drive the fire index.
+      var hr = j.hourly || {};
+      function dayExtremes(dateStr) {
+        var minRH = null, maxW = null;
+        if (hr.time) {
+          for (var k = 0; k < hr.time.length; k++) {
+            if (hr.time[k].indexOf(dateStr) !== 0) continue;
+            var rh = hr.relative_humidity_2m ? hr.relative_humidity_2m[k] : null;
+            var wd = hr.wind_speed_10m ? hr.wind_speed_10m[k] : null;
+            if (rh != null && (minRH === null || rh < minRH)) minRH = rh;
+            if (wd != null && (maxW === null || wd > maxW)) maxW = wd;
+          }
+        }
+        return { rh: minRH, wind: maxW };
+      }
       var dd = j.daily, out = [];
       for (var i = 0; i < dd.time.length; i++) {
+        var ext = dayExtremes(dd.time[i]);
         out.push({
           dow: new Date(dd.time[i] + 'T00:00').toLocaleDateString(undefined, { weekday: 'short' }),
           code: dd.weather_code[i], hi: dd.temperature_2m_max[i], lo: dd.temperature_2m_min[i],
-          precip: dd.precipitation_probability_max ? dd.precipitation_probability_max[i] : null
+          precip: dd.precipitation_probability_max ? dd.precipitation_probability_max[i] : null,
+          rh: ext.rh, wind: ext.wind
         });
       }
       S.setForecast(out); toast('Forecast updated'); render();

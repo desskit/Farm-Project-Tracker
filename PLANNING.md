@@ -139,6 +139,11 @@ receipts and manuals uploaded as images or PDFs, stored inline and viewable from
 
 - **7-day weather** on the dashboard via the free open-meteo.com forecast API (no key/account);
   location is set manually or from device geolocation, and it degrades gracefully offline.
+- **Fire danger** per day, computed from the forecast's temperature, humidity, and wind using
+  the standard **Fosberg Fire Weather Index** — shown as a color heat-bar under each day plus a
+  headline banner for today (with a heads-up when the week peaks higher). It is clearly labeled
+  an **estimate** ("est."), not a substitute for official red-flag warnings from authorities, and
+  is omitted when a forecast lacks the humidity/wind inputs.
 - **Calendar view** — a month grid toggled from the dashboard, with color-coded dots per day
   (chore / upkeep / task / rent) and a tap-through day agenda.
 - **Global search** — a top-bar search that spans chores, assets, upkeep, projects, tasks,
