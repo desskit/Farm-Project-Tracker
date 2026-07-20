@@ -380,5 +380,22 @@ button { font-family: inherit; }
 .tile.bad .t-num { color: var(--overdue); }
 .tile.warn .t-num { color: var(--today); }
 .tile.good .t-num { color: var(--upcoming); }
+
+/* Leaderboard */
+.champ {
+  display: flex; align-items: center; gap: 14px;
+  background: linear-gradient(135deg, #f6d78a, #e9b949);
+  color: #3a2d05; border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 16px; margin-bottom: 12px;
+}
+.champ-emoji { font-size: 38px; line-height: 1; }
+.champ-name { font-size: 19px; font-weight: 800; }
+.champ-sub { font-size: 13.5px; opacity: .85; }
+.lb-row { display: flex; align-items: center; gap: 12px; }
+.lb-rank { font-size: 20px; font-weight: 800; min-width: 34px; text-align: center; color: var(--muted); }
+.lb-pts { font-size: 22px; font-weight: 800; text-align: right; line-height: 1; }
+.lb-pts span { display: block; font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.lb-first { border-color: #e9b949; }
+.lb-me { outline: 2px solid var(--brand); outline-offset: -2px; }
 .inline-check { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text); margin: 0; }
 .inline-check input { width: 20px; height: 20px; }

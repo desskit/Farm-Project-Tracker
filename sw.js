@@ -1,7 +1,7 @@
 /* Farm Project Tracker — minimal service worker.
  * Network-first for navigations/assets so testing always gets fresh files,
  * with a cache fallback for offline use. Bump CACHE to invalidate. */
-var CACHE = 'fpt-cache-v1';
+var CACHE = 'fpt-cache-v2';
 var ASSETS = [
   './',
   './index.html',

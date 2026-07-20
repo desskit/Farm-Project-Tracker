@@ -4,7 +4,7 @@
   'use strict';
 
   var S = window.Store;
-  var ui = { view: 'dashboard', scope: 'mine', projectId: null };
+  var ui = { view: 'dashboard', scope: 'mine', projectId: null, lbWindow: 'month' };
 
   /* ---------------- helpers ---------------- */
   function $(sel) { return document.querySelector(sel); }
@@ -155,6 +155,25 @@
       '</div>';
   }
   function kindLabel(k) { return k === 'chore' ? 'Chore' : k === 'maintenance' ? 'Upkeep' : k === 'rent' ? 'Rent' : 'Project task'; }
+  function openItemCard(it) {
+    return '<div class="card"><div class="item">' +
+      '<div class="left-rail ' + (it.bucket || 'later') + '"></div>' +
+      '<div class="item-main">' +
+        '<p class="item-title">' + esc(it.title) + '</p>' +
+        '<p class="item-sub">' + esc(it.subtitle) + '</p>' +
+        '<div class="item-badges">' + bucketBadge(it.bucket) +
+          '<span class="badge neutral">' + esc(kindLabel(it.kind)) + '</span>' +
+          '<span class="badge upcoming">🙌 Open</span>' +
+        '</div>' +
+      '</div>' +
+      '<button class="btn small primary" data-action="claim-item" data-kind="' + it.kind + '" data-id="' + it.id + '">Claim</button>' +
+    '</div></div>';
+  }
+  function openCheckbox(checked) {
+    return '<div class="field"><label class="inline-check"><input type="checkbox" name="open"' +
+      (checked ? ' checked' : '') + ' /> 🙌 Open — any worker can claim it</label></div>';
+  }
+  function medal(rank) { return rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '#' + rank; }
 
   /* ---------------- views ---------------- */
   function viewDashboard() {
@@ -180,6 +199,11 @@
       html += section('Overdue', b.overdue);
       html += section('Due today', b.today);
       html += section('Coming up', b.upcoming);
+    }
+    var open = S.openItems();
+    if (open.length) {
+      html += '<div class="section-title">🙌 Up for grabs<span class="count-pill">' + open.length + '</span></div>';
+      html += open.map(openItemCard).join('');
     }
     return html;
 
@@ -211,6 +235,8 @@
       if (w.choresToday) chips += '<span class="badge today">' + w.choresToday + ' due today</span>';
       if (w.tasksOpen) chips += '<span class="badge neutral">' + w.tasksOpen + ' open task' + (w.tasksOpen === 1 ? '' : 's') + '</span>';
       if (!chips) chips = '<span class="badge upcoming">All clear</span>';
+      var pts = S.userPoints(u.id, 'month');
+      if (pts) chips += '<span class="badge neutral">🏆 ' + pts + ' pts</span>';
       var rentChip = '';
       var charge = S.rentChargesForMonth(mk).filter(function (c) { return c.userId === u.id; })[0];
       if (charge) {
@@ -280,6 +306,7 @@
                 '<span class="badge neutral">Due ' + esc(S.fmtDate(c.nextDue)) + ' · ' + esc(S.relativeLabel(c.nextDue)) + '</span>' +
                 '<span class="badge neutral">' + (c.catchUp === 'mustCatchUp' ? 'Must catch up' : 'Skips if missed') + '</span>' +
                 (c.requirePhoto ? '<span class="badge neutral">📷 proof</span>' : '') +
+                (c.open && !c.assignedTo ? '<span class="badge upcoming">🙌 Open</span>' : '') +
                 (streak >= 2 ? '<span class="badge upcoming">🔥 ' + streak + '-day streak</span>' : '') +
               '</div>' +
             '</div>' +
@@ -296,6 +323,9 @@
     var canEdit = S.isManager();
     var history = S.choreCompletionsFor(id);
     var streak = c.schedule.type === 'daily' ? S.choreStreak(id) : 0;
+    var meId = S.currentUser().id;
+    var claimable = c.open && !c.assignedTo;
+    var mineOpen = c.open && c.assignedTo === meId;
     var histHtml = history.length ? history.slice(0, 15).map(function (h) {
       return '<div class="hist-row"><span>' + esc(S.fmtDate(h.date)) + ' · ' + esc(S.userName(h.completedBy)) +
         (h.notes ? ' · ' + esc(h.notes) : '') + (h.photo ? ' ' + proofBtn('chore', h.id) : '') + '</span></div>';
@@ -309,6 +339,8 @@
         (streak >= 2 ? '<span class="chip">🔥 ' + streak + '-day streak</span>' : '') +
         '<span class="chip">' + (c.catchUp === 'mustCatchUp' ? 'must catch up if missed' : 'skips if missed') + '</span>' +
       '</div>' +
+      (claimable ? '<button class="btn primary block" data-action="claim-item" data-kind="chore" data-id="' + id + '" style="margin:8px 0">🙌 Claim this chore</button>' : '') +
+      (mineOpen ? '<button class="btn ghost small" data-action="release-item" data-kind="chore" data-id="' + id + '" style="margin:8px 0">Release back to open</button>' : '') +
       '<form data-form="complete-chore" data-id="' + id + '" style="margin-top:10px">' +
         (c.requirePhoto ? photoProofField('Photo proof (required by manager)') : '') +
         '<div class="field"><label>Note (optional)</label><input type="text" name="note" placeholder="e.g. water was low, refilled" /></div>' +
@@ -361,6 +393,7 @@
           '<option value="mustCatchUp"' + (c.catchUp === 'mustCatchUp' ? ' selected' : '') + '>Must catch up (stays overdue)</option>' +
         '</select></div>' +
         requirePhotoCheckbox(c.requirePhoto) +
+        openCheckbox(c.open) +
         '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button>' +
         '<button type="submit" class="btn primary">Save</button></div>' +
       '</form>');
@@ -371,7 +404,8 @@
     if (schedule.type === 'weekly' && !schedule.weekdays.length) { toast('Pick at least one weekday'); return; }
     var res = S.updateChore(form.getAttribute('data-id'), {
       name: fd.get('name'), schedule: schedule, assignedTo: fd.get('assignedTo') || null,
-      catchUp: fd.get('catchUp'), nextDue: fd.get('nextDue'), requirePhoto: fd.get('requirePhoto') === 'on'
+      catchUp: fd.get('catchUp'), nextDue: fd.get('nextDue'), requirePhoto: fd.get('requirePhoto') === 'on',
+      open: fd.get('open') === 'on'
     });
     if (res.error) { toast(res.error); return; }
     closeModal(); toast('Chore updated'); render();
@@ -633,12 +667,14 @@
                 (t.description ? '<p class="item-sub">' + esc(t.description) + '</p>' : '') +
                 '<div class="chips">' +
                   '<span class="chip">' + esc(S.userName(t.assignedTo)) + '</span>' +
+                  (t.open && !t.assignedTo && !t.done ? '<span class="chip">🙌 open</span>' : '') +
                   (t.dueDate ? '<span class="chip">due ' + esc(S.fmtDate(t.dueDate)) + '</span>' : '') +
                   (t.requirePhoto && !t.done ? '<span class="chip">📷 proof required</span>' : '') +
                   (t.done ? '<span class="chip">done ' + esc(S.fmtDate(t.doneAt)) + ' by ' + esc(S.userName(t.doneBy)) + '</span>' : '') +
                   (t.done && t.donePhoto ? proofBtn('task', t.id) : '') +
                 '</div>' +
               '</div>' +
+              (t.open && !t.assignedTo && !t.done ? '<button class="btn small primary" data-action="claim-item" data-kind="task" data-id="' + t.id + '">Claim</button>' : '') +
               (canEdit ? '<button class="icon-btn" data-action="edit-task" data-id="' + t.id + '" aria-label="Edit task">✎</button>' : '') +
             '</div>' +
           '</div>';
@@ -768,6 +804,60 @@
     return html;
   }
 
+  function viewLeaderboard() {
+    var win = ui.lbWindow || 'month';
+    var rows = S.leaderboard(win);
+    var meId = S.currentUser().id;
+    var top = rows[0];
+    var anyPoints = rows.some(function (r) { return r.points > 0; });
+    var html = '' +
+      '<div class="view-head">' +
+        '<div><h1>🏆 Leaderboard</h1><p class="subtle">Celebrating great work · ' +
+          (win === 'month' ? esc(S.monthLabel(S.currentMonthKey())) : 'all time') + '</p></div>' +
+        '<div class="segmented">' +
+          '<button class="' + (win === 'month' ? 'active' : '') + '" data-action="set-lb" data-win="month">Month</button>' +
+          '<button class="' + (win === 'all' ? 'active' : '') + '" data-action="set-lb" data-win="all">All time</button>' +
+        '</div>' +
+      '</div>';
+
+    if (!anyPoints) {
+      return html + '<div class="empty">No completed work yet' + (win === 'month' ? ' this month' : '') + '. Get out there! 🌱</div>';
+    }
+
+    if (top && top.points > 0) {
+      html += '<div class="champ">' +
+        '<div class="champ-emoji">🥇</div>' +
+        '<div><div class="champ-name">' + esc(top.name) + (top.userId === meId ? ' (you)' : '') + '</div>' +
+        '<div class="champ-sub">' + top.points + ' pts · ' + top.total + ' job' + (top.total === 1 ? '' : 's') + ' done' +
+          (top.streak >= 2 ? ' · 🔥 ' + top.streak + '-day streak' : '') + '</div></div>' +
+      '</div>';
+    }
+
+    html += rows.map(function (r) {
+      var isMe = r.userId === meId;
+      var parts = [];
+      if (r.chores) parts.push(r.chores + ' chore' + (r.chores === 1 ? '' : 's'));
+      if (r.tasks) parts.push(r.tasks + ' task' + (r.tasks === 1 ? '' : 's'));
+      if (r.services) parts.push(r.services + ' service' + (r.services === 1 ? '' : 's'));
+      var breakdown = parts.length ? parts.join(' · ') : 'no completions yet';
+      return '<div class="card lb-row' + (r.rank === 1 ? ' lb-first' : '') + (isMe ? ' lb-me' : '') + '">' +
+        '<div class="lb-rank">' + medal(r.rank) + '</div>' +
+        '<div class="item-main">' +
+          '<p class="item-title">' + esc(r.name) + (isMe ? ' <span class="chip">you</span>' : '') + '</p>' +
+          '<p class="item-sub">' + esc(breakdown) + '</p>' +
+          (r.streak >= 2 || r.verified ? '<div class="item-badges">' +
+            (r.streak >= 2 ? '<span class="badge upcoming">🔥 ' + r.streak + '-day streak</span>' : '') +
+            (r.verified ? '<span class="badge neutral">📷 ' + r.verified + ' verified</span>' : '') +
+          '</div>' : '') +
+        '</div>' +
+        '<div class="lb-pts">' + r.points + '<span>pts</span></div>' +
+      '</div>';
+    }).join('');
+
+    html += '<p class="subtle" style="margin-top:10px">Points: chore +2 · project task +5 · maintenance +4, plus a bonus for photo-verified work. 📷</p>';
+    return html;
+  }
+
   /* ---------------- render ---------------- */
   function render() {
     renderUserArea();
@@ -777,6 +867,7 @@
     else if (v === 'chores') main.innerHTML = viewChores();
     else if (v === 'maintenance') main.innerHTML = viewMaintenance();
     else if (v === 'projects') main.innerHTML = viewProjects();
+    else if (v === 'leaderboard') main.innerHTML = viewLeaderboard();
     else if (v === 'more') main.innerHTML = viewMore();
     document.querySelectorAll('.nav-btn').forEach(function (btn) {
       btn.classList.toggle('active', btn.getAttribute('data-view') === v);
@@ -801,6 +892,7 @@
           '<option value="mustCatchUp">Must catch up (stays overdue)</option>' +
         '</select></div>' +
         requirePhotoCheckbox(false) +
+        openCheckbox(false) +
         '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button>' +
         '<button type="submit" class="btn primary">Add chore</button></div>' +
       '</form>');
@@ -811,7 +903,7 @@
     var name = (fd.get('name') || '').trim();
     if (!name) return;
     if (schedule.type === 'weekly' && !schedule.weekdays.length) { toast('Pick at least one weekday'); return; }
-    var res = S.addChore({ name: name, schedule: schedule, assignedTo: fd.get('assignedTo') || null, catchUp: fd.get('catchUp'), nextDue: fd.get('firstDue') || S.todayISO(), requirePhoto: fd.get('requirePhoto') === 'on' });
+    var res = S.addChore({ name: name, schedule: schedule, assignedTo: fd.get('assignedTo') || null, catchUp: fd.get('catchUp'), nextDue: fd.get('firstDue') || S.todayISO(), requirePhoto: fd.get('requirePhoto') === 'on', open: fd.get('open') === 'on' });
     if (res.error) { toast(res.error); return; }
     closeModal(); toast('Chore added'); render();
   }
@@ -945,6 +1037,7 @@
         '<div class="field"><label>Assign to</label><select name="assignedTo">' + userOptions('', true) + '</select></div>' +
         '<div class="field"><label>Due date (optional)</label><input type="date" name="dueDate" /></div>' +
         requirePhotoCheckbox(false) +
+        openCheckbox(false) +
         '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button>' +
         '<button type="submit" class="btn primary">Add task</button></div>' +
       '</form>');
@@ -954,7 +1047,7 @@
     var projectId = form.getAttribute('data-id');
     var title = (fd.get('title') || '').trim();
     if (!title) return;
-    var res = S.addTask(projectId, { title: title, description: fd.get('description'), assignedTo: fd.get('assignedTo') || null, dueDate: fd.get('dueDate') || null, requirePhoto: fd.get('requirePhoto') === 'on' });
+    var res = S.addTask(projectId, { title: title, description: fd.get('description'), assignedTo: fd.get('assignedTo') || null, dueDate: fd.get('dueDate') || null, requirePhoto: fd.get('requirePhoto') === 'on', open: fd.get('open') === 'on' });
     if (res && res.error) { toast(res.error); return; }
     closeModal(); toast('Task added'); render();
   }
@@ -1062,6 +1155,7 @@
         '<div class="field"><label>Assign to</label><select name="assignedTo">' + userOptions(t.assignedTo, true) + '</select></div>' +
         '<div class="field"><label>Due date</label><input type="date" name="dueDate" value="' + esc(t.dueDate || '') + '" /></div>' +
         requirePhotoCheckbox(t.requirePhoto) +
+        openCheckbox(t.open) +
         '<div class="form-actions">' +
           '<button type="button" class="btn danger" data-action="delete-task" data-id="' + taskId + '">Delete</button>' +
           '<button type="submit" class="btn primary">Save</button>' +
@@ -1073,7 +1167,7 @@
     var res = S.updateTask(form.getAttribute('data-id'), {
       title: fd.get('title'), description: fd.get('description'),
       assignedTo: fd.get('assignedTo') || null, dueDate: fd.get('dueDate') || null,
-      requirePhoto: fd.get('requirePhoto') === 'on'
+      requirePhoto: fd.get('requirePhoto') === 'on', open: fd.get('open') === 'on'
     });
     if (res.error) { toast(res.error); return; }
     closeModal(); toast('Task updated'); render();
@@ -1169,7 +1263,11 @@
     switch (action) {
       case 'switch-view': ui.view = el.getAttribute('data-view'); ui.projectId = null; render(); break;
       case 'set-scope': ui.scope = el.getAttribute('data-scope'); render(); break;
+      case 'set-lb': ui.lbWindow = el.getAttribute('data-win'); render(); break;
       case 'close-modal': closeModal(); break;
+
+      case 'claim-item': { var ci = S.claimItem(el.getAttribute('data-kind'), id); if (ci.error) toast(ci.error); else { closeModal(); toast('Claimed — it\'s yours'); render(); } break; }
+      case 'release-item': { var rel = S.releaseItem(el.getAttribute('data-kind'), id); if (rel.error) toast(rel.error); else { closeModal(); toast('Released back to open'); render(); } break; }
 
       case 'complete-chore': {
         var ch = S.choreById(id);
@@ -1296,6 +1394,10 @@
       case 'add-user': submitAddUser(form); break;
       case 'save-prefs': submitSavePrefs(form); break;
     }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !$('#modal').hidden) closeModal();
   });
 
   /* ---------------- boot ---------------- */

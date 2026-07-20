@@ -126,7 +126,7 @@
     var chores = [
       { id: 'c_feed', name: 'Feed the chickens', schedule: { type: 'daily' }, catchUp: 'mustCatchUp', assignedTo: 'u_sam', nextDue: addDays(T, -1) },
       { id: 'c_muck', name: 'Muck out the stalls', schedule: { type: 'daily' }, catchUp: 'skipToNext', assignedTo: 'u_jamie', nextDue: T, requirePhoto: true },
-      { id: 'c_troughs', name: 'Check water troughs', schedule: { type: 'daily' }, catchUp: 'mustCatchUp', assignedTo: null, nextDue: T },
+      { id: 'c_troughs', name: 'Check water troughs', schedule: { type: 'daily' }, catchUp: 'mustCatchUp', assignedTo: null, nextDue: T, open: true },
       { id: 'c_water', name: 'Water the greenhouse', schedule: { type: 'everyNDays', n: 2 }, catchUp: 'skipToNext', assignedTo: 'u_sam', nextDue: addDays(T, 1) },
       { id: 'c_cattle', name: 'Move cattle to fresh paddock', schedule: { type: 'weekly', weekdays: [1, 4] }, catchUp: 'skipToNext', assignedTo: 'u_morgan', nextDue: addDays(T, 2) },
       { id: 'c_mow', name: 'Mow the orchard', schedule: { type: 'weekly', weekdays: [6], season: { start: '05-01', end: '09-30' } }, catchUp: 'skipToNext', assignedTo: 'u_jamie', nextDue: addDays(T, 4) }
@@ -147,7 +147,10 @@
       { id: 'm_truckoil', assetId: 'a_truck', name: 'Oil change', intervalType: 'usage', intervalValue: 3000, lastDoneDate: addDays(T, -60), lastDoneReading: 81500, dueAtReading: 84500, nextDueDate: null },
       { id: 'm_well', assetId: 'a_well', name: 'Pressure & seal inspection', intervalType: 'calendar', intervalValue: 6, intervalUnit: 'months', lastDoneDate: addDays(T, -170), lastDoneReading: null, dueAtReading: null, nextDueDate: addDays(T, 10) }
     ];
-    var maintenanceLogs = [];
+    var maintenanceLogs = [
+      { id: uid('ml'), itemId: 'm_truckoil', userId: 'u_sam', date: addDays(T, -5), reading: 82000, notes: 'Oil + filter', cost: 62, photo: null },
+      { id: uid('ml'), itemId: 'm_grease', userId: 'u_jamie', date: addDays(T, -8), reading: null, notes: 'Greased all zerks', cost: 0, photo: null }
+    ];
     var projects = [
       { id: 'p_shed', name: 'Build run-in shed for horses', description: 'A 12x24 three-sided run-in shed on the south pasture for weather shelter.', status: 'in_progress', targetDate: addDays(T, 45), createdBy: 'u_morgan', createdAt: addDays(T, -14) },
       { id: 'p_fence', name: 'Fence the north pasture', description: 'Run new woven-wire fence around the north 6 acres, with a gate by the lane.', status: 'planned', targetDate: addDays(T, 90), createdBy: 'u_morgan', createdAt: addDays(T, -6) },
@@ -157,8 +160,9 @@
       { id: uid('t'), projectId: 'p_shed', title: 'Pour concrete footings', description: '', assignedTo: 'u_jamie', dueDate: addDays(T, -5), done: true, doneBy: 'u_jamie', doneAt: addDays(T, -4), sort: 0 },
       { id: uid('t'), projectId: 'p_shed', title: 'Frame the three walls', description: 'Pressure-treated posts, 2x6 girts.', assignedTo: 'u_sam', dueDate: addDays(T, 3), done: false, doneBy: null, doneAt: null, sort: 1 },
       { id: uid('t'), projectId: 'p_shed', title: 'Install the roof', description: '', assignedTo: 'u_jamie', dueDate: addDays(T, 12), done: false, doneBy: null, doneAt: null, sort: 2, requirePhoto: true },
-      { id: uid('t'), projectId: 'p_shed', title: 'Hang the gate & trim', description: '', assignedTo: null, dueDate: null, done: false, doneBy: null, doneAt: null, sort: 3 },
-      { id: uid('t'), projectId: 'p_fence', title: 'Walk the line & mark corners', description: '', assignedTo: 'u_morgan', dueDate: addDays(T, 5), done: false, doneBy: null, doneAt: null, sort: 0 }
+      { id: uid('t'), projectId: 'p_shed', title: 'Hang the gate & trim', description: 'Anyone can grab this one.', assignedTo: null, dueDate: addDays(T, 14), done: false, doneBy: null, doneAt: null, sort: 3, open: true },
+      { id: uid('t'), projectId: 'p_fence', title: 'Walk the line & mark corners', description: '', assignedTo: 'u_morgan', dueDate: addDays(T, 5), done: false, doneBy: null, doneAt: null, sort: 0 },
+      { id: uid('t'), projectId: 'p_fence', title: 'Clear brush along the fence line', description: '', assignedTo: null, dueDate: addDays(T, 6), done: false, doneBy: null, doneAt: null, sort: 1, open: true }
     ];
     var activity = [
       { id: uid('act'), ts: Date.now() - 86400000 * 4, userId: 'u_jamie', text: 'completed task "Pour concrete footings" on Build run-in shed' },
@@ -183,12 +187,24 @@
     var notificationPrefs = {};
     users.forEach(function (u) { notificationPrefs[u.id] = defaultPrefs(); });
 
+    // Seeded completion history so streaks and the leaderboard are lively on first load.
+    var choreCompletions = [
+      { id: uid('cc'), choreId: 'c_feed', completedBy: 'u_sam', date: addDays(T, -1), notes: '', photo: null },
+      { id: uid('cc'), choreId: 'c_feed', completedBy: 'u_sam', date: addDays(T, -2), notes: '', photo: null },
+      { id: uid('cc'), choreId: 'c_feed', completedBy: 'u_sam', date: addDays(T, -3), notes: '', photo: null },
+      { id: uid('cc'), choreId: 'c_water', completedBy: 'u_sam', date: addDays(T, -2), notes: 'Greenhouse watered', photo: null },
+      { id: uid('cc'), choreId: 'c_muck', completedBy: 'u_jamie', date: addDays(T, -1), notes: '', photo: null },
+      { id: uid('cc'), choreId: 'c_muck', completedBy: 'u_jamie', date: addDays(T, -2), notes: '', photo: null },
+      { id: uid('cc'), choreId: 'c_troughs', completedBy: 'u_jamie', date: addDays(T, -2), notes: '', photo: null },
+      { id: uid('cc'), choreId: 'c_cattle', completedBy: 'u_morgan', date: addDays(T, -3), notes: '', photo: null }
+    ];
+
     return {
       version: CURRENT_VERSION,
       currentUserId: 'u_morgan',
       users: users,
       chores: chores,
-      choreCompletions: [],
+      choreCompletions: choreCompletions,
       assets: assets,
       meterReadings: meterReadings,
       maintenanceItems: maintenanceItems,
@@ -252,7 +268,8 @@
       catchUp: data.catchUp || 'skipToNext',
       assignedTo: data.assignedTo || null,
       nextDue: data.nextDue || todayISO(),
-      requirePhoto: !!data.requirePhoto
+      requirePhoto: !!data.requirePhoto,
+      open: !!data.open
     };
     state.chores.push(chore);
     logActivity('added chore "' + chore.name + '"');
@@ -268,6 +285,7 @@
     chore.assignedTo = data.assignedTo || null;
     if (data.nextDue) chore.nextDue = data.nextDue;
     chore.requirePhoto = !!data.requirePhoto;
+    chore.open = !!data.open;
     logActivity('edited chore "' + chore.name + '"');
     save();
     return { chore: chore };
@@ -529,7 +547,7 @@
       id: uid('t'), projectId: projectId, title: data.title, description: data.description || '',
       assignedTo: data.assignedTo || null, dueDate: data.dueDate || null,
       done: false, doneBy: null, doneAt: null, sort: existing.length,
-      requirePhoto: !!data.requirePhoto
+      requirePhoto: !!data.requirePhoto, open: !!data.open
     };
     state.projectTasks.push(task);
     save();
@@ -568,8 +586,60 @@
     t.assignedTo = data.assignedTo || null;
     t.dueDate = data.dueDate || null;
     t.requirePhoto = !!data.requirePhoto;
+    t.open = !!data.open;
     save();
     return { task: t };
+  }
+  // Claiming: an "open" item with no assignee can be accepted by any worker.
+  function claimableChore(c) { return !!c.open && !c.assignedTo; }
+  function claimableTask(t) { return !!t.open && !t.assignedTo && !t.done; }
+  function claimItem(kind, id) {
+    var me = state.currentUserId;
+    if (kind === 'chore') {
+      var c = choreById(id); if (!c) return { error: 'No such chore.' };
+      if (!claimableChore(c)) return { error: 'This chore is not open to claim.' };
+      c.assignedTo = me; logActivity('claimed chore "' + c.name + '"'); save();
+      return { ok: true };
+    }
+    if (kind === 'task') {
+      var t = taskById(id); if (!t) return { error: 'No such task.' };
+      if (!claimableTask(t)) return { error: 'This task is not open to claim.' };
+      t.assignedTo = me; logActivity('claimed task "' + t.title + '"'); save();
+      return { ok: true };
+    }
+    return { error: 'Unknown item.' };
+  }
+  function releaseItem(kind, id) {
+    var me = state.currentUserId;
+    var owner, obj;
+    if (kind === 'chore') { obj = choreById(id); owner = obj && obj.assignedTo; }
+    else if (kind === 'task') { obj = taskById(id); owner = obj && obj.assignedTo; }
+    else return { error: 'Unknown item.' };
+    if (!obj) return { error: 'Not found.' };
+    if (!obj.open) return { error: 'This item is not an open item.' };
+    if (owner !== me && !isManager()) return { error: 'Only the current owner or a manager can release it.' };
+    obj.assignedTo = null; save();
+    return { ok: true };
+  }
+  // Claimable work across chores and project tasks, for the "up for grabs" section.
+  function openItems() {
+    var list = [];
+    listChores().forEach(function (c) {
+      if (!claimableChore(c)) return;
+      var due = bucketForDate(c.nextDue);
+      list.push({ kind: 'chore', id: c.id, title: c.name,
+        subtitle: describeSchedule(c.schedule) + (due !== 'later' ? ' · due ' + relativeLabel(c.nextDue) : ''),
+        bucket: due, sortKey: c.nextDue });
+    });
+    state.projectTasks.forEach(function (t) {
+      if (!claimableTask(t)) return;
+      var proj = getProject(t.projectId);
+      list.push({ kind: 'task', id: t.id, title: t.title,
+        subtitle: (proj ? proj.name : 'Project') + (t.dueDate ? ' · due ' + relativeLabel(t.dueDate) : ''),
+        bucket: t.dueDate ? bucketForDate(t.dueDate) : 'later', sortKey: t.dueDate || '9999-99-99' });
+    });
+    list.sort(function (a, b) { return a.sortKey < b.sortKey ? -1 : 1; });
+    return list;
   }
   function deleteTask(taskId) {
     if (!isManager()) return { error: 'Only managers and admins can delete tasks.' };
@@ -759,6 +829,71 @@
     return w;
   }
 
+  /* ---------------- leaderboard ---------------- */
+  // Personal "days active" streak: consecutive days (ending today or yesterday)
+  // on which the user completed at least one chore.
+  function userStreak(userId) {
+    var days = {};
+    state.choreCompletions.forEach(function (c) { if (c.completedBy === userId) days[c.date] = true; });
+    var d = todayISO();
+    if (!days[d]) d = addDays(d, -1);
+    var streak = 0;
+    while (days[d]) { streak++; d = addDays(d, -1); }
+    return streak;
+  }
+  function inWindow(date, win) {
+    if (win === 'all') return true;
+    return !!date && date.slice(0, 7) === currentMonthKey();
+  }
+  // Points: chore +2, task +5, service +4; a verifying photo adds a bonus.
+  var PTS = { chore: 2, task: 5, service: 4, chorePhoto: 1, taskPhoto: 2, servicePhoto: 2 };
+  function leaderboard(win) {
+    var stats = {};
+    function ensure(id) {
+      if (!stats[id]) stats[id] = { userId: id, points: 0, chores: 0, tasks: 0, services: 0, verified: 0 };
+      return stats[id];
+    }
+    state.users.forEach(function (u) { ensure(u.id); });
+    state.choreCompletions.forEach(function (c) {
+      if (!userById(c.completedBy) || !inWindow(c.date, win)) return;
+      var s = ensure(c.completedBy);
+      s.chores++; s.points += PTS.chore;
+      if (c.photo) { s.points += PTS.chorePhoto; s.verified++; }
+    });
+    state.projectTasks.forEach(function (t) {
+      if (!t.done || !t.doneBy || !userById(t.doneBy) || !inWindow(t.doneAt, win)) return;
+      var s = ensure(t.doneBy);
+      s.tasks++; s.points += PTS.task;
+      if (t.donePhoto) { s.points += PTS.taskPhoto; s.verified++; }
+    });
+    state.maintenanceLogs.forEach(function (l) {
+      if (!userById(l.userId) || !inWindow(l.date, win)) return;
+      var s = ensure(l.userId);
+      s.services++; s.points += PTS.service;
+      if (l.photo) { s.points += PTS.servicePhoto; s.verified++; }
+    });
+    var arr = Object.keys(stats).map(function (k) {
+      var s = stats[k];
+      s.name = userName(k);
+      s.role = (userById(k) || {}).role || '';
+      s.streak = userStreak(k);
+      s.total = s.chores + s.tasks + s.services;
+      return s;
+    });
+    arr.sort(function (a, b) {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.total !== a.total) return b.total - a.total;
+      return a.name < b.name ? -1 : 1;
+    });
+    var rank = 0, prev = null;
+    arr.forEach(function (s, i) { if (s.points !== prev) { rank = i + 1; prev = s.points; } s.rank = rank; });
+    return arr;
+  }
+  function userPoints(userId, win) {
+    var row = leaderboard(win).filter(function (r) { return r.userId === userId; })[0];
+    return row ? row.points : 0;
+  }
+
   /* ---------------- dashboard ---------------- */
   function dashboard(scope) {
     var me = state.currentUserId;
@@ -926,6 +1061,10 @@
     addProject: addProject, updateProject: updateProject, updateProjectStatus: updateProjectStatus, deleteProject: deleteProject,
     addTask: addTask, addTasksBulk: addTasksBulk, toggleTask: toggleTask,
     taskById: taskById, updateTask: updateTask, deleteTask: deleteTask, suggestSteps: suggestSteps,
+    // open / claimable work
+    claimItem: claimItem, releaseItem: releaseItem, openItems: openItems,
+    // leaderboard
+    leaderboard: leaderboard, userPoints: userPoints, userStreak: userStreak,
     // notes & photos
     notesFor: notesFor, noteById: noteById, addNote: addNote, deleteNote: deleteNote, proofPhoto: proofPhoto,
     // rent

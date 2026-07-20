@@ -82,6 +82,22 @@ generated automatically each month with a two-step ledger:
 Unpaid rent appears on the worker's dashboard like any other due item, and the manager
 view shows collected vs. outstanding totals for the month plus full per-person history.
 
+### 2.6 Open / claimable work
+
+Managers can flag a **chore or project task** as **open** — unassigned and available for any
+worker to accept. Open work surfaces in an "Up for grabs" section on the dashboard and can be
+**claimed** with one tap (which assigns it to the claimer), or **released** back to open by
+its current owner or a manager. This lets a crew self-organize instead of every item needing
+a manager to assign it.
+
+### 2.7 Leaderboard
+
+A **leaderboard** celebrates good work. Everyone completing work earns points — chores (+2),
+project tasks (+5), and maintenance services (+4), with a bonus for photo-verified work.
+Ranked with medals and a champion banner, filterable by **this month** or **all time**, it
+also surfaces personal **streaks** (consecutive days active) and photo-verified counts.
+Per-person point totals also appear on the manager Team dashboard.
+
 ## 3. Users & Roles
 
 | Capability | Admin | Manager | Worker |
@@ -125,6 +141,8 @@ Three channels, all opt-in per user via a notification preferences page:
   history, and meter-reading entry.
 - **Projects** — board/list by status; project detail with task checklist, notes, photos,
   and the "Suggest steps" button.
+- **Leaderboard** — points-ranked celebration of completed work, with medals, streaks, and a
+  this-month / all-time toggle.
 - **History** — activity log across the whole farm (who did what, when).
 - **Admin** — user management, notification settings, backup/export.
 
