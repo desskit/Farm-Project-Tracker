@@ -129,7 +129,8 @@
       { id: 'c_troughs', name: 'Check water troughs', schedule: { type: 'daily' }, catchUp: 'mustCatchUp', assignedTo: null, nextDue: T, open: true },
       { id: 'c_water', name: 'Water the greenhouse', schedule: { type: 'everyNDays', n: 2 }, catchUp: 'skipToNext', assignedTo: 'u_sam', nextDue: addDays(T, 1) },
       { id: 'c_cattle', name: 'Move cattle to fresh paddock', schedule: { type: 'weekly', weekdays: [1, 4] }, catchUp: 'skipToNext', assignedTo: 'u_morgan', nextDue: addDays(T, 2) },
-      { id: 'c_mow', name: 'Mow the orchard', schedule: { type: 'weekly', weekdays: [6], season: { start: '05-01', end: '09-30' } }, catchUp: 'skipToNext', assignedTo: 'u_jamie', nextDue: addDays(T, 4) }
+      { id: 'c_mow', name: 'Mow the orchard', schedule: { type: 'weekly', weekdays: [6], season: { start: '05-01', end: '09-30' } }, catchUp: 'skipToNext', assignedTo: 'u_jamie', nextDue: addDays(T, 4) },
+      { id: 'c_lockup', name: 'Evening barn lockup', schedule: { type: 'daily' }, catchUp: 'mustCatchUp', assignedTo: null, nextDue: T, open: true, steps: ['Lock the coop run', 'Shut off the yard water', 'Lights out in the barn', 'Latch the main gate'] }
     ];
     var assets = [
       { id: 'a_tractor', name: 'Kubota L2501 tractor', category: 'Equipment', meterUnit: 'hours', notes: '' },
@@ -187,6 +188,15 @@
     var notificationPrefs = {};
     users.forEach(function (u) { notificationPrefs[u.id] = defaultPrefs(); });
 
+    var inventory = [
+      { id: 'inv_feed', name: 'Layer feed', category: 'Feed', unit: 'bags', qty: 6, reorderAt: 4, notes: '50 lb bags' },
+      { id: 'inv_shavings', name: 'Pine shavings', category: 'Bedding', unit: 'bales', qty: 3, reorderAt: 5, notes: '' },
+      { id: 'inv_diesel', name: 'Off-road diesel', category: 'Fuel', unit: 'gal', qty: 22, reorderAt: 20, notes: 'tractor + generator' },
+      { id: 'inv_filter', name: 'Tractor oil filters', category: 'Parts', unit: 'count', qty: 1, reorderAt: 2, notes: 'Kubota HH164-32430' }
+    ];
+    var inventoryLog = [];
+    var settings = { weather: { lat: null, lon: null, label: '', forecast: null, fetchedAt: null } };
+
     // Seeded completion history so streaks and the leaderboard are lively on first load.
     var choreCompletions = [
       { id: uid('cc'), choreId: 'c_feed', completedBy: 'u_sam', date: addDays(T, -1), notes: '', photo: null },
@@ -215,11 +225,16 @@
       notificationPrefs: notificationPrefs,
       rentAssignments: rentAssignments,
       rentCharges: rentCharges,
+      inventory: inventory,
+      inventoryLog: inventoryLog,
+      timeEntries: [],
+      assetDocs: [],
+      settings: settings,
       activity: activity
     };
   }
 
-  var CURRENT_VERSION = 4;
+  var CURRENT_VERSION = 5;
   function defaultPrefs() { return { email: 'daily', push: true, digestHour: 6 }; }
   // Forward-migrate an older saved state so testers don't lose their data on upgrades.
   function migrate(s) {
@@ -228,6 +243,11 @@
     (s.users || []).forEach(function (u) { if (!s.notificationPrefs[u.id]) s.notificationPrefs[u.id] = defaultPrefs(); });
     if (!Array.isArray(s.rentAssignments)) s.rentAssignments = [];
     if (!Array.isArray(s.rentCharges)) s.rentCharges = [];
+    if (!Array.isArray(s.inventory)) s.inventory = [];
+    if (!Array.isArray(s.inventoryLog)) s.inventoryLog = [];
+    if (!Array.isArray(s.timeEntries)) s.timeEntries = [];
+    if (!Array.isArray(s.assetDocs)) s.assetDocs = [];
+    if (!s.settings || typeof s.settings !== 'object') s.settings = { weather: { lat: null, lon: null, label: '', forecast: null, fetchedAt: null } };
     s.version = CURRENT_VERSION;
     return s;
   }
@@ -269,7 +289,8 @@
       assignedTo: data.assignedTo || null,
       nextDue: data.nextDue || todayISO(),
       requirePhoto: !!data.requirePhoto,
-      open: !!data.open
+      open: !!data.open,
+      steps: Array.isArray(data.steps) ? data.steps.filter(Boolean) : []
     };
     state.chores.push(chore);
     logActivity('added chore "' + chore.name + '"');
@@ -286,6 +307,7 @@
     if (data.nextDue) chore.nextDue = data.nextDue;
     chore.requirePhoto = !!data.requirePhoto;
     chore.open = !!data.open;
+    if (Array.isArray(data.steps)) chore.steps = data.steps.filter(Boolean);
     logActivity('edited chore "' + chore.name + '"');
     save();
     return { chore: chore };
@@ -317,6 +339,7 @@
     } else {
       chore.nextDue = nextOccurrenceAfter(chore.schedule, today);
     }
+    chore.sentBack = null;
     if (!save()) { state.choreCompletions.pop(); chore.nextDue = prevDue; return { error: 'Storage is full — could not save the photo.' }; }
     logActivity('completed chore "' + chore.name + '"');
     save();
@@ -471,6 +494,7 @@
       if (reading != null) item.lastDoneReading = reading;
       item.dueAtReading = (item.lastDoneReading || 0) + item.intervalValue;
     }
+    item.sentBack = null;
     var asset = assetById(item.assetId);
     logActivity('logged "' + item.name + '" on ' + (asset ? asset.name : 'asset'));
     if (!save()) return { error: 'Storage is full — could not save.' };
@@ -574,6 +598,7 @@
     t.doneBy = t.done ? state.currentUserId : null;
     t.doneAt = t.done ? todayISO() : null;
     t.donePhoto = t.done ? (photo || null) : null;
+    if (t.done) t.sentBack = null;
     save();
     return { ok: true, task: t };
   }
@@ -1033,6 +1058,175 @@
     return { ok: true };
   }
 
+  /* ---------------- send back (reject completed work) ---------------- */
+  function sendBackTask(taskId, reason) {
+    if (!isManager()) return { error: 'Only managers and admins can send work back.' };
+    var t = taskById(taskId); if (!t) return { error: 'No such task.' };
+    if (!t.done) return { error: 'That task is not completed.' };
+    t.done = false; t.doneBy = null; t.doneAt = null; t.donePhoto = null;
+    t.sentBack = { by: state.currentUserId, at: todayISO(), reason: reason || '' };
+    logActivity('sent back task "' + t.title + '"');
+    save(); return { ok: true };
+  }
+  function sendBackChore(completionId, reason) {
+    if (!isManager()) return { error: 'Only managers and admins can send work back.' };
+    var comp = state.choreCompletions.filter(function (c) { return c.id === completionId; })[0];
+    if (!comp) return { error: 'No such completion.' };
+    var chore = choreById(comp.choreId);
+    state.choreCompletions = state.choreCompletions.filter(function (c) { return c.id !== completionId; });
+    if (chore) {
+      if (chore.nextDue > todayISO()) chore.nextDue = todayISO();
+      chore.sentBack = { by: state.currentUserId, at: todayISO(), reason: reason || '', worker: comp.completedBy };
+      logActivity('sent back chore "' + chore.name + '"');
+    }
+    save(); return { ok: true };
+  }
+  function sendBackService(logId, reason) {
+    if (!isManager()) return { error: 'Only managers and admins can send work back.' };
+    var log = state.maintenanceLogs.filter(function (l) { return l.id === logId; })[0];
+    if (!log) return { error: 'No such service log.' };
+    var item = maintenanceById(log.itemId);
+    state.maintenanceLogs = state.maintenanceLogs.filter(function (l) { return l.id !== logId; });
+    if (item) {
+      if (item.intervalType === 'calendar') item.nextDueDate = todayISO();
+      else { var cur = latestReading(item.assetId); item.dueAtReading = (cur != null ? cur : (item.lastDoneReading || 0)); }
+      item.sentBack = { by: state.currentUserId, at: todayISO(), reason: reason || '', worker: log.userId };
+      logActivity('sent back service "' + item.name + '"');
+    }
+    save(); return { ok: true };
+  }
+
+  /* ---------------- inventory ---------------- */
+  function listInventory() { return state.inventory.slice().sort(function (a, b) { return a.name < b.name ? -1 : 1; }); }
+  function inventoryById(id) { return state.inventory.filter(function (i) { return i.id === id; })[0] || null; }
+  function addInventoryItem(data) {
+    if (!isManager()) return { error: 'Only managers and admins can add inventory.' };
+    var name = (data.name || '').trim(); if (!name) return { error: 'Name is required.' };
+    var item = { id: uid('inv'), name: name, category: data.category || 'Supplies', unit: data.unit || 'count', qty: Number(data.qty) || 0, reorderAt: Number(data.reorderAt) || 0, notes: data.notes || '' };
+    state.inventory.push(item); logActivity('added inventory "' + name + '"'); save(); return { item: item };
+  }
+  function updateInventoryItem(id, data) {
+    if (!isManager()) return { error: 'Only managers and admins can edit inventory.' };
+    var it = inventoryById(id); if (!it) return { error: 'No such item.' };
+    if (data.name != null && String(data.name).trim()) it.name = String(data.name).trim();
+    if (data.category != null) it.category = data.category || 'Supplies';
+    if (data.unit != null) it.unit = data.unit || 'count';
+    if (data.reorderAt != null) it.reorderAt = Number(data.reorderAt) || 0;
+    it.notes = data.notes || '';
+    save(); return { item: it };
+  }
+  function deleteInventoryItem(id) {
+    if (!isManager()) return { error: 'Only managers and admins can delete inventory.' };
+    state.inventory = state.inventory.filter(function (i) { return i.id !== id; });
+    state.inventoryLog = state.inventoryLog.filter(function (l) { return l.itemId !== id; });
+    save(); return { ok: true };
+  }
+  // Anyone can use or restock; adjustments are logged with who/when.
+  function adjustStock(id, delta, reason) {
+    var it = inventoryById(id); if (!it) return { error: 'No such item.' };
+    var d = Number(delta); if (!isFinite(d) || d === 0) return { error: 'Enter a non-zero amount.' };
+    if (it.qty + d < 0) return { error: 'Only ' + it.qty + ' ' + it.unit + ' on hand.' };
+    it.qty += d;
+    state.inventoryLog.push({ id: uid('il'), itemId: id, delta: d, reason: reason || '', userId: state.currentUserId, date: todayISO(), ts: Date.now() });
+    logActivity((d > 0 ? 'restocked ' : 'used ') + Math.abs(d) + ' ' + it.unit + ' of ' + it.name);
+    save(); return { ok: true, qty: it.qty };
+  }
+  function inventoryLogFor(id) { return state.inventoryLog.filter(function (l) { return l.itemId === id; }).sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); }); }
+  function lowStockItems() { return state.inventory.filter(function (i) { return i.qty <= i.reorderAt; }); }
+
+  /* ---------------- time tracking ---------------- */
+  function fmtDur(sec) {
+    sec = Math.max(0, Math.round(sec));
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    if (h) return h + 'h ' + m + 'm';
+    if (m) return m + 'm ' + s + 's';
+    return s + 's';
+  }
+  function activeTimerFor(kind, refId, userId) {
+    userId = userId || state.currentUserId;
+    return state.timeEntries.filter(function (e) { return e.kind === kind && e.refId === refId && e.userId === userId && !e.end; })[0] || null;
+  }
+  function activeTimersForUser(userId) {
+    userId = userId || state.currentUserId;
+    return state.timeEntries.filter(function (e) { return e.userId === userId && !e.end; });
+  }
+  function startTimer(kind, refId) {
+    var existing = activeTimerFor(kind, refId);
+    if (existing) return { ok: true, entry: existing };
+    var e = { id: uid('te'), kind: kind, refId: refId, userId: state.currentUserId, start: Date.now(), end: null, seconds: 0 };
+    state.timeEntries.push(e); save(); return { ok: true, entry: e };
+  }
+  function stopTimer(kind, refId) {
+    var e = activeTimerFor(kind, refId);
+    if (!e) return { error: 'No running timer.' };
+    e.end = Date.now(); e.seconds = Math.max(1, Math.round((e.end - e.start) / 1000));
+    logActivity('logged ' + fmtDur(e.seconds) + ' of work');
+    save(); return { ok: true, entry: e };
+  }
+  function timeEntriesFor(kind, refId) { return state.timeEntries.filter(function (e) { return e.kind === kind && e.refId === refId && e.end; }).sort(function (a, b) { return b.start - a.start; }); }
+  function totalSeconds(kind, refId) { return state.timeEntries.reduce(function (s, e) { return (e.kind === kind && e.refId === refId && e.end) ? s + (e.seconds || 0) : s; }, 0); }
+  function timerLabel(kind, refId) {
+    if (kind === 'chore') { var c = choreById(refId); return c ? c.name : 'chore'; }
+    if (kind === 'task') { var t = taskById(refId); return t ? t.title : 'task'; }
+    if (kind === 'maintenance') { var m = maintenanceById(refId); return m ? m.name : 'maintenance'; }
+    return kind;
+  }
+
+  /* ---------------- asset documents (receipts & manuals) ---------------- */
+  function assetDocsFor(assetId) { return state.assetDocs.filter(function (d) { return d.assetId === assetId; }).sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); }); }
+  function assetDocById(id) { return state.assetDocs.filter(function (d) { return d.id === id; })[0] || null; }
+  function addAssetDoc(assetId, data) {
+    var doc = { id: uid('doc'), assetId: assetId, name: data.name || 'Document', docType: data.docType || 'doc', mime: data.mime || '', dataUrl: data.dataUrl, uploadedBy: state.currentUserId, date: todayISO(), ts: Date.now(), size: data.size || 0 };
+    state.assetDocs.unshift(doc);
+    if (!save()) { state.assetDocs.shift(); return { error: 'Storage is full — file too large.' }; }
+    logActivity('added a document to an asset');
+    save(); return { doc: doc };
+  }
+  function deleteAssetDoc(id) {
+    var d = assetDocById(id); if (!d) return { error: 'Not found.' };
+    if (d.uploadedBy !== state.currentUserId && !isManager()) return { error: 'Only the uploader or a manager can delete this.' };
+    state.assetDocs = state.assetDocs.filter(function (x) { return x.id !== id; });
+    save(); return { ok: true };
+  }
+
+  /* ---------------- settings / weather ---------------- */
+  function getSettings() { if (!state.settings) state.settings = {}; return state.settings; }
+  function getWeather() { var s = getSettings(); return s.weather || { lat: null, lon: null, label: '', forecast: null, fetchedAt: null }; }
+  function setWeatherLocation(lat, lon, label) { var s = getSettings(); s.weather = s.weather || {}; s.weather.lat = Number(lat); s.weather.lon = Number(lon); s.weather.label = label || ''; save(); return { ok: true }; }
+  function setForecast(forecast) { var s = getSettings(); s.weather = s.weather || {}; s.weather.forecast = forecast; s.weather.fetchedAt = Date.now(); save(); return { ok: true }; }
+
+  /* ---------------- global search ---------------- */
+  function search(q) {
+    q = (q || '').trim().toLowerCase();
+    if (!q) return [];
+    var res = [];
+    function has(s) { return String(s || '').toLowerCase().indexOf(q) !== -1; }
+    state.chores.forEach(function (c) { if (has(c.name)) res.push({ type: 'chore', id: c.id, title: c.name, sub: 'Chore · ' + describeSchedule(c.schedule) }); });
+    state.assets.forEach(function (a) { if (has(a.name) || has(a.category)) res.push({ type: 'asset', id: a.id, title: a.name, sub: 'Asset · ' + a.category }); });
+    state.maintenanceItems.forEach(function (m) { if (has(m.name)) { var a = assetById(m.assetId); res.push({ type: 'maintenance', id: m.id, title: m.name, sub: 'Upkeep · ' + (a ? a.name : '') }); } });
+    state.projects.forEach(function (p) { if (has(p.name) || has(p.description)) res.push({ type: 'project', id: p.id, title: p.name, sub: 'Project · ' + (STATUS_LABELS[p.status] || p.status) }); });
+    state.projectTasks.forEach(function (t) { if (has(t.title)) { var p = getProject(t.projectId); res.push({ type: 'task', id: t.id, title: t.title, sub: 'Task · ' + (p ? p.name : ''), projectId: t.projectId }); } });
+    state.inventory.forEach(function (i) { if (has(i.name) || has(i.category)) res.push({ type: 'inventory', id: i.id, title: i.name, sub: 'Inventory · ' + i.qty + ' ' + i.unit }); });
+    state.users.forEach(function (u) { if (has(u.name)) res.push({ type: 'user', id: u.id, title: u.name, sub: 'Person · ' + u.role }); });
+    return res.slice(0, 40);
+  }
+
+  /* ---------------- calendar ---------------- */
+  function calendarItems(fromISO, toISO) {
+    var out = [];
+    function within(d) { return d >= fromISO && d <= toISO; }
+    state.chores.forEach(function (c) {
+      var d = c.nextDue, g = 0;
+      while (d < fromISO && g < 800) { var nd = nextOccurrenceAfter(c.schedule, d); if (nd <= d) break; d = nd; g++; }
+      g = 0;
+      while (d <= toISO && g < 400) { if (within(d)) out.push({ date: d, kind: 'chore', id: c.id, title: c.name }); var n2 = nextOccurrenceAfter(c.schedule, d); if (n2 <= d) break; d = n2; g++; }
+    });
+    state.maintenanceItems.forEach(function (m) { if (m.intervalType === 'calendar' && m.nextDueDate && within(m.nextDueDate)) out.push({ date: m.nextDueDate, kind: 'maintenance', id: m.id, title: m.name }); });
+    state.projectTasks.forEach(function (t) { if (!t.done && t.dueDate && within(t.dueDate)) out.push({ date: t.dueDate, kind: 'task', id: t.id, title: t.title }); });
+    state.rentCharges.forEach(function (c) { if (c.status !== 'verified' && c.dueDate && within(c.dueDate)) out.push({ date: c.dueDate, kind: 'rent', id: c.id, title: 'Rent · ' + userName(c.userId) }); });
+    return out;
+  }
+
   /* ---------------- exports ---------------- */
   window.Store = {
     init: init, reset: reset, save: save,
@@ -1063,8 +1257,22 @@
     taskById: taskById, updateTask: updateTask, deleteTask: deleteTask, suggestSteps: suggestSteps,
     // open / claimable work
     claimItem: claimItem, releaseItem: releaseItem, openItems: openItems,
+    // send back
+    sendBackTask: sendBackTask, sendBackChore: sendBackChore, sendBackService: sendBackService,
     // leaderboard
     leaderboard: leaderboard, userPoints: userPoints, userStreak: userStreak,
+    // inventory
+    listInventory: listInventory, inventoryById: inventoryById, addInventoryItem: addInventoryItem,
+    updateInventoryItem: updateInventoryItem, deleteInventoryItem: deleteInventoryItem,
+    adjustStock: adjustStock, inventoryLogFor: inventoryLogFor, lowStockItems: lowStockItems,
+    // time tracking
+    fmtDur: fmtDur, activeTimerFor: activeTimerFor, activeTimersForUser: activeTimersForUser,
+    startTimer: startTimer, stopTimer: stopTimer, timeEntriesFor: timeEntriesFor,
+    totalSeconds: totalSeconds, timerLabel: timerLabel,
+    // asset docs, settings/weather, search, calendar
+    assetDocsFor: assetDocsFor, assetDocById: assetDocById, addAssetDoc: addAssetDoc, deleteAssetDoc: deleteAssetDoc,
+    getWeather: getWeather, setWeatherLocation: setWeatherLocation, setForecast: setForecast,
+    search: search, calendarItems: calendarItems,
     // notes & photos
     notesFor: notesFor, noteById: noteById, addNote: addNote, deleteNote: deleteNote, proofPhoto: proofPhoto,
     // rent

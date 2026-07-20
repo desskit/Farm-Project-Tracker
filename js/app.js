@@ -4,7 +4,7 @@
   'use strict';
 
   var S = window.Store;
-  var ui = { view: 'dashboard', scope: 'mine', projectId: null, lbWindow: 'month' };
+  var ui = { view: 'dashboard', scope: 'mine', projectId: null, lbWindow: 'month', dashMode: 'list', calMonth: null, calDay: null, searchQ: '' };
 
   /* ---------------- helpers ---------------- */
   function $(sel) { return document.querySelector(sel); }
@@ -110,6 +110,7 @@
       return '<option value="' + x.id + '"' + (x.id === u.id ? ' selected' : '') + '>' + esc(x.name) + '</option>';
     }).join('');
     $('#user-area').innerHTML =
+      '<button class="icon-btn topbar-icon" data-action="open-search" aria-label="Search">🔍</button>' +
       '<span class="role-badge">' + esc(u.role) + '</span>' +
       '<select data-action="set-user" aria-label="Current user">' + opts + '</select>';
   }
@@ -179,14 +180,21 @@
   function viewDashboard() {
     var isMgr = S.isManager();
     if (ui.scope === 'team' && !isMgr) ui.scope = 'mine';
+    var calMode = ui.dashMode === 'calendar';
     var html = '' +
       '<div class="view-head">' +
         '<div><h1>Today</h1><p class="subtle">' + S.fmtDate(S.todayISO()) + ' · ' + esc(S.currentUser().name) + '</p></div>' +
-        '<div class="segmented">' +
-          '<button class="' + (ui.scope === 'mine' ? 'active' : '') + '" data-action="set-scope" data-scope="mine">Mine</button>' +
-          '<button class="' + (ui.scope === 'all' ? 'active' : '') + '" data-action="set-scope" data-scope="all">All</button>' +
-          (isMgr ? '<button class="' + (ui.scope === 'team' ? 'active' : '') + '" data-action="set-scope" data-scope="team">Team</button>' : '') +
-        '</div>' +
+        '<button class="btn small ghost" data-action="toggle-dashmode" title="Toggle calendar">' + (calMode ? '☰ List' : '📅 Calendar') + '</button>' +
+      '</div>';
+
+    html += weatherCard() + activeTimersStrip();
+
+    if (calMode) return html + calendarView();
+
+    html += '<div class="segmented" style="margin-bottom:12px">' +
+      '<button class="' + (ui.scope === 'mine' ? 'active' : '') + '" data-action="set-scope" data-scope="mine">Mine</button>' +
+      '<button class="' + (ui.scope === 'all' ? 'active' : '') + '" data-action="set-scope" data-scope="all">All</button>' +
+      (isMgr ? '<button class="' + (ui.scope === 'team' ? 'active' : '') + '" data-action="set-scope" data-scope="team">Team</button>' : '') +
       '</div>';
 
     if (ui.scope === 'team') return html + teamDashboard();
@@ -306,6 +314,8 @@
                 '<span class="badge neutral">Due ' + esc(S.fmtDate(c.nextDue)) + ' · ' + esc(S.relativeLabel(c.nextDue)) + '</span>' +
                 '<span class="badge neutral">' + (c.catchUp === 'mustCatchUp' ? 'Must catch up' : 'Skips if missed') + '</span>' +
                 (c.requirePhoto ? '<span class="badge neutral">📷 proof</span>' : '') +
+                (c.steps && c.steps.length ? '<span class="badge neutral">📋 ' + c.steps.length + '-step</span>' : '') +
+                (c.sentBack ? '<span class="badge overdue">↩ redo</span>' : '') +
                 (c.open && !c.assignedTo ? '<span class="badge upcoming">🙌 Open</span>' : '') +
                 (streak >= 2 ? '<span class="badge upcoming">🔥 ' + streak + '-day streak</span>' : '') +
               '</div>' +
@@ -328,7 +338,8 @@
     var mineOpen = c.open && c.assignedTo === meId;
     var histHtml = history.length ? history.slice(0, 15).map(function (h) {
       return '<div class="hist-row"><span>' + esc(S.fmtDate(h.date)) + ' · ' + esc(S.userName(h.completedBy)) +
-        (h.notes ? ' · ' + esc(h.notes) : '') + (h.photo ? ' ' + proofBtn('chore', h.id) : '') + '</span></div>';
+        (h.notes ? ' · ' + esc(h.notes) : '') + (h.photo ? ' ' + proofBtn('chore', h.id) : '') + '</span>' +
+        (canEdit ? '<button class="btn small ghost danger" data-action="send-back-chore" data-id="' + h.id + '" title="Send back">↩</button>' : '') + '</div>';
     }).join('') : '<p class="subtle">Never completed yet.</p>';
 
     openModal(c.name,
@@ -339,9 +350,12 @@
         (streak >= 2 ? '<span class="chip">🔥 ' + streak + '-day streak</span>' : '') +
         '<span class="chip">' + (c.catchUp === 'mustCatchUp' ? 'must catch up if missed' : 'skips if missed') + '</span>' +
       '</div>' +
+      sentBackBanner(c.sentBack) +
+      timerButton('chore', id) +
       (claimable ? '<button class="btn primary block" data-action="claim-item" data-kind="chore" data-id="' + id + '" style="margin:8px 0">🙌 Claim this chore</button>' : '') +
       (mineOpen ? '<button class="btn ghost small" data-action="release-item" data-kind="chore" data-id="' + id + '" style="margin:8px 0">Release back to open</button>' : '') +
       '<form data-form="complete-chore" data-id="' + id + '" style="margin-top:10px">' +
+        choreChecklist(c) +
         (c.requirePhoto ? photoProofField('Photo proof (required by manager)') : '') +
         '<div class="field"><label>Note (optional)</label><input type="text" name="note" placeholder="e.g. water was low, refilled" /></div>' +
         '<button type="submit" class="btn primary block">Mark done' + (c.schedule.type === 'daily' ? ' for today' : '') + '</button>' +
@@ -394,6 +408,7 @@
         '</select></div>' +
         requirePhotoCheckbox(c.requirePhoto) +
         openCheckbox(c.open) +
+        stepsField((c.steps || []).join('\n')) +
         '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button>' +
         '<button type="submit" class="btn primary">Save</button></div>' +
       '</form>');
@@ -405,7 +420,7 @@
     var res = S.updateChore(form.getAttribute('data-id'), {
       name: fd.get('name'), schedule: schedule, assignedTo: fd.get('assignedTo') || null,
       catchUp: fd.get('catchUp'), nextDue: fd.get('nextDue'), requirePhoto: fd.get('requirePhoto') === 'on',
-      open: fd.get('open') === 'on'
+      open: fd.get('open') === 'on', steps: stepsFromForm(fd)
     });
     if (res.error) { toast(res.error); return; }
     closeModal(); toast('Chore updated'); render();
@@ -416,6 +431,7 @@
     var note = (new FormData(form).get('note') || '').trim();
     var fileInput = form.querySelector('input[name="photo"]');
     var file = fileInput && fileInput.files[0];
+    if (!checklistComplete(form, chore)) { toast('Tick every checklist step first'); return; }
     if (chore && chore.requirePhoto && !file) { toast('A photo is required for this chore'); return; }
     fileToDataURL(file, 900, function (dataUrl) {
       var res = S.completeChore(id, note, dataUrl);
@@ -426,10 +442,14 @@
   // Quick-complete for a photo-required chore (from the card/dashboard Done button).
   function formCompleteChore(id) {
     var c = S.choreById(id); if (!c) return;
+    var reqs = [];
+    if (c.steps && c.steps.length) reqs.push('a checklist');
+    if (c.requirePhoto) reqs.push('📷 photo proof');
     openModal('Complete: ' + c.name,
-      '<div class="notice">📷 A manager set this chore to require photo proof.</div>' +
+      (reqs.length ? '<div class="notice">This chore requires ' + reqs.join(' and ') + ' to complete.</div>' : '') +
       '<form data-form="complete-chore" data-id="' + id + '">' +
-        photoProofField('Photo proof') +
+        choreChecklist(c) +
+        (c.requirePhoto ? photoProofField('Photo proof') : '') +
         '<div class="field"><label>Note (optional)</label><input type="text" name="note" /></div>' +
         '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button>' +
         '<button type="submit" class="btn primary">Mark done</button></div>' +
@@ -519,7 +539,8 @@
       return '<div class="hist-row"><span>' + r.reading + ' ' + esc(a.meterUnit) + ' · ' + esc(S.userName(r.userId)) + '</span><span class="subtle">' + esc(S.fmtDate(r.date)) + '</span></div>';
     }).join('') : '<p class="subtle">No readings yet.</p>';
 
-    var body = '<p class="subtle">' + esc(a.category) + ' · total maintenance spend <strong>$' + cost.toFixed(2) + '</strong></p>';
+    var body = '<p class="subtle">' + esc(a.category) + ' · total maintenance spend <strong>$' + cost.toFixed(2) + '</strong></p>' +
+      '<div class="row-actions" style="margin-bottom:6px"><button class="btn small" data-action="asset-qr" data-id="' + assetId + '">🔳 QR code</button></div>';
 
     if (a.meterUnit) {
       body += '<form data-form="add-reading" data-id="' + assetId + '" style="margin-top:10px">' +
@@ -544,6 +565,8 @@
     } else if (a.notes) {
       body += '<div class="section-title">Notes</div><div class="card"><p class="subtle">' + esc(a.notes) + '</p></div>';
     }
+
+    body += assetDocsSection(assetId);
 
     openModal(a.name, body);
   }
@@ -660,6 +683,7 @@
       html += tasks.map(function (t) {
         return '' +
           '<div class="card">' +
+            sentBackBanner(t.sentBack) +
             '<div class="check-row ' + (t.done ? 'done' : '') + '">' +
               '<input type="checkbox" ' + (t.done ? 'checked' : '') + ' data-action="toggle-task" data-id="' + t.id + '" />' +
               '<div class="item-main">' +
@@ -673,8 +697,10 @@
                   (t.done ? '<span class="chip">done ' + esc(S.fmtDate(t.doneAt)) + ' by ' + esc(S.userName(t.doneBy)) + '</span>' : '') +
                   (t.done && t.donePhoto ? proofBtn('task', t.id) : '') +
                 '</div>' +
+                (t.done ? '' : timerButton('task', t.id)) +
               '</div>' +
               (t.open && !t.assignedTo && !t.done ? '<button class="btn small primary" data-action="claim-item" data-kind="task" data-id="' + t.id + '">Claim</button>' : '') +
+              (canEdit && t.done ? '<button class="icon-btn" data-action="send-back-task" data-id="' + t.id + '" aria-label="Send back" title="Send back">↩</button>' : '') +
               (canEdit ? '<button class="icon-btn" data-action="edit-task" data-id="' + t.id + '" aria-label="Edit task">✎</button>' : '') +
             '</div>' +
           '</div>';
@@ -858,6 +884,375 @@
     return html;
   }
 
+  /* ---------------- time tracking ---------------- */
+  function timerButton(kind, refId) {
+    var active = S.activeTimerFor(kind, refId);
+    var total = S.totalSeconds(kind, refId);
+    if (active) {
+      return '<div class="timer-line"><button class="btn small danger" data-action="stop-timer" data-kind="' + kind + '" data-id="' + refId + '">⏹ Stop</button>' +
+        '<span class="timer-live" data-elapsed-start="' + active.start + '">' + esc(S.fmtDur((Date.now() - active.start) / 1000)) + '</span>' +
+        (total ? '<span class="subtle">' + esc(S.fmtDur(total)) + ' logged</span>' : '') + '</div>';
+    }
+    return '<div class="timer-line"><button class="btn small" data-action="start-timer" data-kind="' + kind + '" data-id="' + refId + '">▶ Start timer</button>' +
+      (total ? '<span class="subtle">' + esc(S.fmtDur(total)) + ' logged</span>' : '') + '</div>';
+  }
+  function activeTimersStrip() {
+    var timers = S.activeTimersForUser();
+    if (!timers.length) return '';
+    return '<div class="timers-strip">' + timers.map(function (e) {
+      return '<div class="timer-chip"><span>⏱ ' + esc(S.timerLabel(e.kind, e.refId)) + '</span>' +
+        '<span class="timer-live" data-elapsed-start="' + e.start + '">' + esc(S.fmtDur((Date.now() - e.start) / 1000)) + '</span>' +
+        '<button class="btn small danger" data-action="stop-timer" data-kind="' + e.kind + '" data-id="' + e.refId + '">Stop</button></div>';
+    }).join('') + '</div>';
+  }
+  function tickTimers() {
+    document.querySelectorAll('[data-elapsed-start]').forEach(function (el) {
+      var start = Number(el.getAttribute('data-elapsed-start'));
+      el.textContent = S.fmtDur((Date.now() - start) / 1000);
+    });
+  }
+
+  /* ---------------- send back ---------------- */
+  function sentBackBanner(sb) {
+    if (!sb) return '';
+    return '<div class="sb-banner">↩ Sent back' + (sb.by ? ' by ' + esc(S.userName(sb.by)) : '') +
+      (sb.reason ? ': “' + esc(sb.reason) + '”' : '') + ' — please redo.</div>';
+  }
+  function sendBack(kind, id) {
+    var reason = prompt('Send this work back to be redone. Reason (optional):', '');
+    if (reason === null) return; // cancelled
+    var res = kind === 'task' ? S.sendBackTask(id, reason)
+      : kind === 'chore' ? S.sendBackChore(id, reason)
+        : S.sendBackService(id, reason);
+    if (res.error) { toast(res.error); return; }
+    closeModal(); toast('Sent back'); render();
+  }
+
+  /* ---------------- checklist steps ---------------- */
+  function choreChecklist(chore) {
+    if (!chore.steps || !chore.steps.length) return '';
+    return '<div class="field"><label>Checklist — tick each step</label>' +
+      chore.steps.map(function (s, i) {
+        return '<label class="inline-check" style="margin-bottom:6px"><input type="checkbox" name="step" value="' + i + '" /> ' + esc(s) + '</label>';
+      }).join('') + '</div>';
+  }
+  function checklistComplete(form, chore) {
+    if (!chore || !chore.steps || !chore.steps.length) return true;
+    var checked = form.querySelectorAll('input[name="step"]:checked').length;
+    return checked >= chore.steps.length;
+  }
+
+  /* ---------------- weather ---------------- */
+  function weatherEmoji(code) {
+    if (code === 0) return '☀️';
+    if (code <= 2) return '🌤️';
+    if (code === 3) return '☁️';
+    if (code >= 45 && code <= 48) return '🌫️';
+    if (code >= 51 && code <= 67) return '🌧️';
+    if (code >= 71 && code <= 77) return '❄️';
+    if (code >= 80 && code <= 82) return '🌦️';
+    if (code >= 85 && code <= 86) return '🌨️';
+    if (code >= 95) return '⛈️';
+    return '🌡️';
+  }
+  function weatherCard() {
+    var w = S.getWeather();
+    if (!w.lat || !w.forecast) {
+      return '<div class="card"><div class="item"><div class="item-main">' +
+        '<p class="item-title">🌤️ Weather</p>' +
+        '<p class="item-sub">Add your farm location for a 7-day forecast.</p></div>' +
+        '<button class="btn small primary" data-action="weather-setup">Set location</button></div></div>';
+    }
+    var days = w.forecast.slice(0, 7).map(function (d) {
+      return '<div class="wx-day"><div class="wx-dow">' + esc(d.dow) + '</div>' +
+        '<div class="wx-emoji">' + weatherEmoji(d.code) + '</div>' +
+        '<div class="wx-hi">' + Math.round(d.hi) + '°</div>' +
+        '<div class="wx-lo">' + Math.round(d.lo) + '°</div>' +
+        (d.precip != null ? '<div class="wx-precip">💧' + Math.round(d.precip) + '%</div>' : '') + '</div>';
+    }).join('');
+    var ago = w.fetchedAt ? Math.round((Date.now() - w.fetchedAt) / 3600000) : null;
+    return '<div class="card wx-card">' +
+      '<div class="wx-head"><span>🌤️ ' + esc(w.label || '7-day forecast') + '</span>' +
+      '<button class="btn small ghost" data-action="weather-refresh" aria-label="Refresh">↻</button></div>' +
+      '<div class="wx-row">' + days + '</div>' +
+      '<p class="subtle" style="margin-top:6px">' + (ago != null ? 'Updated ' + (ago === 0 ? 'just now' : ago + 'h ago') : '') +
+      ' · <span class="chip-link" data-action="weather-setup">change location</span></p></div>';
+  }
+  function refreshWeather() {
+    var w = S.getWeather();
+    if (!w.lat) { formWeatherSetup(); return; }
+    toast('Fetching forecast…');
+    var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + w.lat + '&longitude=' + w.lon +
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=7&temperature_unit=fahrenheit';
+    fetch(url).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j || !j.daily) throw new Error('bad');
+      var dd = j.daily, out = [];
+      for (var i = 0; i < dd.time.length; i++) {
+        out.push({
+          dow: new Date(dd.time[i] + 'T00:00').toLocaleDateString(undefined, { weekday: 'short' }),
+          code: dd.weather_code[i], hi: dd.temperature_2m_max[i], lo: dd.temperature_2m_min[i],
+          precip: dd.precipitation_probability_max ? dd.precipitation_probability_max[i] : null
+        });
+      }
+      S.setForecast(out); toast('Forecast updated'); render();
+    }).catch(function () { toast('Could not fetch weather (offline?)'); });
+  }
+  function formWeatherSetup() {
+    var w = S.getWeather();
+    openModal('Farm location',
+      '<div class="notice">Used only to fetch your local forecast from open-meteo.com (no API key, no account). Nothing is stored on a server.</div>' +
+      '<button class="btn block primary" data-action="weather-geo" style="margin-bottom:10px">📍 Use my current location</button>' +
+      '<form data-form="weather-loc">' +
+        '<div class="field"><label>Label (optional)</label><input type="text" name="label" value="' + esc(w.label || '') + '" placeholder="Home farm" /></div>' +
+        '<div class="field"><label>Latitude</label><input type="number" name="lat" step="any" value="' + (w.lat != null ? w.lat : '') + '" placeholder="e.g. 44.56" /></div>' +
+        '<div class="field"><label>Longitude</label><input type="number" name="lon" step="any" value="' + (w.lon != null ? w.lon : '') + '" placeholder="e.g. -123.26" /></div>' +
+        '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button type="submit" class="btn primary">Save &amp; fetch</button></div>' +
+      '</form>');
+  }
+  function submitWeatherLoc(form) {
+    var fd = new FormData(form);
+    if (fd.get('lat') === '' || fd.get('lon') === '') { toast('Enter latitude and longitude'); return; }
+    S.setWeatherLocation(fd.get('lat'), fd.get('lon'), fd.get('label'));
+    closeModal(); refreshWeather();
+  }
+  function weatherGeo() {
+    if (!navigator.geolocation) { toast('Geolocation not available'); return; }
+    toast('Getting location…');
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      S.setWeatherLocation(pos.coords.latitude, pos.coords.longitude, S.getWeather().label || 'My location');
+      closeModal(); refreshWeather();
+    }, function () { toast('Location permission denied'); });
+  }
+
+  /* ---------------- calendar ---------------- */
+  function calendarView() {
+    var mk = ui.calMonth || S.currentMonthKey();
+    var parts = mk.split('-').map(Number);
+    var first = new Date(parts[0], parts[1] - 1, 1);
+    var startDow = first.getDay();
+    var daysInMonth = new Date(parts[0], parts[1], 0).getDate();
+    var fromISO = mk + '-01', toISO = mk + '-' + String(daysInMonth).padStart(2, '0');
+    var byDate = {};
+    S.calendarItems(fromISO, toISO).forEach(function (it) { (byDate[it.date] = byDate[it.date] || []).push(it); });
+    var today = S.todayISO();
+    var monthLbl = first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+    var html = '<div class="cal-nav"><button class="btn small ghost" data-action="cal-prev">‹</button>' +
+      '<strong>' + esc(monthLbl) + '</strong>' +
+      '<button class="btn small ghost" data-action="cal-next">›</button></div>';
+    html += '<div class="cal-grid">';
+    ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(function (d) { html += '<div class="cal-dow">' + d + '</div>'; });
+    for (var i = 0; i < startDow; i++) html += '<div class="cal-cell empty"></div>';
+    for (var day = 1; day <= daysInMonth; day++) {
+      var dISO = mk + '-' + String(day).padStart(2, '0');
+      var items = byDate[dISO] || [];
+      var kinds = {}; items.forEach(function (it) { kinds[it.kind] = true; });
+      var dots = Object.keys(kinds).map(function (k) { return '<span class="cal-dot ' + k + '"></span>'; }).join('');
+      html += '<div class="cal-cell' + (dISO === today ? ' today' : '') + (items.length ? ' has' : '') +
+        (ui.calDay === dISO ? ' sel' : '') + '" data-action="cal-day" data-date="' + dISO + '">' +
+        '<span class="cal-num">' + day + '</span><div class="cal-dots">' + dots + '</div></div>';
+    }
+    html += '</div>';
+
+    var selDate = ui.calDay || (byDate[today] ? today : null);
+    if (selDate) {
+      var list = byDate[selDate] || [];
+      html += '<div class="section-title">' + esc(S.fmtDate(selDate)) + '<span class="count-pill">' + list.length + '</span></div>';
+      if (list.length) {
+        html += list.map(function (it) {
+          return '<div class="card tap" data-action="cal-open" data-kind="' + it.kind + '" data-id="' + it.id + '">' +
+            '<div class="item"><div class="item-main"><p class="item-title">' + esc(it.title) + '</p>' +
+            '<p class="item-sub">' + esc(kindLabel(it.kind)) + '</p></div></div></div>';
+        }).join('');
+      } else html += '<div class="empty">Nothing due.</div>';
+    }
+    return html;
+  }
+
+  /* ---------------- inventory ---------------- */
+  function invCard(i) {
+    var low = i.qty <= i.reorderAt;
+    return '<div class="card tap" data-action="open-inventory" data-id="' + i.id + '"><div class="item">' +
+      '<div class="left-rail ' + (low ? 'overdue' : 'upcoming') + '"></div>' +
+      '<div class="item-main"><p class="item-title">' + esc(i.name) + '</p>' +
+      '<p class="item-sub">' + esc(i.category) + ' · reorder at ' + i.reorderAt + ' ' + esc(i.unit) + '</p>' +
+      (low ? '<div class="item-badges"><span class="badge overdue">Low — reorder</span></div>' : '') + '</div>' +
+      '<div class="inv-qty">' + i.qty + '<span>' + esc(i.unit) + '</span></div></div></div>';
+  }
+  function viewInventory() {
+    var items = S.listInventory();
+    var canEdit = S.isManager();
+    var low = S.lowStockItems();
+    var html = '<div class="view-head"><h1>Inventory</h1>' +
+      (canEdit ? '<button class="btn primary small" data-action="open-add-inventory">+ Add</button>' : '') + '</div>';
+    if (low.length) {
+      html += '<div class="section-title">⚠️ Reorder list<span class="count-pill">' + low.length + '</span></div>';
+      html += low.map(invCard).join('');
+    }
+    html += '<div class="section-title">All supplies<span class="count-pill">' + items.length + '</span></div>';
+    html += items.length ? items.map(invCard).join('') : '<div class="empty">No inventory yet.</div>';
+    return html;
+  }
+  function formInventoryDetail(id) {
+    var it = S.inventoryById(id); if (!it) return;
+    var canEdit = S.isManager();
+    var log = S.inventoryLogFor(id);
+    var logHtml = log.length ? log.slice(0, 12).map(function (l) {
+      return '<div class="hist-row"><span>' + (l.delta > 0 ? '+' : '') + l.delta + ' ' + esc(it.unit) + ' · ' +
+        esc(S.userName(l.userId)) + (l.reason ? ' · ' + esc(l.reason) : '') + '</span><span class="subtle">' + esc(S.fmtDate(l.date)) + '</span></div>';
+    }).join('') : '<p class="subtle">No changes yet.</p>';
+    openModal(it.name,
+      '<p class="subtle">' + esc(it.category) + (it.notes ? ' · ' + esc(it.notes) : '') + '</p>' +
+      '<p style="font-size:26px;font-weight:800;margin:4px 0">' + it.qty + ' <span style="font-size:15px;font-weight:600;color:var(--muted)">' + esc(it.unit) + '</span>' +
+      (it.qty <= it.reorderAt ? ' <span class="badge overdue">Low</span>' : '') + '</p>' +
+      '<form data-form="adjust-stock" data-id="' + id + '">' +
+        '<div class="field"><label>Log usage or restock</label><div style="display:flex;gap:8px;align-items:center">' +
+          '<button type="button" class="btn" data-action="stock-minus">−1</button>' +
+          '<input type="number" name="delta" step="any" placeholder="+/- amount" style="flex:1" />' +
+          '<button type="button" class="btn" data-action="stock-plus">+1</button></div></div>' +
+        '<div class="field"><label>Note (optional)</label><input type="text" name="reason" placeholder="e.g. fed the flock, bought 5 bags" /></div>' +
+        '<button type="submit" class="btn primary block">Apply change</button>' +
+      '</form>' +
+      (canEdit ? '<div class="row-actions" style="margin-top:10px">' +
+        '<button class="btn small" data-action="edit-inventory" data-id="' + id + '">Edit item</button>' +
+        '<button class="btn small ghost danger" data-action="delete-inventory" data-id="' + id + '">Delete</button></div>' : '') +
+      '<div class="section-title">History</div><div class="card">' + logHtml + '</div>');
+  }
+  function submitAdjustStock(form) {
+    var fd = new FormData(form);
+    var id = form.getAttribute('data-id');
+    var res = S.adjustStock(id, fd.get('delta'), fd.get('reason'));
+    if (res.error) { toast(res.error); return; }
+    toast('Updated · now ' + res.qty);
+    formInventoryDetail(id); render();
+  }
+  function invFields(it) {
+    it = it || {};
+    return '<div class="field"><label>Name</label><input type="text" name="name" required value="' + esc(it.name || '') + '" placeholder="e.g. Chick starter" /></div>' +
+      '<div class="field"><label>Category</label><input type="text" name="category" value="' + esc(it.category || 'Supplies') + '" /></div>' +
+      '<div class="field"><label>Unit</label><input type="text" name="unit" value="' + esc(it.unit || 'count') + '" placeholder="bags, gal, count…" /></div>' +
+      (it.id ? '' : '<div class="field"><label>On hand</label><input type="number" name="qty" step="any" value="0" /></div>') +
+      '<div class="field"><label>Reorder at</label><input type="number" name="reorderAt" step="any" value="' + (it.reorderAt != null ? it.reorderAt : 0) + '" /></div>' +
+      '<div class="field"><label>Notes</label><input type="text" name="notes" value="' + esc(it.notes || '') + '" /></div>';
+  }
+  function formAddInventory() {
+    openModal('Add inventory', '<form data-form="add-inventory">' + invFields(null) +
+      '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button type="submit" class="btn primary">Add</button></div></form>');
+  }
+  function submitAddInventory(form) {
+    var fd = new FormData(form);
+    if (!(fd.get('name') || '').trim()) return;
+    var res = S.addInventoryItem({ name: fd.get('name'), category: fd.get('category'), unit: fd.get('unit'), qty: fd.get('qty'), reorderAt: fd.get('reorderAt'), notes: fd.get('notes') });
+    if (res.error) { toast(res.error); return; }
+    closeModal(); toast('Inventory added'); render();
+  }
+  function formEditInventory(id) {
+    var it = S.inventoryById(id); if (!it) return;
+    openModal('Edit inventory', '<form data-form="edit-inventory" data-id="' + id + '">' + invFields(it) +
+      '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button type="submit" class="btn primary">Save</button></div></form>');
+  }
+  function submitEditInventory(form) {
+    var fd = new FormData(form);
+    var res = S.updateInventoryItem(form.getAttribute('data-id'), { name: fd.get('name'), category: fd.get('category'), unit: fd.get('unit'), reorderAt: fd.get('reorderAt'), notes: fd.get('notes') });
+    if (res.error) { toast(res.error); return; }
+    closeModal(); toast('Inventory updated'); render();
+  }
+
+  /* ---------------- search ---------------- */
+  function searchResultsHtml(q) {
+    if (!q || !q.trim()) return '<p class="subtle">Type to search chores, assets, upkeep, projects, tasks, inventory, and people.</p>';
+    var res = S.search(q);
+    if (!res.length) return '<div class="empty">No matches for “' + esc(q) + '”.</div>';
+    return res.map(function (r) {
+      return '<div class="card tap" data-action="search-open" data-type="' + r.type + '" data-id="' + r.id + '"' +
+        (r.projectId ? ' data-project="' + r.projectId + '"' : '') + '>' +
+        '<div class="item"><div class="item-main"><p class="item-title">' + esc(r.title) + '</p>' +
+        '<p class="item-sub">' + esc(r.sub) + '</p></div></div></div>';
+    }).join('');
+  }
+  function viewSearch() {
+    return '<div class="view-head"><h1>Search</h1>' +
+      '<button class="btn small ghost" data-action="switch-view" data-view="dashboard">Close</button></div>' +
+      '<div class="field"><input type="text" id="search-input" data-action="search-input" ' +
+      'value="' + esc(ui.searchQ || '') + '" placeholder="Search everything…" autocomplete="off" /></div>' +
+      '<div id="search-results">' + searchResultsHtml(ui.searchQ || '') + '</div>';
+  }
+  function searchOpen(el) {
+    var type = el.getAttribute('data-type'), id = el.getAttribute('data-id');
+    if (type === 'chore') { ui.view = 'chores'; render(); formChoreDetail(id); }
+    else if (type === 'asset') { ui.view = 'maintenance'; render(); formAssetDetail(id); }
+    else if (type === 'maintenance') { ui.view = 'maintenance'; render(); formLogService(id); }
+    else if (type === 'project') { ui.projectId = id; ui.view = 'projects'; render(); }
+    else if (type === 'task') { ui.projectId = el.getAttribute('data-project'); ui.view = 'projects'; render(); }
+    else if (type === 'inventory') { ui.view = 'inventory'; render(); formInventoryDetail(id); }
+    else if (type === 'user') { ui.view = 'more'; render(); }
+  }
+
+  /* ---------------- asset docs & QR ---------------- */
+  function assetDocsSection(assetId) {
+    var docs = S.assetDocsFor(assetId);
+    var canDelAll = S.isManager();
+    var html = '<div class="section-title">Documents<span class="count-pill">' + docs.length + '</span></div>' +
+      '<label class="btn block" style="text-align:center;cursor:pointer;margin-bottom:8px">+ Add receipt / manual' +
+        '<input type="file" accept="image/*,application/pdf" data-action="add-doc" data-asset="' + assetId + '" hidden /></label>';
+    if (!docs.length) return html + '<p class="subtle">No documents yet.</p>';
+    return html + docs.map(function (d) {
+      var icon = d.mime.indexOf('pdf') !== -1 ? '📄' : '🧾';
+      return '<div class="card"><div class="item"><div class="item-main tap" data-action="view-doc" data-id="' + d.id + '">' +
+        '<p class="item-title">' + icon + ' ' + esc(d.name) + '</p>' +
+        '<p class="item-sub">' + esc(S.userName(d.uploadedBy)) + ' · ' + esc(S.fmtDate(d.date)) +
+        (d.size ? ' · ' + Math.round(d.size / 1024) + ' KB' : '') + '</p></div>' +
+        (d.uploadedBy === S.currentUser().id || canDelAll ? '<button class="icon-btn" data-action="delete-doc" data-id="' + d.id + '" aria-label="Delete">🗑</button>' : '') +
+        '</div></div>';
+    }).join('');
+  }
+  function addDocFromFile(input) {
+    var assetId = input.getAttribute('data-asset');
+    var f = input.files && input.files[0];
+    input.value = '';
+    if (!f) return;
+    var isImg = f.type.indexOf('image') === 0;
+    var isPdf = f.type.indexOf('pdf') !== -1;
+    if (!isImg && !isPdf) { toast('Only images or PDFs'); return; }
+    if (f.size > 3 * 1024 * 1024 && isPdf) { toast('PDF too large (max 3 MB)'); return; }
+    var docType = isPdf ? 'manual' : 'receipt';
+    function store(dataUrl, size) {
+      var res = S.addAssetDoc(assetId, { name: f.name || 'Document', docType: docType, mime: f.type, dataUrl: dataUrl, size: size });
+      if (res.error) { toast(res.error); return; }
+      toast('Document added'); formAssetDetail(assetId); render();
+    }
+    if (isImg) { fileToDataURL(f, 1400, function (u) { store(u, u.length); }); }
+    else { var reader = new FileReader(); reader.onload = function () { store(String(reader.result), f.size); }; reader.readAsDataURL(f); }
+  }
+  function viewDoc(id) {
+    var d = S.assetDocById ? S.assetDocById(id) : null;
+    // assetDocById not exported for read; fetch via list is heavy — use a small lookup
+    if (!d) { d = findDoc(id); }
+    if (!d) { toast('Not found'); return; }
+    if (d.mime.indexOf('pdf') !== -1) {
+      var w = window.open(); if (w) { w.document.write('<iframe src="' + d.dataUrl + '" style="border:0;width:100%;height:100%"></iframe>'); }
+      else toast('Allow pop-ups to view the PDF');
+      return;
+    }
+    openModal(d.name, '<img src="' + d.dataUrl + '" alt="' + esc(d.name) + '" style="width:100%;border-radius:10px" />');
+  }
+  function findDoc(id) {
+    var found = null;
+    S.listAssets().forEach(function (a) { S.assetDocsFor(a.id).forEach(function (d) { if (d.id === id) found = d; }); });
+    return found;
+  }
+  function assetDeepLink(assetId) { return location.origin + location.pathname + '#asset=' + assetId; }
+  function formAssetQR(assetId) {
+    var a = S.assetById(assetId); if (!a) return;
+    var link = assetDeepLink(assetId);
+    var svg = (window.QR ? window.QR.svg(link) : '');
+    openModal('QR · ' + a.name,
+      '<div class="notice">Print this and stick it on the asset. Scanning it opens this asset in the app.</div>' +
+      '<div class="qr-wrap">' + svg + '</div>' +
+      '<p class="subtle" style="word-break:break-all;text-align:center">' + esc(link) + '</p>' +
+      '<button class="btn block" onclick="window.print()">🖨 Print</button>');
+  }
+
   /* ---------------- render ---------------- */
   function render() {
     renderUserArea();
@@ -867,7 +1262,9 @@
     else if (v === 'chores') main.innerHTML = viewChores();
     else if (v === 'maintenance') main.innerHTML = viewMaintenance();
     else if (v === 'projects') main.innerHTML = viewProjects();
+    else if (v === 'inventory') main.innerHTML = viewInventory();
     else if (v === 'leaderboard') main.innerHTML = viewLeaderboard();
+    else if (v === 'search') main.innerHTML = viewSearch();
     else if (v === 'more') main.innerHTML = viewMore();
     document.querySelectorAll('.nav-btn').forEach(function (btn) {
       btn.classList.toggle('active', btn.getAttribute('data-view') === v);
@@ -893,9 +1290,17 @@
         '</select></div>' +
         requirePhotoCheckbox(false) +
         openCheckbox(false) +
+        stepsField('') +
         '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button>' +
         '<button type="submit" class="btn primary">Add chore</button></div>' +
       '</form>');
+  }
+  function stepsField(val) {
+    return '<div class="field"><label>Checklist steps (one per line, optional)</label>' +
+      '<textarea name="steps" placeholder="Lock the coop&#10;Water off&#10;Lights out">' + esc(val) + '</textarea></div>';
+  }
+  function stepsFromForm(fd) {
+    return (fd.get('steps') || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
   }
   function submitAddChore(form) {
     var fd = new FormData(form);
@@ -903,7 +1308,7 @@
     var name = (fd.get('name') || '').trim();
     if (!name) return;
     if (schedule.type === 'weekly' && !schedule.weekdays.length) { toast('Pick at least one weekday'); return; }
-    var res = S.addChore({ name: name, schedule: schedule, assignedTo: fd.get('assignedTo') || null, catchUp: fd.get('catchUp'), nextDue: fd.get('firstDue') || S.todayISO(), requirePhoto: fd.get('requirePhoto') === 'on', open: fd.get('open') === 'on' });
+    var res = S.addChore({ name: name, schedule: schedule, assignedTo: fd.get('assignedTo') || null, catchUp: fd.get('catchUp'), nextDue: fd.get('firstDue') || S.todayISO(), requirePhoto: fd.get('requirePhoto') === 'on', open: fd.get('open') === 'on', steps: stepsFromForm(fd) });
     if (res.error) { toast(res.error); return; }
     closeModal(); toast('Chore added'); render();
   }
@@ -968,10 +1373,13 @@
     var asset = S.assetById(item.assetId);
     var st = S.maintenanceStatus(item);
     var logs = S.maintenanceLogsFor(itemId);
-    var histHtml = logs.length ? logs.map(function (l) {
+    var canSb = S.isManager();
+    var histHtml = logs.length ? logs.map(function (l, idx) {
       return '<div class="hist-row"><span>' + esc(S.fmtDate(l.date)) + ' · ' + esc(S.userName(l.userId)) +
         (l.reading != null ? ' · ' + l.reading : '') + (l.cost ? ' · $' + l.cost : '') +
-        (l.notes ? ' · ' + esc(l.notes) : '') + (l.photo ? ' ' + proofBtn('service', l.id) : '') + '</span></div>';
+        (l.notes ? ' · ' + esc(l.notes) : '') + (l.photo ? ' ' + proofBtn('service', l.id) : '') + '</span>' +
+        (canSb && idx === 0 ? '<button class="btn small ghost danger" data-action="send-back-service" data-id="' + l.id + '" title="Send back / undo">↩</button>' : '') +
+        '</div>';
     }).join('') : '<p class="subtle">No history yet.</p>';
 
     var totalCost = S.itemCostTotal(itemId);
@@ -982,6 +1390,7 @@
         '<span class="chip">$' + totalCost.toFixed(2) + ' total</span>' +
         (S.isManager() ? '<button type="button" class="btn small ghost" data-action="edit-maintenance" data-id="' + itemId + '">Edit item</button>' : '') +
       '</div>' +
+      timerButton('maintenance', itemId) +
       '<form data-form="log-service" data-id="' + itemId + '">' +
         '<div class="field"><label>Date</label><input type="date" name="date" value="' + S.todayISO() + '" /></div>' +
         (asset && asset.meterUnit ? '<div class="field"><label>Meter reading (' + asset.meterUnit + ')</label><input type="number" name="reading" placeholder="current ' + asset.meterUnit + '" /></div>' : '') +
@@ -1271,7 +1680,7 @@
 
       case 'complete-chore': {
         var ch = S.choreById(id);
-        if (ch && ch.requirePhoto) { formCompleteChore(id); break; }
+        if (ch && (ch.requirePhoto || (ch.steps && ch.steps.length))) { formCompleteChore(id); break; }
         var cr = S.completeChore(id);
         if (cr.error) toast(cr.error); else { toast('Nice — done'); render(); }
         break;
@@ -1332,7 +1741,76 @@
 
       case 'switch-to-user': S.setCurrentUser(id); toast('Now acting as ' + S.userName(id)); render(); break;
       case 'reset-data': if (confirm('Reset all demo data in this browser?')) { S.reset(); ui.projectId = null; ui.view = 'dashboard'; render(); toast('Demo data reset'); } break;
+
+      /* dashboard calendar toggle */
+      case 'toggle-dashmode': ui.dashMode = ui.dashMode === 'calendar' ? 'list' : 'calendar'; ui.calDay = null; render(); break;
+
+      /* global search */
+      case 'open-search': ui.searchQ = ui.searchQ || ''; ui.view = 'search'; render(); setTimeout(function () { var si = $('#search-input'); if (si) si.focus(); }, 0); break;
+      case 'search-open': searchOpen(el); break;
+
+      /* calendar */
+      case 'cal-prev': ui.calMonth = shiftMonth(ui.calMonth || S.currentMonthKey(), -1); ui.calDay = null; render(); break;
+      case 'cal-next': ui.calMonth = shiftMonth(ui.calMonth || S.currentMonthKey(), 1); ui.calDay = null; render(); break;
+      case 'cal-day': ui.calDay = el.getAttribute('data-date'); render(); break;
+      case 'cal-open': {
+        var ck = el.getAttribute('data-kind'), cid = id;
+        if (ck === 'chore') formChoreDetail(cid);
+        else if (ck === 'maintenance') formLogService(cid);
+        else if (ck === 'task') { var tt = S.taskById(cid); if (tt) { ui.projectId = tt.projectId; ui.view = 'projects'; render(); } }
+        else if (ck === 'rent') { ui.view = 'more'; render(); }
+        break;
+      }
+
+      /* time tracking */
+      case 'start-timer': { var sk = el.getAttribute('data-kind'); var sres = S.startTimer(sk, id); if (sres.error) toast(sres.error); else { toast('Timer started'); refreshTimerUI(el, sk, id); } break; }
+      case 'stop-timer': { var xk = el.getAttribute('data-kind'); var xres = S.stopTimer(xk, id); if (xres.error) toast(xres.error); else { toast('Logged ' + S.fmtDur(xres.entry.seconds)); refreshTimerUI(el, xk, id); } break; }
+
+      /* send back */
+      case 'send-back-chore': sendBack('chore', id); break;
+      case 'send-back-task': sendBack('task', id); break;
+      case 'send-back-service': sendBack('service', id); break;
+
+      /* weather */
+      case 'weather-setup': formWeatherSetup(); break;
+      case 'weather-refresh': refreshWeather(); break;
+      case 'weather-geo': weatherGeo(); break;
+
+      /* inventory */
+      case 'open-inventory': formInventoryDetail(id); break;
+      case 'open-add-inventory': formAddInventory(); break;
+      case 'edit-inventory': formEditInventory(id); break;
+      case 'delete-inventory': if (confirm('Delete this inventory item and its history?')) { var din = S.deleteInventoryItem(id); if (din.error) toast(din.error); else { closeModal(); toast('Deleted'); render(); } } break;
+      case 'stock-plus': stockNudge(el, 1); break;
+      case 'stock-minus': stockNudge(el, -1); break;
+
+      /* asset QR + documents */
+      case 'asset-qr': formAssetQR(id); break;
+      case 'view-doc': viewDoc(id); break;
+      case 'delete-doc': if (confirm('Delete this document?')) { var dd2 = S.deleteAssetDoc(id); if (dd2.error) toast(dd2.error); else { toast('Deleted'); render(); } } break;
     }
+  }
+
+  // After a timer start/stop, refresh the background view and, if the button
+  // lived inside a detail modal, re-open that modal so its button flips state.
+  function refreshTimerUI(el, kind, refId) {
+    var inModal = !!el.closest('#modal-body');
+    render();
+    if (!inModal) return;
+    if (kind === 'chore') formChoreDetail(refId);
+    else if (kind === 'maintenance') formLogService(refId);
+  }
+  function stockNudge(el, dir) {
+    var input = el.parentNode.querySelector('input[name="delta"]');
+    if (!input) return;
+    var cur = Number(input.value) || 0;
+    input.value = cur + dir;
+  }
+  // Shift a YYYY-MM month key by n months.
+  function shiftMonth(mk, n) {
+    var p = mk.split('-').map(Number);
+    var d = new Date(p[0], p[1] - 1 + n, 1);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
   }
 
   document.addEventListener('click', function (e) {
@@ -1366,6 +1844,17 @@
     if (action === 'set-project-status') { var sr = S.updateProjectStatus(el.getAttribute('data-id'), el.value); if (sr && sr.error) toast(sr.error); else toast('Status updated'); render(); return; }
     if (action === 'set-user-role') { var rr = S.updateUserRole(el.getAttribute('data-id'), el.value); if (rr.error) toast(rr.error); render(); return; }
     if (action === 'import-file') { handleImportFile(el); return; }
+    if (action === 'add-doc') { addDocFromFile(el); return; }
+  });
+
+  // Live global search — update results in place without a full re-render so
+  // the input keeps focus and the caret position.
+  document.addEventListener('input', function (e) {
+    var el = e.target.closest('[data-action="search-input"]');
+    if (!el) return;
+    ui.searchQ = el.value;
+    var box = $('#search-results');
+    if (box) box.innerHTML = searchResultsHtml(ui.searchQ);
   });
 
   document.addEventListener('submit', function (e) {
@@ -1393,6 +1882,10 @@
       case 'add-note': submitAddNote(form); break;
       case 'add-user': submitAddUser(form); break;
       case 'save-prefs': submitSavePrefs(form); break;
+      case 'weather-loc': submitWeatherLoc(form); break;
+      case 'add-inventory': submitAddInventory(form); break;
+      case 'edit-inventory': submitEditInventory(form); break;
+      case 'adjust-stock': submitAdjustStock(form); break;
     }
   });
 
@@ -1401,8 +1894,22 @@
   });
 
   /* ---------------- boot ---------------- */
+  // QR deep link: opening #asset=ID jumps straight to that asset.
+  function openDeepLink() {
+    var m = /(?:^|#|&)asset=([A-Za-z0-9_]+)/.exec(location.hash || '');
+    if (!m) return;
+    var a = S.assetById(m[1]);
+    if (!a) { toast('Asset not found'); return; }
+    ui.view = 'maintenance'; render(); formAssetDetail(m[1]);
+  }
+
   S.init();
   render();
+  openDeepLink();
+  window.addEventListener('hashchange', openDeepLink);
+
+  // Live-update running timers once a second.
+  setInterval(tickTimers, 1000);
 
   // Register the service worker for offline/PWA (skipped on file://).
   if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {

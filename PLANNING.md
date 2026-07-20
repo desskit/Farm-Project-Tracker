@@ -1,6 +1,6 @@
 # Farm Project Tracker — Planning Document
 
-*Status: planning · Last updated: 2026-07-19*
+*Status: prototype in progress · Last updated: 2026-07-20*
 
 This document outlines how the Farm Project Tracker app will function. It is the founding
 design for the project and the reference for implementation work that follows.
@@ -97,6 +97,50 @@ project tasks (+5), and maintenance services (+4), with a bonus for photo-verifi
 Ranked with medals and a champion banner, filterable by **this month** or **all time**, it
 also surfaces personal **streaks** (consecutive days active) and photo-verified counts.
 Per-person point totals also appear on the manager Team dashboard.
+
+### 2.8 Send-back (rework)
+
+A manager can **send back** a completed chore, project task, or logged maintenance service —
+undoing the completion and flagging the item to be **redone**. The item reappears as due with
+a small "↩ redo" banner naming who sent it back and their optional reason. There is no separate
+verify step (completions stand on their own); send-back is the lightweight "that's not finished,
+please do it again" control.
+
+### 2.9 Inventory (supplies)
+
+A simple stock list for consumables — feed, bedding, fuel, filters, parts. Each item tracks an
+**on-hand quantity**, **unit**, and a **reorder-at** threshold; anything at or below its threshold
+surfaces in a **Reorder list** at the top of the Inventory tab. Opening an item logs **usage or
+restock** (a signed quantity change with an optional note), and every change is kept in a
+per-item history. Managers add, edit, and delete items; anyone can log usage.
+
+### 2.10 Time tracking
+
+Each chore, maintenance item, and project task has a lightweight **Start / Stop timer** so
+workers can measure roughly how long work takes. Running timers show a live elapsed count and
+collect in a **timers strip** on the dashboard for easy stopping. Stopping logs the elapsed
+seconds; total logged time is shown on the item. Nothing heavyweight — just a stopwatch per item.
+
+### 2.11 Multi-step checklists (chores)
+
+A chore can carry an ordered **checklist** of steps (e.g. evening lock-up: coop run, yard water,
+barn lights, main gate). When present, completing the chore opens a form that requires **every
+step ticked** before it can be marked done — combinable with photo proof.
+
+### 2.12 Asset QR codes, receipts & manuals
+
+Every asset has a printable **QR code** (encoded fully offline — no external service) that deep-links
+straight to that asset's detail when scanned (`#asset=<id>`). Assets also hold **documents** —
+receipts and manuals uploaded as images or PDFs, stored inline and viewable from the asset detail.
+
+### 2.13 Weather, calendar & global search (dashboard/cross-cutting)
+
+- **7-day weather** on the dashboard via the free open-meteo.com forecast API (no key/account);
+  location is set manually or from device geolocation, and it degrades gracefully offline.
+- **Calendar view** — a month grid toggled from the dashboard, with color-coded dots per day
+  (chore / upkeep / task / rent) and a tap-through day agenda.
+- **Global search** — a top-bar search that spans chores, assets, upkeep, projects, tasks,
+  inventory, and people, opening the matching detail on tap.
 
 ## 3. Users & Roles
 
@@ -203,7 +247,10 @@ one process, one database file, one Docker container.
   server work. Covers all three item types, simulated roles (a user switcher), the
   dashboard, and the project step-suggestion flow (with an **offline placeholder**
   generator standing in for the Claude API, which requires the server phase). No real
-  auth, email, or push — those arrive with the server.
+  auth, email, or push — those arrive with the server. The prototype has since grown well
+  past the minimum: send-back/rework (§2.8), inventory (§2.9), per-item time tracking (§2.10),
+  multi-step chore checklists (§2.11), printable asset QR codes plus receipts/manuals (§2.12),
+  and a 7-day weather forecast, calendar view, and global search (§2.13) — all client-side.
 - **Phase 1 — MVP:** auth + roles, chores with recurrence, dashboard, completion logging.
 - **Phase 2 — Maintenance:** assets, calendar/usage intervals, meter readings, service
   history.
