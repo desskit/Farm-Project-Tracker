@@ -176,14 +176,18 @@
 
   function viewChores() {
     var chores = S.listChores();
+    var canEdit = S.isManager();
     var html = '' +
       '<div class="view-head"><h1>Chores</h1>' +
-      '<button class="btn primary small" data-action="open-add-chore">+ Add</button></div>';
+      (canEdit ? '<button class="btn primary small" data-action="open-add-chore">+ Add</button>' : '') +
+      '</div>';
+    if (!canEdit) html += '<div class="notice">Workers complete chores; managers and admins define them.</div>';
     if (!chores.length) { html += '<div class="empty">No chores yet.</div>'; return html; }
     html += chores.map(function (c) {
       var bucket = S.bucketForDate(c.nextDue);
+      var streak = c.schedule.type === 'daily' ? S.choreStreak(c.id) : 0;
       return '' +
-        '<div class="card">' +
+        '<div class="card tap" data-action="open-chore" data-id="' + c.id + '">' +
           '<div class="item">' +
             '<div class="left-rail ' + bucket + '"></div>' +
             '<div class="item-main">' +
@@ -193,30 +197,122 @@
                 (bucket !== 'later' ? bucketBadge(bucket) : '') +
                 '<span class="badge neutral">Due ' + esc(S.fmtDate(c.nextDue)) + ' · ' + esc(S.relativeLabel(c.nextDue)) + '</span>' +
                 '<span class="badge neutral">' + (c.catchUp === 'mustCatchUp' ? 'Must catch up' : 'Skips if missed') + '</span>' +
+                (streak >= 2 ? '<span class="badge upcoming">🔥 ' + streak + '-day streak</span>' : '') +
               '</div>' +
             '</div>' +
-          '</div>' +
-          '<div class="row-actions" style="margin-top:12px">' +
-            '<button class="btn small primary" data-action="complete-chore" data-id="' + c.id + '">Mark done</button>' +
-            '<button class="btn small ghost danger" data-action="delete-chore" data-id="' + c.id + '">Delete</button>' +
+            '<button class="btn small primary" data-action="complete-chore" data-id="' + c.id + '">Done</button>' +
           '</div>' +
         '</div>';
     }).join('');
+    html += '<p class="subtle" style="margin-top:6px">Tap a chore for history, notes, and editing.</p>';
     return html;
+  }
+
+  function formChoreDetail(id) {
+    var c = S.choreById(id); if (!c) return;
+    var canEdit = S.isManager();
+    var history = S.choreCompletionsFor(id);
+    var streak = c.schedule.type === 'daily' ? S.choreStreak(id) : 0;
+    var histHtml = history.length ? history.slice(0, 15).map(function (h) {
+      return '<div class="hist-row"><span>' + esc(S.fmtDate(h.date)) + ' · ' + esc(S.userName(h.completedBy)) +
+        (h.notes ? ' · ' + esc(h.notes) : '') + '</span></div>';
+    }).join('') : '<p class="subtle">Never completed yet.</p>';
+
+    openModal(c.name,
+      '<p class="subtle">' + esc(S.describeSchedule(c.schedule)) + ' · ' + esc(S.userName(c.assignedTo)) +
+        ' · next due ' + esc(S.fmtDate(c.nextDue)) + ' (' + esc(S.relativeLabel(c.nextDue)) + ')</p>' +
+      '<div class="chips" style="margin:8px 0 4px">' +
+        '<span class="chip">' + history.length + ' completion' + (history.length === 1 ? '' : 's') + '</span>' +
+        (streak >= 2 ? '<span class="chip">🔥 ' + streak + '-day streak</span>' : '') +
+        '<span class="chip">' + (c.catchUp === 'mustCatchUp' ? 'must catch up if missed' : 'skips if missed') + '</span>' +
+      '</div>' +
+      '<form data-form="complete-chore" data-id="' + id + '" style="margin-top:10px">' +
+        '<div class="field"><label>Note (optional)</label><input type="text" name="note" placeholder="e.g. water was low, refilled" /></div>' +
+        '<button type="submit" class="btn primary block">Mark done' + (c.schedule.type === 'daily' ? ' for today' : '') + '</button>' +
+      '</form>' +
+      (canEdit ? '<div class="row-actions" style="margin-top:10px">' +
+        '<button class="btn small" data-action="edit-chore" data-id="' + id + '">Edit</button>' +
+        '<button class="btn small ghost danger" data-action="delete-chore" data-id="' + id + '">Delete</button>' +
+      '</div>' : '') +
+      '<div class="section-title">History</div><div class="card">' + histHtml + '</div>');
+  }
+
+  function scheduleFields(schedule) {
+    var s = schedule || { type: 'daily' };
+    var wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(function (n, i) {
+      var checked = s.type === 'weekly' && (s.weekdays || []).indexOf(i) !== -1 ? ' checked' : '';
+      return '<label><input type="checkbox" name="weekdays" value="' + i + '"' + checked + ' />' + n + '</label>';
+    }).join('');
+    function sel(v) { return s.type === v ? ' selected' : ''; }
+    return '' +
+      '<div class="field"><label>Repeats</label><select name="schedType">' +
+        '<option value="daily"' + sel('daily') + '>Every day</option>' +
+        '<option value="everyNDays"' + sel('everyNDays') + '>Every N days</option>' +
+        '<option value="weekly"' + sel('weekly') + '>Weekly (choose days)</option>' +
+        '<option value="monthly"' + sel('monthly') + '>Monthly (choose day)</option>' +
+      '</select></div>' +
+      '<div class="field" data-show-when="schedType=everyNDays"><label>N (days)</label><input type="number" name="n" min="1" value="' + (s.n || 2) + '" /></div>' +
+      '<div class="field" data-show-when="schedType=weekly"><label>Days</label><div class="weekday-row">' + wd + '</div></div>' +
+      '<div class="field" data-show-when="schedType=monthly"><label>Day of month</label><input type="number" name="monthDay" min="1" max="28" value="' + (s.day || 1) + '" /></div>';
+  }
+  function scheduleFromForm(fd) {
+    var type = fd.get('schedType');
+    var schedule = { type: type };
+    if (type === 'everyNDays') schedule.n = Number(fd.get('n')) || 1;
+    if (type === 'weekly') schedule.weekdays = fd.getAll('weekdays').map(Number);
+    if (type === 'monthly') schedule.day = Number(fd.get('monthDay')) || 1;
+    return schedule;
+  }
+
+  function formEditChore(id) {
+    var c = S.choreById(id); if (!c) return;
+    openModal('Edit chore',
+      '<form data-form="edit-chore" data-id="' + id + '">' +
+        '<div class="field"><label>Name</label><input type="text" name="name" required value="' + esc(c.name) + '" /></div>' +
+        scheduleFields(c.schedule) +
+        '<div class="field"><label>Next due</label><input type="date" name="nextDue" value="' + esc(c.nextDue) + '" /></div>' +
+        '<div class="field"><label>Assign to</label><select name="assignedTo">' + userOptions(c.assignedTo, true) + '</select></div>' +
+        '<div class="field"><label>If missed</label><select name="catchUp">' +
+          '<option value="skipToNext"' + (c.catchUp === 'skipToNext' ? ' selected' : '') + '>Skip to next occurrence</option>' +
+          '<option value="mustCatchUp"' + (c.catchUp === 'mustCatchUp' ? ' selected' : '') + '>Must catch up (stays overdue)</option>' +
+        '</select></div>' +
+        '<div class="form-actions"><button type="button" class="btn" data-action="close-modal">Cancel</button>' +
+        '<button type="submit" class="btn primary">Save</button></div>' +
+      '</form>');
+  }
+  function submitEditChore(form) {
+    var fd = new FormData(form);
+    var schedule = scheduleFromForm(fd);
+    if (schedule.type === 'weekly' && !schedule.weekdays.length) { toast('Pick at least one weekday'); return; }
+    var res = S.updateChore(form.getAttribute('data-id'), {
+      name: fd.get('name'), schedule: schedule, assignedTo: fd.get('assignedTo') || null,
+      catchUp: fd.get('catchUp'), nextDue: fd.get('nextDue')
+    });
+    if (res.error) { toast(res.error); return; }
+    closeModal(); toast('Chore updated'); render();
+  }
+  function submitCompleteChoreWithNote(form) {
+    var note = (new FormData(form).get('note') || '').trim();
+    S.completeChore(form.getAttribute('data-id'), note);
+    closeModal(); toast('Nice — done'); render();
   }
 
   function viewMaintenance() {
     var assets = S.listAssets();
+    var canEdit = S.isManager();
     var html = '' +
       '<div class="view-head"><h1>Upkeep</h1>' +
-      '<button class="btn primary small" data-action="open-add-asset">+ Asset</button></div>' +
-      '<div class="notice">Maintenance is grouped by <strong>asset</strong>. Due by calendar interval or by usage (meter readings).</div>';
+      (canEdit ? '<button class="btn primary small" data-action="open-add-asset">+ Asset</button>' : '') +
+      '</div>' +
+      '<div class="notice">Maintenance is grouped by <strong>asset</strong>. Due by calendar interval or by usage (meter readings). Tap an asset name for readings, costs, and editing.</div>';
 
     if (!assets.length) { html += '<div class="empty">No assets yet.</div>'; return html; }
 
     html += assets.map(function (a) {
       var reading = S.latestReading(a.id);
-      var meter = a.meterUnit ? (' · ' + (reading != null ? reading + ' ' + a.meterUnit : 'no readings')) : '';
+      var lastDate = S.lastReadingDate(a.id);
+      var stale = a.meterUnit && lastDate && S.diffDays(S.todayISO(), lastDate) > 14;
+      var meter = a.meterUnit ? (' · ' + (reading != null ? reading + ' ' + a.meterUnit : 'no readings yet')) : '';
       var items = S.maintenanceForAsset(a.id);
       var itemsHtml = items.length ? items.map(function (m) {
         var st = S.maintenanceStatus(m);
@@ -238,17 +334,100 @@
 
       return '' +
         '<div class="card">' +
-          '<div class="item">' +
+          '<div class="item tap" data-action="open-asset" data-id="' + a.id + '">' +
             '<div class="item-main">' +
-              '<p class="item-title">' + esc(a.name) + '</p>' +
-              '<p class="item-sub">' + esc(a.category) + esc(meter) + '</p>' +
+              '<p class="item-title">' + esc(a.name) + ' <span class="subtle" style="font-weight:400">›</span></p>' +
+              '<p class="item-sub">' + esc(a.category) + esc(meter) +
+                (stale ? ' · <span class="stale">reading is ' + S.diffDays(S.todayISO(), lastDate) + ' days old</span>' : '') + '</p>' +
             '</div>' +
-            '<button class="btn small" data-action="open-add-maintenance" data-id="' + a.id + '">+ Item</button>' +
+            (canEdit ? '<button class="btn small" data-action="open-add-maintenance" data-id="' + a.id + '">+ Item</button>' : '') +
           '</div>' +
           itemsHtml +
         '</div>';
     }).join('');
     return html;
+  }
+
+  function formAssetDetail(assetId) {
+    var a = S.assetById(assetId); if (!a) return;
+    var canEdit = S.isManager();
+    var readings = S.readingsFor(assetId);
+    var cost = S.assetCostTotal(assetId);
+    var readingsHtml = readings.length ? readings.slice(0, 10).map(function (r) {
+      return '<div class="hist-row"><span>' + r.reading + ' ' + esc(a.meterUnit) + ' · ' + esc(S.userName(r.userId)) + '</span><span class="subtle">' + esc(S.fmtDate(r.date)) + '</span></div>';
+    }).join('') : '<p class="subtle">No readings yet.</p>';
+
+    var body = '<p class="subtle">' + esc(a.category) + ' · total maintenance spend <strong>$' + cost.toFixed(2) + '</strong></p>';
+
+    if (a.meterUnit) {
+      body += '<form data-form="add-reading" data-id="' + assetId + '" style="margin-top:10px">' +
+        '<div class="field"><label>New meter reading (' + esc(a.meterUnit) + ')</label>' +
+        '<div style="display:flex;gap:8px"><input type="number" name="reading" step="any" min="0" required placeholder="' + (S.latestReading(assetId) != null ? 'latest: ' + S.latestReading(assetId) : 'e.g. 520') + '" style="flex:1" />' +
+        '<button type="submit" class="btn primary">Log</button></div></div>' +
+        '</form>' +
+        '<div class="section-title">Reading history</div><div class="card">' + readingsHtml + '</div>';
+    }
+
+    if (canEdit) {
+      body += '<div class="section-title">Edit asset</div>' +
+        '<form data-form="edit-asset" data-id="' + assetId + '">' +
+          '<div class="field"><label>Name</label><input type="text" name="name" required value="' + esc(a.name) + '" /></div>' +
+          '<div class="field"><label>Category</label><input type="text" name="category" value="' + esc(a.category) + '" /></div>' +
+          '<div class="field"><label>Notes</label><textarea name="notes">' + esc(a.notes || '') + '</textarea></div>' +
+          '<div class="form-actions">' +
+            '<button type="button" class="btn danger" data-action="delete-asset" data-id="' + assetId + '">Delete asset</button>' +
+            '<button type="submit" class="btn primary">Save</button>' +
+          '</div>' +
+        '</form>';
+    } else if (a.notes) {
+      body += '<div class="section-title">Notes</div><div class="card"><p class="subtle">' + esc(a.notes) + '</p></div>';
+    }
+
+    openModal(a.name, body);
+  }
+  function submitEditAsset(form) {
+    var fd = new FormData(form);
+    var res = S.updateAsset(form.getAttribute('data-id'), { name: fd.get('name'), category: fd.get('category'), notes: fd.get('notes') });
+    if (res.error) { toast(res.error); return; }
+    closeModal(); toast('Asset updated'); render();
+  }
+  function submitAddReading(form) {
+    var fd = new FormData(form);
+    var assetId = form.getAttribute('data-id');
+    var res = S.addReading(assetId, fd.get('reading'));
+    if (res.error) { toast(res.error); return; }
+    toast('Reading logged');
+    formAssetDetail(assetId); // refresh the open modal
+    render();
+  }
+
+  function formEditMaintenance(itemId) {
+    var item = S.maintenanceById(itemId); if (!item) return;
+    var asset = S.assetById(item.assetId);
+    var isUsage = item.intervalType === 'usage';
+    openModal('Edit maintenance',
+      '<form data-form="edit-maintenance" data-id="' + itemId + '">' +
+        '<div class="field"><label>What needs doing</label><input type="text" name="name" required value="' + esc(item.name) + '" /></div>' +
+        (isUsage
+          ? '<div class="field"><label>Every (' + esc(asset ? asset.meterUnit : 'units') + ')</label><input type="number" name="intervalValue" min="1" value="' + item.intervalValue + '" /></div>'
+          : '<div class="field"><label>Every</label><div style="display:flex;gap:8px">' +
+            '<input type="number" name="intervalValue" min="1" value="' + item.intervalValue + '" style="flex:1" />' +
+            '<select name="intervalUnit" style="flex:1">' +
+              '<option value="months"' + (item.intervalUnit !== 'days' ? ' selected' : '') + '>months</option>' +
+              '<option value="days"' + (item.intervalUnit === 'days' ? ' selected' : '') + '>days</option>' +
+            '</select></div></div>') +
+        '<p class="subtle">The next due point is recalculated from the last completed service.</p>' +
+        '<div class="form-actions">' +
+          '<button type="button" class="btn danger" data-action="delete-maintenance" data-id="' + itemId + '">Delete</button>' +
+          '<button type="submit" class="btn primary">Save</button>' +
+        '</div>' +
+      '</form>');
+  }
+  function submitEditMaintenance(form) {
+    var fd = new FormData(form);
+    var res = S.updateMaintenance(form.getAttribute('data-id'), { name: fd.get('name'), intervalValue: fd.get('intervalValue'), intervalUnit: fd.get('intervalUnit') });
+    if (res.error) { toast(res.error); return; }
+    closeModal(); toast('Maintenance updated'); render();
   }
 
   function viewProjects() {
@@ -326,9 +505,10 @@
                 '<div class="chips">' +
                   '<span class="chip">' + esc(S.userName(t.assignedTo)) + '</span>' +
                   (t.dueDate ? '<span class="chip">due ' + esc(S.fmtDate(t.dueDate)) + '</span>' : '') +
-                  (t.done ? '<span class="chip">done ' + esc(S.fmtDate(t.doneAt)) + '</span>' : '') +
+                  (t.done ? '<span class="chip">done ' + esc(S.fmtDate(t.doneAt)) + ' by ' + esc(S.userName(t.doneBy)) + '</span>' : '') +
                 '</div>' +
               '</div>' +
+              (canEdit ? '<button class="icon-btn" data-action="edit-task" data-id="' + t.id + '" aria-label="Edit task">✎</button>' : '') +
             '</div>' +
           '</div>';
       }).join('');
@@ -439,26 +619,19 @@
     document.querySelectorAll('.nav-btn').forEach(function (btn) {
       btn.classList.toggle('active', btn.getAttribute('data-view') === v);
     });
+    var overdue = S.counts().overdue;
+    var badge = $('#nav-badge');
+    badge.hidden = overdue === 0;
+    badge.textContent = overdue > 9 ? '9+' : String(overdue);
     window.scrollTo(0, 0);
   }
 
   /* ---------------- modal forms ---------------- */
   function formAddChore() {
-    var wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(function (n, i) {
-      return '<label><input type="checkbox" name="weekdays" value="' + i + '" />' + n + '</label>';
-    }).join('');
     openModal('Add chore',
       '<form data-form="add-chore">' +
         '<div class="field"><label>Name</label><input type="text" name="name" required placeholder="e.g. Collect eggs" /></div>' +
-        '<div class="field"><label>Repeats</label><select name="schedType">' +
-          '<option value="daily">Every day</option>' +
-          '<option value="everyNDays">Every N days</option>' +
-          '<option value="weekly">Weekly (choose days)</option>' +
-          '<option value="monthly">Monthly (choose day)</option>' +
-        '</select></div>' +
-        '<div class="field" data-show-when="schedType=everyNDays"><label>N (days)</label><input type="number" name="n" min="1" value="2" /></div>' +
-        '<div class="field" data-show-when="schedType=weekly"><label>Days</label><div class="weekday-row">' + wd + '</div></div>' +
-        '<div class="field" data-show-when="schedType=monthly"><label>Day of month</label><input type="number" name="monthDay" min="1" max="28" value="1" /></div>' +
+        scheduleFields(null) +
         '<div class="field"><label>First due</label><input type="date" name="firstDue" value="' + S.todayISO() + '" /></div>' +
         '<div class="field"><label>Assign to</label><select name="assignedTo">' + userOptions(S.currentUser().id, true) + '</select></div>' +
         '<div class="field"><label>If missed</label><select name="catchUp">' +
@@ -471,15 +644,12 @@
   }
   function submitAddChore(form) {
     var fd = new FormData(form);
-    var type = fd.get('schedType');
-    var schedule = { type: type };
-    if (type === 'everyNDays') schedule.n = Number(fd.get('n')) || 1;
-    if (type === 'weekly') schedule.weekdays = fd.getAll('weekdays').map(Number);
-    if (type === 'monthly') schedule.day = Number(fd.get('monthDay')) || 1;
+    var schedule = scheduleFromForm(fd);
     var name = (fd.get('name') || '').trim();
     if (!name) return;
-    if (type === 'weekly' && !schedule.weekdays.length) { toast('Pick at least one weekday'); return; }
-    S.addChore({ name: name, schedule: schedule, assignedTo: fd.get('assignedTo') || null, catchUp: fd.get('catchUp'), nextDue: fd.get('firstDue') || S.todayISO() });
+    if (schedule.type === 'weekly' && !schedule.weekdays.length) { toast('Pick at least one weekday'); return; }
+    var res = S.addChore({ name: name, schedule: schedule, assignedTo: fd.get('assignedTo') || null, catchUp: fd.get('catchUp'), nextDue: fd.get('firstDue') || S.todayISO() });
+    if (res.error) { toast(res.error); return; }
     closeModal(); toast('Chore added'); render();
   }
 
@@ -499,7 +669,8 @@
     var fd = new FormData(form);
     var name = (fd.get('name') || '').trim();
     if (!name) return;
-    S.addAsset({ name: name, category: fd.get('category') || 'Equipment', meterUnit: fd.get('meterUnit') || null });
+    var res = S.addAsset({ name: name, category: fd.get('category') || 'Equipment', meterUnit: fd.get('meterUnit') || null });
+    if (res.error) { toast(res.error); return; }
     closeModal(); toast('Asset added'); render();
   }
 
@@ -530,7 +701,8 @@
     var data = { assetId: assetId, name: name, intervalType: type };
     if (type === 'calendar') { data.intervalValue = fd.get('calValue'); data.intervalUnit = fd.get('calUnit'); }
     else { data.intervalValue = fd.get('usageValue'); }
-    S.addMaintenance(data);
+    var res = S.addMaintenance(data);
+    if (res.error) { toast(res.error); return; }
     closeModal(); toast('Maintenance item added'); render();
   }
 
@@ -546,8 +718,14 @@
         (l.notes ? ' · ' + esc(l.notes) : '') + '</span></div>';
     }).join('') : '<p class="subtle">No history yet.</p>';
 
+    var totalCost = S.itemCostTotal(itemId);
     openModal('Log: ' + item.name,
       '<p class="subtle">' + esc(asset ? asset.name : '') + ' · ' + esc(st.detail) + '</p>' +
+      '<div class="chips" style="margin:6px 0 4px">' +
+        '<span class="chip">' + logs.length + ' service' + (logs.length === 1 ? '' : 's') + ' logged</span>' +
+        '<span class="chip">$' + totalCost.toFixed(2) + ' total</span>' +
+        (S.isManager() ? '<button type="button" class="btn small ghost" data-action="edit-maintenance" data-id="' + itemId + '">Edit item</button>' : '') +
+      '</div>' +
       '<form data-form="log-service" data-id="' + itemId + '">' +
         '<div class="field"><label>Date</label><input type="date" name="date" value="' + S.todayISO() + '" /></div>' +
         (asset && asset.meterUnit ? '<div class="field"><label>Meter reading (' + asset.meterUnit + ')</label><input type="number" name="reading" placeholder="current ' + asset.meterUnit + '" /></div>' : '') +
@@ -702,6 +880,30 @@
     closeModal(); toast('Added ' + res.user.name); render();
   }
 
+  function formEditTask(taskId) {
+    var t = S.taskById(taskId); if (!t) return;
+    openModal('Edit task',
+      '<form data-form="edit-task" data-id="' + taskId + '">' +
+        '<div class="field"><label>Title</label><input type="text" name="title" required value="' + esc(t.title) + '" /></div>' +
+        '<div class="field"><label>Details</label><textarea name="description">' + esc(t.description || '') + '</textarea></div>' +
+        '<div class="field"><label>Assign to</label><select name="assignedTo">' + userOptions(t.assignedTo, true) + '</select></div>' +
+        '<div class="field"><label>Due date</label><input type="date" name="dueDate" value="' + esc(t.dueDate || '') + '" /></div>' +
+        '<div class="form-actions">' +
+          '<button type="button" class="btn danger" data-action="delete-task" data-id="' + taskId + '">Delete</button>' +
+          '<button type="submit" class="btn primary">Save</button>' +
+        '</div>' +
+      '</form>');
+  }
+  function submitEditTask(form) {
+    var fd = new FormData(form);
+    var res = S.updateTask(form.getAttribute('data-id'), {
+      title: fd.get('title'), description: fd.get('description'),
+      assignedTo: fd.get('assignedTo') || null, dueDate: fd.get('dueDate') || null
+    });
+    if (res.error) { toast(res.error); return; }
+    closeModal(); toast('Task updated'); render();
+  }
+
   function submitSavePrefs(form) {
     var fd = new FormData(form);
     S.setPrefs(S.currentUser().id, { email: fd.get('email'), push: fd.get('push') === 'on', digestHour: fd.get('digestHour') });
@@ -717,18 +919,26 @@
       case 'close-modal': closeModal(); break;
 
       case 'complete-chore': S.completeChore(id); toast('Nice — done'); render(); break;
-      case 'delete-chore': if (confirm('Delete this chore?')) { S.deleteChore(id); render(); } break;
+      case 'open-chore': formChoreDetail(id); break;
+      case 'edit-chore': formEditChore(id); break;
+      case 'delete-chore': if (confirm('Delete this chore and its history?')) { var dc = S.deleteChore(id); if (dc.error) toast(dc.error); else { closeModal(); render(); } } break;
       case 'open-add-chore': formAddChore(); break;
 
       case 'open-add-asset': formAddAsset(); break;
+      case 'open-asset': formAssetDetail(id); break;
+      case 'delete-asset': if (confirm('Delete this asset, its maintenance items, and history?')) { var da = S.deleteAsset(id); if (da.error) toast(da.error); else { closeModal(); toast('Asset deleted'); render(); } } break;
       case 'open-add-maintenance': formAddMaintenance(id); break;
       case 'open-log-service': formLogService(id); break;
+      case 'edit-maintenance': formEditMaintenance(id); break;
+      case 'delete-maintenance': if (confirm('Delete this maintenance item and its history?')) { var dm = S.deleteMaintenance(id); if (dm.error) toast(dm.error); else { closeModal(); toast('Item deleted'); render(); } } break;
 
       case 'open-project': ui.projectId = id; ui.view = 'projects'; render(); break;
       case 'back-to-projects': ui.projectId = null; render(); break;
       case 'open-add-project': formAddProject(); break;
       case 'edit-project': formEditProject(id); break;
       case 'open-add-task': formAddTask(id); break;
+      case 'edit-task': formEditTask(id); break;
+      case 'delete-task': if (confirm('Delete this task?')) { var dt = S.deleteTask(id); if (dt.error) toast(dt.error); else { closeModal(); toast('Task deleted'); render(); } } break;
       case 'toggle-task': S.toggleTask(id); render(); break;
       case 'suggest-steps': suggestSteps(id); break;
       case 'delete-project': if (confirm('Delete this project and its tasks?')) { var dp = S.deleteProject(id); if (dp && dp.error) toast(dp.error); else { ui.projectId = null; render(); } } break;
@@ -781,9 +991,15 @@
       case 'add-asset': submitAddAsset(form); break;
       case 'add-maintenance': submitAddMaintenance(form); break;
       case 'log-service': submitLogService(form); break;
+      case 'edit-chore': submitEditChore(form); break;
+      case 'complete-chore': submitCompleteChoreWithNote(form); break;
+      case 'edit-asset': submitEditAsset(form); break;
+      case 'add-reading': submitAddReading(form); break;
+      case 'edit-maintenance': submitEditMaintenance(form); break;
       case 'add-project': submitAddProject(form); break;
       case 'edit-project': submitEditProject(form); break;
       case 'add-task': submitAddTask(form); break;
+      case 'edit-task': submitEditTask(form); break;
       case 'accept-steps': submitAcceptSteps(form); break;
       case 'add-note': submitAddNote(form); break;
       case 'add-user': submitAddUser(form); break;

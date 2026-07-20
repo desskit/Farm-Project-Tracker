@@ -267,8 +267,16 @@ button { font-family: inherit; }
   cursor: pointer;
   font-size: 11px;
 }
-.nav-btn .nav-ico { font-size: 20px; line-height: 1; }
+.nav-btn .nav-ico { font-size: 20px; line-height: 1; position: relative; }
 .nav-btn.active { color: var(--brand); font-weight: 700; }
+.nav-badge {
+  position: absolute; top: -5px; right: -12px;
+  min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: 999px; background: var(--overdue); color: #fff;
+  font-size: 11px; font-weight: 700; line-height: 17px; text-align: center;
+}
+.nav-badge[hidden] { display: none; }
+.stale { color: var(--today); font-weight: 600; }
 
 /* ---------- Modal ---------- */
 .modal { position: fixed; inset: 0; z-index: 40; display: flex; align-items: flex-end; justify-content: center; }

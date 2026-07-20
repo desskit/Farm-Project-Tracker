@@ -204,6 +204,9 @@
   function setCurrentUser(id) { state.currentUserId = id; save(); }
   function userName(id) { var u = userById(id); return u ? u.name : 'Unassigned'; }
   function canCreateProject(user) { user = user || currentUser(); return user.role === 'admin' || user.role === 'manager'; }
+  // Managers/admins create and edit work definitions (chores, assets, maintenance,
+  // project tasks); workers complete them and log readings/notes.
+  function isManager(user) { return canCreateProject(user); }
 
   function logActivity(text) {
     state.activity.unshift({ id: uid('act'), ts: Date.now(), userId: state.currentUserId, text: text });
@@ -214,7 +217,9 @@
   function listChores() {
     return state.chores.slice().sort(function (a, b) { return a.nextDue < b.nextDue ? -1 : 1; });
   }
+  function choreById(id) { return state.chores.filter(function (c) { return c.id === id; })[0] || null; }
   function addChore(data) {
+    if (!isManager()) return { error: 'Only managers and admins can add chores.' };
     var chore = {
       id: uid('c'), name: data.name, schedule: data.schedule,
       catchUp: data.catchUp || 'skipToNext',
@@ -224,7 +229,34 @@
     state.chores.push(chore);
     logActivity('added chore "' + chore.name + '"');
     save();
-    return chore;
+    return { chore: chore };
+  }
+  function updateChore(id, data) {
+    if (!isManager()) return { error: 'Only managers and admins can edit chores.' };
+    var chore = choreById(id); if (!chore) return { error: 'No such chore.' };
+    if (data.name != null && String(data.name).trim()) chore.name = String(data.name).trim();
+    if (data.schedule) chore.schedule = data.schedule;
+    if (data.catchUp) chore.catchUp = data.catchUp;
+    chore.assignedTo = data.assignedTo || null;
+    if (data.nextDue) chore.nextDue = data.nextDue;
+    logActivity('edited chore "' + chore.name + '"');
+    save();
+    return { chore: chore };
+  }
+  function choreCompletionsFor(choreId) {
+    return state.choreCompletions.filter(function (c) { return c.choreId === choreId; })
+      .sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+  }
+  // Consecutive-day streak (meaningful for daily chores): counts back from
+  // today (or yesterday, so an as-yet-undone today doesn't break the run).
+  function choreStreak(choreId) {
+    var days = {};
+    state.choreCompletions.forEach(function (c) { if (c.choreId === choreId) days[c.date] = true; });
+    var d = todayISO();
+    if (!days[d]) d = addDays(d, -1);
+    var streak = 0;
+    while (days[d]) { streak++; d = addDays(d, -1); }
+    return streak;
   }
   function completeChore(id, notes) {
     var chore = state.chores.filter(function (c) { return c.id === id; })[0];
@@ -240,8 +272,11 @@
     save();
   }
   function deleteChore(id) {
+    if (!isManager()) return { error: 'Only managers and admins can delete chores.' };
     state.chores = state.chores.filter(function (c) { return c.id !== id; });
+    state.choreCompletions = state.choreCompletions.filter(function (c) { return c.choreId !== id; });
     save();
+    return { ok: true };
   }
   function bucketForDate(dueDate) {
     var n = diffDays(dueDate, todayISO());
@@ -255,20 +290,64 @@
   function listAssets() { return state.assets.slice(); }
   function assetById(id) { return state.assets.filter(function (a) { return a.id === id; })[0] || null; }
   function addAsset(data) {
+    if (!isManager()) return { error: 'Only managers and admins can add assets.' };
     var asset = { id: uid('a'), name: data.name, category: data.category || 'Equipment', meterUnit: data.meterUnit || null, notes: data.notes || '' };
     state.assets.push(asset);
     logActivity('added asset "' + asset.name + '"');
     save();
-    return asset;
+    return { asset: asset };
+  }
+  function updateAsset(id, data) {
+    if (!isManager()) return { error: 'Only managers and admins can edit assets.' };
+    var a = assetById(id); if (!a) return { error: 'No such asset.' };
+    if (data.name != null && String(data.name).trim()) a.name = String(data.name).trim();
+    if (data.category != null) a.category = data.category || 'Equipment';
+    a.notes = data.notes || '';
+    logActivity('edited asset "' + a.name + '"');
+    save();
+    return { asset: a };
+  }
+  function deleteAsset(id) {
+    if (!isManager()) return { error: 'Only managers and admins can delete assets.' };
+    var itemIds = state.maintenanceItems.filter(function (m) { return m.assetId === id; }).map(function (m) { return m.id; });
+    state.maintenanceItems = state.maintenanceItems.filter(function (m) { return m.assetId !== id; });
+    state.maintenanceLogs = state.maintenanceLogs.filter(function (l) { return itemIds.indexOf(l.itemId) === -1; });
+    state.meterReadings = state.meterReadings.filter(function (r) { return r.assetId !== id; });
+    state.assets = state.assets.filter(function (a) { return a.id !== id; });
+    save();
+    return { ok: true };
   }
   function latestReading(assetId) {
     var rs = state.meterReadings.filter(function (r) { return r.assetId === assetId; });
     if (!rs.length) return null;
     return rs.reduce(function (m, r) { return r.reading > m ? r.reading : m; }, rs[0].reading);
   }
+  function readingsFor(assetId) {
+    return state.meterReadings.filter(function (r) { return r.assetId === assetId; })
+      .sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+  }
+  function lastReadingDate(assetId) {
+    var rs = readingsFor(assetId);
+    return rs.length ? rs[0].date : null;
+  }
+  // Standalone reading entry (anyone) — keeps usage-based due dates honest
+  // without requiring a service to be logged.
+  function addReading(assetId, reading, date) {
+    var a = assetById(assetId);
+    if (!a || !a.meterUnit) return { error: 'This asset has no meter.' };
+    var n = Number(reading);
+    if (!isFinite(n) || n < 0) return { error: 'Enter a valid reading.' };
+    var prev = latestReading(assetId);
+    if (prev != null && n < prev) return { error: 'Reading is below the latest (' + prev + ' ' + a.meterUnit + ').' };
+    state.meterReadings.push({ id: uid('mr'), assetId: assetId, reading: n, userId: state.currentUserId, date: date || todayISO() });
+    logActivity('logged ' + n + ' ' + a.meterUnit + ' on ' + a.name);
+    save();
+    return { ok: true };
+  }
   function listMaintenance() { return state.maintenanceItems.slice(); }
   function maintenanceForAsset(assetId) { return state.maintenanceItems.filter(function (m) { return m.assetId === assetId; }); }
   function addMaintenance(data) {
+    if (!isManager()) return { error: 'Only managers and admins can add maintenance items.' };
     var today = todayISO();
     var item = {
       id: uid('m'), assetId: data.assetId, name: data.name,
@@ -287,7 +366,40 @@
     var asset = assetById(data.assetId);
     logActivity('added maintenance "' + item.name + '" on ' + (asset ? asset.name : 'asset'));
     save();
-    return item;
+    return { item: item };
+  }
+  function maintenanceById(id) { return state.maintenanceItems.filter(function (m) { return m.id === id; })[0] || null; }
+  function updateMaintenance(id, data) {
+    if (!isManager()) return { error: 'Only managers and admins can edit maintenance items.' };
+    var item = maintenanceById(id); if (!item) return { error: 'No such item.' };
+    if (data.name != null && String(data.name).trim()) item.name = String(data.name).trim();
+    var v = Number(data.intervalValue);
+    if (isFinite(v) && v > 0) item.intervalValue = v;
+    if (item.intervalType === 'calendar') {
+      if (data.intervalUnit) item.intervalUnit = data.intervalUnit;
+      item.nextDueDate = item.intervalUnit === 'days'
+        ? addDays(item.lastDoneDate, item.intervalValue)
+        : addMonths(item.lastDoneDate, item.intervalValue);
+    } else {
+      item.dueAtReading = (item.lastDoneReading || 0) + item.intervalValue;
+    }
+    logActivity('edited maintenance "' + item.name + '"');
+    save();
+    return { item: item };
+  }
+  function deleteMaintenance(id) {
+    if (!isManager()) return { error: 'Only managers and admins can delete maintenance items.' };
+    state.maintenanceItems = state.maintenanceItems.filter(function (m) { return m.id !== id; });
+    state.maintenanceLogs = state.maintenanceLogs.filter(function (l) { return l.itemId !== id; });
+    save();
+    return { ok: true };
+  }
+  function itemCostTotal(itemId) {
+    return state.maintenanceLogs.reduce(function (sum, l) { return l.itemId === itemId ? sum + (l.cost || 0) : sum; }, 0);
+  }
+  function assetCostTotal(assetId) {
+    var ids = state.maintenanceItems.filter(function (m) { return m.assetId === assetId; }).map(function (m) { return m.id; });
+    return state.maintenanceLogs.reduce(function (sum, l) { return ids.indexOf(l.itemId) !== -1 ? sum + (l.cost || 0) : sum; }, 0);
   }
   function logService(itemId, data) {
     var item = state.maintenanceItems.filter(function (m) { return m.id === itemId; })[0];
@@ -405,6 +517,23 @@
     t.doneBy = t.done ? state.currentUserId : null;
     t.doneAt = t.done ? todayISO() : null;
     save();
+  }
+  function taskById(id) { return state.projectTasks.filter(function (t) { return t.id === id; })[0] || null; }
+  function updateTask(taskId, data) {
+    if (!isManager()) return { error: 'Only managers and admins can edit tasks.' };
+    var t = taskById(taskId); if (!t) return { error: 'No such task.' };
+    if (data.title != null && String(data.title).trim()) t.title = String(data.title).trim();
+    t.description = data.description || '';
+    t.assignedTo = data.assignedTo || null;
+    t.dueDate = data.dueDate || null;
+    save();
+    return { task: t };
+  }
+  function deleteTask(taskId) {
+    if (!isManager()) return { error: 'Only managers and admins can delete tasks.' };
+    state.projectTasks = state.projectTasks.filter(function (t) { return t.id !== taskId; });
+    save();
+    return { ok: true };
   }
 
   /* Offline placeholder for the future Claude API "suggest steps" call.
@@ -589,21 +718,27 @@
     todayISO: todayISO, fmtDate: fmtDate, relativeLabel: relativeLabel, addDays: addDays, diffDays: diffDays,
     // users & roles
     users: users, userById: userById, userName: userName, currentUser: currentUser,
-    setCurrentUser: setCurrentUser, canCreateProject: canCreateProject, canManageUsers: canManageUsers,
+    setCurrentUser: setCurrentUser, canCreateProject: canCreateProject, isManager: isManager, canManageUsers: canManageUsers,
     addUser: addUser, updateUserRole: updateUserRole, removeUser: removeUser,
     // notification prefs & backup
     getPrefs: getPrefs, setPrefs: setPrefs, exportState: exportState, importState: importState,
     // chores
-    listChores: listChores, addChore: addChore, completeChore: completeChore, deleteChore: deleteChore,
+    listChores: listChores, choreById: choreById, addChore: addChore, updateChore: updateChore,
+    completeChore: completeChore, deleteChore: deleteChore,
+    choreCompletionsFor: choreCompletionsFor, choreStreak: choreStreak,
     describeSchedule: describeSchedule, bucketForDate: bucketForDate,
     // assets & maintenance
-    listAssets: listAssets, assetById: assetById, addAsset: addAsset, latestReading: latestReading,
-    listMaintenance: listMaintenance, maintenanceForAsset: maintenanceForAsset, addMaintenance: addMaintenance,
+    listAssets: listAssets, assetById: assetById, addAsset: addAsset, updateAsset: updateAsset, deleteAsset: deleteAsset,
+    latestReading: latestReading, readingsFor: readingsFor, lastReadingDate: lastReadingDate, addReading: addReading,
+    listMaintenance: listMaintenance, maintenanceById: maintenanceById, maintenanceForAsset: maintenanceForAsset,
+    addMaintenance: addMaintenance, updateMaintenance: updateMaintenance, deleteMaintenance: deleteMaintenance,
     logService: logService, maintenanceLogsFor: maintenanceLogsFor, maintenanceStatus: maintenanceStatus,
+    itemCostTotal: itemCostTotal, assetCostTotal: assetCostTotal,
     // projects
     STATUS_LABELS: STATUS_LABELS, listProjects: listProjects, getProject: getProject, projectTasks: projectTasks,
     addProject: addProject, updateProject: updateProject, updateProjectStatus: updateProjectStatus, deleteProject: deleteProject,
-    addTask: addTask, addTasksBulk: addTasksBulk, toggleTask: toggleTask, suggestSteps: suggestSteps,
+    addTask: addTask, addTasksBulk: addTasksBulk, toggleTask: toggleTask,
+    taskById: taskById, updateTask: updateTask, deleteTask: deleteTask, suggestSteps: suggestSteps,
     // notes & photos
     notesFor: notesFor, noteById: noteById, addNote: addNote, deleteNote: deleteNote,
     // dashboard / activity
