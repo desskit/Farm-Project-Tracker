@@ -1,0 +1,7 @@
+# Caddy reverse proxy with automatic HTTPS (Let's Encrypt).
+# PUBLIC_DOMAIN comes from the environment (set it in .env), e.g. farm.example.com.
+# Requires ports 80 and 443 reachable from the internet (router port-forward).
+{$PUBLIC_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+}

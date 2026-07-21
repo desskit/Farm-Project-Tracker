@@ -1,0 +1,48 @@
+/* Design tokens ported from the prototype (styles.css :root). The full
+   component system arrives with the UI phase; this is the shared foundation. */
+:root {
+  --bg: #f3f2ec;
+  --surface: #ffffff;
+  --surface-2: #ecebe3;
+  --text: #1c221e;
+  --muted: #6b7269;
+  --border: #e2e0d6;
+  --brand: #2f6f4f;
+  --brand-2: #3f855f;
+  --brand-ink: #ffffff;
+  --brand-soft: #e7f1ea;
+  --accent: #b8860b;
+  --radius: 16px;
+  --shadow: 0 1px 2px rgba(30, 40, 30, .06), 0 6px 18px rgba(30, 40, 30, .05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12160f;
+    --surface: #1c211c;
+    --surface-2: #262c25;
+    --text: #e8ebe6;
+    --muted: #9aa39a;
+    --border: #303a30;
+    --brand: #4c9a72;
+    --brand-2: #5aad82;
+    --brand-soft: #1f2f26;
+    --accent: #e0b24a;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .35);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  -webkit-text-size-adjust: 100%;
+}
+
+a { color: var(--brand); }
