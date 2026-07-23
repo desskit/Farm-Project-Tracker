@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation';
-import type { CSSProperties } from 'react';
 import { getSessionUser } from '@/lib/auth/session';
 import { choreById, choreCompletionsFor, choreStreak } from '@/lib/data/chores';
 import { listUsers } from '@/lib/data/users';
@@ -22,7 +21,7 @@ export default async function ChoreDetailPage({ params }: { params: { id: string
   ]);
 
   return (
-    <main style={mainStyle}>
+    <main className="view">
       <ChoreDetail
         chore={chore}
         completions={completions}
@@ -36,5 +35,3 @@ export default async function ChoreDetailPage({ params }: { params: { id: string
     </main>
   );
 }
-
-const mainStyle: CSSProperties = { maxWidth: 640, margin: '0 auto', padding: '24px 20px 48px' };

@@ -1,5 +1,5 @@
 'use client';
-import { useState, type CSSProperties } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -16,7 +16,7 @@ export function CompleteChoreButton({ choreId, gated }: { choreId: string; gated
 
   if (gated) {
     return (
-      <Link href={`/chores/${choreId}`} style={buttonStyle}>
+      <Link href={`/chores/${choreId}`} className="btn small">
         Open
       </Link>
     );
@@ -41,23 +41,10 @@ export function CompleteChoreButton({ choreId, gated }: { choreId: string; gated
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-      <button onClick={onClick} disabled={loading} style={buttonStyle}>
+      <button onClick={onClick} disabled={loading} className="btn small primary">
         {loading ? '…' : 'Done'}
       </button>
-      {error && <span style={{ color: '#c0392b', fontSize: 11 }}>{error}</span>}
+      {error && <span className="error-text" style={{ fontSize: 11 }}>{error}</span>}
     </div>
   );
 }
-
-const buttonStyle: CSSProperties = {
-  padding: '7px 14px',
-  borderRadius: 8,
-  border: '1px solid var(--brand)',
-  background: 'var(--brand)',
-  color: '#fff',
-  cursor: 'pointer',
-  fontWeight: 700,
-  fontSize: 13,
-  textDecoration: 'none',
-  display: 'inline-block',
-};

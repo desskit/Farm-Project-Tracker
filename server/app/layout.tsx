@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { getSessionUser } from '@/lib/auth/session';
-import { TopNav } from './_components/top-nav';
+import { getCounts } from '@/lib/data/dashboard';
+import { TopBar } from './_components/top-bar';
+import { BottomNav } from './_components/bottom-nav';
 
 export const metadata: Metadata = {
   title: 'Farm Project Tracker',
@@ -18,11 +20,14 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
+  const counts = user ? await getCounts(user) : null;
+
   return (
     <html lang="en">
       <body>
-        {user && <TopNav user={user} />}
+        {user && <TopBar user={user} />}
         {children}
+        {user && <BottomNav isAdmin={user.role === 'admin'} overdue={counts?.overdue ?? 0} />}
       </body>
     </html>
   );

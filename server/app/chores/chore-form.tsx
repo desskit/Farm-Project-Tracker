@@ -1,5 +1,5 @@
 'use client';
-import { useState, type CSSProperties, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import type { PersonRow } from '@/lib/data/users';
 import type { ChoreRow } from '@/lib/data/chores';
 
@@ -21,11 +21,13 @@ export function ChoreForm({
   people,
   initial,
   submitLabel,
+  onCancel,
   onSubmit,
 }: {
   people: PersonRow[];
   initial?: ChoreRow;
   submitLabel: string;
+  onCancel?: () => void;
   onSubmit: (payload: ChorePayload) => Promise<string | null>;
 }) {
   const initSchedule = initial?.schedule;
@@ -75,35 +77,35 @@ export function ChoreForm({
   }
 
   return (
-    <form onSubmit={onFormSubmit} style={{ display: 'grid', gap: 12, maxWidth: 420 }}>
-      <label style={fieldStyle}>
-        Name
-        <input value={name} onChange={(e) => setName(e.target.value)} required style={inputStyle} />
-      </label>
+    <form onSubmit={onFormSubmit}>
+      <div className="field">
+        <label>Name</label>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. Collect eggs" />
+      </div>
 
-      <label style={fieldStyle}>
-        Repeats
-        <select value={scheduleType} onChange={(e) => setScheduleType(e.target.value as ScheduleType)} style={inputStyle}>
+      <div className="field">
+        <label>Repeats</label>
+        <select value={scheduleType} onChange={(e) => setScheduleType(e.target.value as ScheduleType)}>
           <option value="daily">Every day</option>
           <option value="everyNDays">Every N days</option>
           <option value="weekly">Specific weekdays</option>
           <option value="monthly">Monthly</option>
         </select>
-      </label>
+      </div>
 
       {scheduleType === 'everyNDays' && (
-        <label style={fieldStyle}>
-          Every how many days?
-          <input type="number" min={1} value={n} onChange={(e) => setN(Number(e.target.value))} style={inputStyle} />
-        </label>
+        <div className="field">
+          <label>Every how many days?</label>
+          <input type="number" min={1} value={n} onChange={(e) => setN(Number(e.target.value))} />
+        </div>
       )}
 
       {scheduleType === 'weekly' && (
-        <div style={fieldStyle}>
-          Which days?
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontWeight: 400 }}>
+        <div className="field">
+          <label>Which days?</label>
+          <div className="weekday-row">
             {WEEKDAY_LABELS.map((label, i) => (
-              <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
+              <label key={i}>
                 <input type="checkbox" checked={weekdays.includes(i)} onChange={() => toggleWeekday(i)} />
                 {label}
               </label>
@@ -113,23 +115,23 @@ export function ChoreForm({
       )}
 
       {scheduleType === 'monthly' && (
-        <label style={fieldStyle}>
-          Day of month
-          <input type="number" min={1} max={31} value={day} onChange={(e) => setDay(Number(e.target.value))} style={inputStyle} />
-        </label>
+        <div className="field">
+          <label>Day of month</label>
+          <input type="number" min={1} max={31} value={day} onChange={(e) => setDay(Number(e.target.value))} />
+        </div>
       )}
 
-      <label style={fieldStyle}>
-        If missed
-        <select value={catchUp} onChange={(e) => setCatchUp(e.target.value as typeof catchUp)} style={inputStyle}>
+      <div className="field">
+        <label>If missed</label>
+        <select value={catchUp} onChange={(e) => setCatchUp(e.target.value as typeof catchUp)}>
           <option value="skipToNext">Skip to next occurrence</option>
           <option value="mustCatchUp">Must catch up (stays overdue)</option>
         </select>
-      </label>
+      </div>
 
-      <label style={fieldStyle}>
-        Assign to
-        <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} style={inputStyle}>
+      <div className="field">
+        <label>Assign to</label>
+        <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
           <option value="">Unassigned</option>
           {people.map((p) => (
             <option key={p.id} value={p.id}>
@@ -137,47 +139,33 @@ export function ChoreForm({
             </option>
           ))}
         </select>
-      </label>
+      </div>
 
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+      <label className="inline-check" style={{ marginBottom: 10 }}>
         <input type="checkbox" checked={open} onChange={(e) => setOpen(e.target.checked)} />
         Leave open for anyone to claim
       </label>
-
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+      <label className="inline-check" style={{ marginBottom: 12 }}>
         <input type="checkbox" checked={requirePhoto} onChange={(e) => setRequirePhoto(e.target.checked)} />
         Require a photo to complete
       </label>
 
-      <label style={fieldStyle}>
-        Checklist steps (one per line, optional)
-        <textarea value={steps} onChange={(e) => setSteps(e.target.value)} rows={3} style={{ ...inputStyle, fontFamily: 'inherit', fontWeight: 400 }} />
-      </label>
+      <div className="field">
+        <label>Checklist steps (one per line, optional)</label>
+        <textarea value={steps} onChange={(e) => setSteps(e.target.value)} rows={3} placeholder="Lock the coop&#10;Water off&#10;Lights out" />
+      </div>
 
-      {error && <p style={{ color: '#c0392b', margin: 0 }}>{error}</p>}
-      <button type="submit" disabled={loading} style={buttonStyle}>
-        {loading ? 'Saving…' : submitLabel}
-      </button>
+      {error && <p className="error-text">{error}</p>}
+      <div className="form-actions">
+        {onCancel && (
+          <button type="button" className="btn" onClick={onCancel}>
+            Cancel
+          </button>
+        )}
+        <button type="submit" disabled={loading} className="btn primary">
+          {loading ? 'Saving…' : submitLabel}
+        </button>
+      </div>
     </form>
   );
 }
-
-const fieldStyle: CSSProperties = { display: 'grid', gap: 4, fontSize: 13, fontWeight: 600 };
-const inputStyle: CSSProperties = {
-  padding: '8px 10px',
-  borderRadius: 8,
-  border: '1px solid var(--border)',
-  background: 'var(--surface)',
-  color: 'var(--text)',
-  fontSize: 14,
-  fontWeight: 400,
-};
-const buttonStyle: CSSProperties = {
-  padding: '10px 14px',
-  borderRadius: 8,
-  border: '1px solid var(--brand)',
-  background: 'var(--brand)',
-  color: '#fff',
-  cursor: 'pointer',
-  fontWeight: 700,
-};

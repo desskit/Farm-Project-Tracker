@@ -1,6 +1,7 @@
 'use client';
-import { useState, type CSSProperties, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import type { ChoreRow, ChoreCompletionRow } from '@/lib/data/chores';
 import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
@@ -34,7 +35,7 @@ export function ChoreDetail({
   const [notes, setNotes] = useState('');
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null); // which action is in flight
+  const [busy, setBusy] = useState<string | null>(null);
 
   const canComplete = !chore.requirePhoto;
   const stepsRemaining = chore.steps.length > 0 && checked.size < chore.steps.length;
@@ -70,119 +71,127 @@ export function ChoreDetail({
     }
   }
 
-  async function onClaim() {
-    setBusy('claim');
-    const ok = await request(`/api/chores/${chore.id}/claim`, 'POST');
+  async function act(key: string, url: string, method: string, body?: unknown, then?: () => void) {
+    setBusy(key);
+    const ok = await request(url, method, body);
     setBusy(null);
-    if (ok) router.refresh();
-  }
-
-  async function onRelease() {
-    setBusy('release');
-    const ok = await request(`/api/chores/${chore.id}/release`, 'POST');
-    setBusy(null);
-    if (ok) router.refresh();
+    if (ok) (then ?? (() => router.refresh()))();
   }
 
   async function onDelete() {
     if (!confirm('Delete this chore and its history?')) return;
-    setBusy('delete');
-    const ok = await request(`/api/chores/${chore.id}`, 'DELETE');
-    setBusy(null);
-    if (ok) router.push('/chores');
+    await act('delete', `/api/chores/${chore.id}`, 'DELETE', undefined, () => router.push('/chores'));
   }
 
   async function onSendBack(completionId: string) {
     const reason = window.prompt('Send this work back to be redone. Reason (optional):', '');
-    if (reason === null) return; // cancelled
-    setBusy('sendback-' + completionId);
-    const ok = await request(`/api/chore-completions/${completionId}/send-back`, 'POST', { reason });
-    setBusy(null);
-    if (ok) router.refresh();
+    if (reason === null) return;
+    await act('sendback-' + completionId, `/api/chore-completions/${completionId}/send-back`, 'POST', { reason });
   }
 
   if (editing) {
     return (
-      <div>
-        <button onClick={() => setEditing(false)} style={ghostButtonStyle}>
-          ‹ Cancel
-        </button>
-        <h1 style={{ fontSize: 20, margin: '8px 0 16px' }}>Edit chore</h1>
-        <ChoreForm
-          people={people}
-          initial={chore}
-          submitLabel="Save"
-          onSubmit={async (payload: ChorePayload) => {
-            const res = await fetch(`/api/chores/${chore.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-            });
-            if (!res.ok) {
-              const data = await res.json().catch(() => ({}));
-              return data.error || 'Something went wrong.';
-            }
-            setEditing(false);
-            router.refresh();
-            return null;
-          }}
-        />
-      </div>
+      <>
+        <div className="sub-head">
+          <button className="btn small ghost back-btn" onClick={() => setEditing(false)}>
+            ‹ Cancel
+          </button>
+          <h1>Edit chore</h1>
+        </div>
+        <div className="card">
+          <ChoreForm
+            people={people}
+            initial={chore}
+            submitLabel="Save"
+            onSubmit={async (payload: ChorePayload) => {
+              const res = await fetch(`/api/chores/${chore.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              });
+              if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                return data.error || 'Something went wrong.';
+              }
+              setEditing(false);
+              router.refresh();
+              return null;
+            }}
+          />
+        </div>
+      </>
     );
   }
 
   return (
-    <div>
+    <>
+      <div className="sub-head">
+        <Link href="/chores" className="btn small ghost back-btn">
+          ‹ Chores
+        </Link>
+        <h1>{chore.name}</h1>
+      </div>
+
       {chore.sentBack && (
-        <div style={sentBackStyle}>
+        <div className="sb-banner">
           ↩ Sent back{chore.sentBack.reason ? `: "${chore.sentBack.reason}"` : ''} — please redo.
         </div>
       )}
 
-      <h1 style={{ fontSize: 22, margin: '0 0 4px' }}>{chore.name}</h1>
-      <p style={{ color: 'var(--muted)', margin: 0 }}>{scheduleLabel}</p>
-      <p style={{ margin: '6px 0 0' }}>
-        <span style={badgeStyle(bucket)}>{bucketLabel(bucket)}</span>{' '}
-        Due {dueLabel} ·{' '}
-        {chore.assignedTo ? (nameById.get(chore.assignedTo) ?? 'Unassigned') : chore.open ? 'Open — up for grabs' : 'Unassigned'}
-        {chore.requirePhoto ? ' · 📷 photo required' : ''}
-      </p>
+      <div className="card">
+        <p className="subtle" style={{ margin: 0 }}>
+          {scheduleLabel}
+        </p>
+        <div className="item-badges">
+          <span className={`badge ${badgeClass(bucket)}`}>{bucketLabel(bucket)}</span>
+          <span className="chip">
+            {chore.assignedTo ? (nameById.get(chore.assignedTo) ?? 'Unassigned') : chore.open ? '🙌 open' : 'Unassigned'}
+          </span>
+          <span className="chip">Due {dueLabel}</span>
+          {chore.requirePhoto && <span className="chip">📷 photo required</span>}
+        </div>
+        {streak >= 2 && (
+          <p style={{ color: 'var(--brand)', fontWeight: 700, margin: '10px 0 0' }}>🔥 {streak}-day streak</p>
+        )}
 
-      {streak >= 2 && <p style={{ color: 'var(--brand)', fontWeight: 700, marginTop: 8 }}>🔥 {streak}-day streak</p>}
-
-      <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
-        {chore.open && !chore.assignedTo && (
-          <button onClick={onClaim} disabled={busy === 'claim'} style={buttonStyle}>
-            Claim
-          </button>
-        )}
-        {chore.open && chore.assignedTo === currentUser.id && (
-          <button onClick={onRelease} disabled={busy === 'release'} style={ghostButtonStyle}>
-            Release
-          </button>
-        )}
-        {isManager && (
-          <>
-            <button onClick={() => setEditing(true)} style={ghostButtonStyle}>
-              Edit
+        <div className="row-actions" style={{ marginTop: 12, flexWrap: 'wrap' }}>
+          {chore.open && !chore.assignedTo && (
+            <button className="btn small primary" disabled={busy === 'claim'} onClick={() => act('claim', `/api/chores/${chore.id}/claim`, 'POST')}>
+              Claim
             </button>
-            <button onClick={onDelete} disabled={busy === 'delete'} style={dangerButtonStyle}>
-              Delete
+          )}
+          {chore.open && chore.assignedTo === currentUser.id && (
+            <button className="btn small ghost" disabled={busy === 'release'} onClick={() => act('release', `/api/chores/${chore.id}/release`, 'POST')}>
+              Release
             </button>
-          </>
-        )}
+          )}
+          {isManager && (
+            <>
+              <button className="btn small ghost" onClick={() => setEditing(true)}>
+                Edit
+              </button>
+              <button className="btn small ghost danger" disabled={busy === 'delete'} onClick={onDelete}>
+                Delete
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      <section style={{ marginTop: 24 }}>
-        <h2 style={sectionTitleStyle}>Complete</h2>
+      <div className="section-title">Complete</div>
+      <div className="card">
         {!canComplete ? (
-          <p style={{ color: 'var(--muted)' }}>Photo upload isn&apos;t available yet — ask an admin to complete this one for now.</p>
+          <p className="subtle" style={{ margin: 0 }}>
+            Photo upload isn&apos;t available yet — that arrives in the Photos phase. For now this chore can&apos;t be
+            completed from the app.
+          </p>
         ) : (
-          <form onSubmit={onComplete} style={{ display: 'grid', gap: 10, maxWidth: 420 }}>
+          <form onSubmit={onComplete}>
             {chore.steps.length > 0 && (
-              <div style={{ display: 'grid', gap: 6 }}>
+              <div className="field">
+                <label>Checklist — tick each step</label>
                 {chore.steps.map((step, i) => (
-                  <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+                  <label className="inline-check" key={i} style={{ marginBottom: 6 }}>
                     <input
                       type="checkbox"
                       checked={checked.has(i)}
@@ -200,41 +209,44 @@ export function ChoreDetail({
                 ))}
               </div>
             )}
-            <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note (optional)" style={inputStyle} />
-            <button type="submit" disabled={busy === 'complete'} style={buttonStyle}>
+            <div className="field">
+              <label>Note (optional)</label>
+              <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </div>
+            <button type="submit" disabled={busy === 'complete'} className="btn primary block">
               {busy === 'complete' ? 'Saving…' : 'Mark done'}
             </button>
           </form>
         )}
-      </section>
+        {error && <p className="error-text">{error}</p>}
+      </div>
 
-      {error && <p style={{ color: '#c0392b' }}>{error}</p>}
-
-      <section style={{ marginTop: 24 }}>
-        <h2 style={sectionTitleStyle}>
-          History <span style={countStyle}>{completions.length}</span>
-        </h2>
+      <div className="section-title">
+        History
+        <span className="count-pill">{completions.length}</span>
+      </div>
+      <div className="card">
         {!completions.length ? (
-          <p style={{ color: 'var(--muted)' }}>Never completed yet.</p>
+          <p className="subtle" style={{ margin: 0 }}>
+            Never completed yet.
+          </p>
         ) : (
-          <ul style={{ listStyle: 'none', padding: 0, display: 'grid', gap: 8 }}>
-            {completions.map((c) => (
-              <li key={c.id} style={histRowStyle}>
-                <div>
-                  <strong>{fmtDate(c.date)}</strong> · {nameById.get(c.completedBy ?? '') ?? 'Unknown'}
-                  {c.notes ? ` · ${c.notes}` : ''}
-                </div>
-                {isManager && (
-                  <button onClick={() => onSendBack(c.id)} disabled={busy === 'sendback-' + c.id} style={ghostDangerStyle} title="Send back">
-                    ↩
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
+          completions.map((c) => (
+            <div className="hist-row" key={c.id}>
+              <span>
+                <strong>{fmtDate(c.date)}</strong> · {nameById.get(c.completedBy ?? '') ?? 'Unknown'}
+                {c.notes ? ` · ${c.notes}` : ''}
+              </span>
+              {isManager && (
+                <button className="icon-btn" style={{ color: 'var(--overdue)' }} title="Send back" disabled={busy === 'sendback-' + c.id} onClick={() => onSendBack(c.id)}>
+                  ↩
+                </button>
+              )}
+            </div>
+          ))
         )}
-      </section>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -244,77 +256,9 @@ function bucketLabel(b: Bucket): string {
   if (b === 'upcoming') return 'Coming up';
   return 'Not due soon';
 }
-function badgeStyle(b: Bucket): CSSProperties {
-  const bg = b === 'overdue' ? '#fbeae7' : b === 'today' ? '#fbf3df' : b === 'upcoming' ? '#e7f1ea' : 'var(--surface-2)';
-  const color = b === 'overdue' ? '#c0392b' : b === 'today' ? '#b8860b' : b === 'upcoming' ? '#2f6f4f' : 'var(--muted)';
-  return { background: bg, color, borderRadius: 999, padding: '2px 8px', fontSize: 12, fontWeight: 700 };
+function badgeClass(b: Bucket): string {
+  if (b === 'overdue') return 'overdue';
+  if (b === 'today') return 'today';
+  if (b === 'upcoming') return 'upcoming';
+  return 'neutral';
 }
-
-const sentBackStyle: CSSProperties = {
-  background: '#fbeae7',
-  color: '#c0392b',
-  border: '1px solid #c0392b',
-  borderRadius: 10,
-  padding: '8px 12px',
-  fontSize: 13,
-  fontWeight: 600,
-  marginBottom: 12,
-};
-const sectionTitleStyle: CSSProperties = {
-  fontSize: 13,
-  fontWeight: 800,
-  textTransform: 'uppercase',
-  letterSpacing: '.06em',
-  color: 'var(--muted)',
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-};
-const countStyle: CSSProperties = { background: 'var(--surface-2)', color: 'var(--muted)', borderRadius: 999, padding: '1px 8px', fontSize: 12, fontWeight: 700 };
-const histRowStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 8,
-  padding: '8px 12px',
-  border: '1px solid var(--border)',
-  borderRadius: 10,
-  fontSize: 13.5,
-};
-const inputStyle: CSSProperties = {
-  padding: '9px 12px',
-  borderRadius: 8,
-  border: '1px solid var(--border)',
-  background: 'var(--surface)',
-  color: 'var(--text)',
-  fontSize: 14,
-};
-const buttonStyle: CSSProperties = {
-  padding: '9px 14px',
-  borderRadius: 8,
-  border: '1px solid var(--brand)',
-  background: 'var(--brand)',
-  color: '#fff',
-  cursor: 'pointer',
-  fontWeight: 700,
-  fontSize: 14,
-};
-const ghostButtonStyle: CSSProperties = {
-  padding: '9px 14px',
-  borderRadius: 8,
-  border: '1px solid var(--border)',
-  background: 'transparent',
-  color: 'var(--text)',
-  cursor: 'pointer',
-  fontWeight: 600,
-  fontSize: 14,
-};
-const dangerButtonStyle: CSSProperties = { ...ghostButtonStyle, color: '#c0392b', borderColor: '#c0392b' };
-const ghostDangerStyle: CSSProperties = {
-  background: 'transparent',
-  border: 'none',
-  color: '#c0392b',
-  cursor: 'pointer',
-  fontSize: 15,
-  padding: 4,
-};
