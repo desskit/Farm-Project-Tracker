@@ -9,8 +9,9 @@ import { and, eq, gt } from 'drizzle-orm';
 import { db } from '@/db';
 import { sessions, users } from '@/db/schema';
 import type { Role } from '@/db/schema';
+import { SESSION_COOKIE } from './constants';
 
-export const SESSION_COOKIE = 'fpt_session';
+export { SESSION_COOKIE };
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 
 export type SessionUser = { id: string; name: string; email: string; role: Role };
