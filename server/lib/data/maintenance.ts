@@ -10,6 +10,7 @@ import { uid } from '@/lib/ids';
 import { todayISO, addDays, addMonths } from '@/lib/domain/dates';
 import { maintenanceStatus, type MaintStatus } from '@/lib/domain/maintenance';
 import type { SessionUser } from '@/lib/auth/session';
+import { logActivity } from './activity';
 import { DataError } from './errors';
 
 export type AssetRow = typeof assets.$inferSelect;
@@ -119,6 +120,8 @@ export async function addMaintenance(user: SessionUser, data: MaintInput): Promi
     values.dueAtReading = (cur ?? 0) + data.intervalValue;
   }
   await db.insert(maintenanceItems).values(values);
+  const asset = await assetById(data.assetId);
+  await logActivity(user.id, `added maintenance "${data.name.trim()}"${asset ? ` on ${asset.name}` : ''}`);
   return (await maintenanceById(id))!;
 }
 
@@ -200,6 +203,7 @@ export async function logService(
     patch.dueAtReading = lastDoneReading + item.intervalValue;
   }
   await db.update(maintenanceItems).set(patch).where(eq(maintenanceItems.id, itemId));
+  await logActivity(user.id, `logged "${item.name}"${asset ? ` on ${asset.name}` : ''}`);
 }
 
 export async function sendBackService(user: SessionUser, logId: string, reason?: string): Promise<void> {

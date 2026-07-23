@@ -15,6 +15,7 @@ import { uid } from '@/lib/ids';
 import { nextOccurrenceAfter } from '@/lib/domain/recurrence';
 import { todayISO, addDays } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
+import { logActivity } from './activity';
 import { DataError } from './errors';
 
 export type ChoreRow = typeof chores.$inferSelect;
@@ -59,6 +60,7 @@ export async function addChore(user: SessionUser, data: ChoreInput): Promise<Cho
     open: !!data.open,
     steps: Array.isArray(data.steps) ? data.steps.filter(Boolean) : [],
   });
+  await logActivity(user.id, `added chore "${data.name.trim()}"`);
   return (await choreById(id))!;
 }
 
@@ -136,6 +138,7 @@ export async function completeChore(
       ? nextOccurrenceAfter(chore.schedule, chore.nextDue)
       : nextOccurrenceAfter(chore.schedule, today);
   await db.update(chores).set({ nextDue, sentBack: null }).where(eq(chores.id, id));
+  await logActivity(user.id, `completed chore "${chore.name}"`);
   // Note: stopping any running time-tracking timer for this chore is deferred
   // until time tracking is ported (a later phase) — no timers exist yet.
 }
@@ -173,5 +176,6 @@ export async function sendBackChoreCompletion(user: SessionUser, completionId: s
     const patch: Partial<typeof chores.$inferInsert> = { sentBack };
     if (chore.nextDue > today) patch.nextDue = today;
     await db.update(chores).set(patch).where(eq(chores.id, chore.id));
+    await logActivity(user.id, `sent back chore "${chore.name}"`);
   }
 }

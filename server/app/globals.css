@@ -406,3 +406,52 @@ a.tap-link:hover .item-title { color: var(--brand); }
 /* Auth screens (login / invite / set-password) are centered and narrow. */
 .auth-wrap { max-width: 380px; margin: 8vh auto 0; padding: 0 20px; }
 .auth-brand { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+
+/* ---------- Stat tiles (summaries: rent, etc.) ---------- */
+.stat-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.stat-tile {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 8px;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+.stat-val { display: block; font-size: 20px; font-weight: 800; line-height: 1.1; }
+.stat-lbl { display: block; font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-top: 3px; }
+.stat-tile.warn .stat-val { color: var(--overdue); }
+.stat-tile.today .stat-val { color: var(--today); }
+
+/* ---------- Inventory quantity ---------- */
+.inv-qty { font-size: 22px; font-weight: 800; text-align: right; line-height: 1; margin-left: 8px; white-space: nowrap; }
+.inv-qty span { display: block; font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+
+/* ---------- Team dashboard tiles ---------- */
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 6px; }
+.tile {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 12px 8px; text-align: center;
+}
+.tile .t-num { font-size: 24px; font-weight: 800; line-height: 1.1; }
+.tile .t-lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+.tile.bad .t-num { color: var(--overdue); }
+.tile.warn .t-num { color: var(--today); }
+.tile.good .t-num { color: var(--upcoming); }
+
+/* ---------- Leaderboard ---------- */
+.champ {
+  display: flex; align-items: center; gap: 14px;
+  background: linear-gradient(135deg, #f6d78a, #e9b949);
+  color: #3a2d05; border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 16px; margin-bottom: 12px;
+}
+.champ-emoji { font-size: 38px; line-height: 1; }
+.champ-name { font-size: 19px; font-weight: 800; }
+.champ-sub { font-size: 13.5px; opacity: .85; }
+.lb-row { display: flex; align-items: center; gap: 12px; }
+.lb-rank { font-size: 20px; font-weight: 800; min-width: 34px; text-align: center; color: var(--muted); }
+.lb-pts { font-size: 22px; font-weight: 800; text-align: right; line-height: 1; }
+.lb-pts span { display: block; font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.lb-first { border-color: #e9b949; }
+.lb-me { outline: 2px solid var(--brand); outline-offset: -2px; }

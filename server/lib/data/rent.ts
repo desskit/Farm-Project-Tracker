@@ -10,6 +10,7 @@ import { rentAssignments, rentCharges, users } from '@/db/schema';
 import { uid } from '@/lib/ids';
 import { todayISO, currentMonthKey } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
+import { logActivity } from './activity';
 import { DataError } from './errors';
 
 export type RentAssignmentRow = typeof rentAssignments.$inferSelect;
@@ -115,6 +116,7 @@ export async function markRentPaid(user: SessionUser, chargeId: string, note?: s
     .update(rentCharges)
     .set({ status: 'marked', markedAt: todayISO(), markedBy: user.id, note: note != null ? note : c.note })
     .where(eq(rentCharges.id, chargeId));
+  await logActivity(user.id, `marked rent paid (${c.month})`);
 }
 
 export async function verifyRent(user: SessionUser, chargeId: string): Promise<void> {
@@ -128,6 +130,7 @@ export async function verifyRent(user: SessionUser, chargeId: string): Promise<v
     patch.markedBy = user.id;
   }
   await db.update(rentCharges).set(patch).where(eq(rentCharges.id, chargeId));
+  await logActivity(user.id, `verified rent (${c.month})`);
 }
 
 export async function reopenRent(user: SessionUser, chargeId: string): Promise<void> {

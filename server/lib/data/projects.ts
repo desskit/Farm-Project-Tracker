@@ -11,6 +11,7 @@ import { uid } from '@/lib/ids';
 import { todayISO } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
 import { STATUS_LABELS, type ProjectStatus } from '@/lib/domain/project-status';
+import { logActivity } from './activity';
 import { DataError } from './errors';
 
 export type ProjectRow = typeof projects.$inferSelect;
@@ -59,6 +60,7 @@ export async function addProject(user: SessionUser, data: ProjectInput): Promise
     targetDate: data.targetDate || null,
     createdBy: user.id,
   });
+  await logActivity(user.id, `created project "${data.name.trim()}"`);
   return (await getProject(id))!;
 }
 export async function updateProject(user: SessionUser, id: string, data: Partial<ProjectInput>): Promise<ProjectRow> {
@@ -147,6 +149,7 @@ export async function toggleTask(user: SessionUser, taskId: string, photoId?: st
       sentBack: done ? null : t.sentBack,
     })
     .where(eq(projectTasks.id, taskId));
+  if (done) await logActivity(user.id, `completed task "${t.title}"`);
 }
 
 export async function claimTask(user: SessionUser, taskId: string): Promise<void> {

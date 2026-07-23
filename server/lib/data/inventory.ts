@@ -8,6 +8,7 @@ import { inventory, inventoryLog } from '@/db/schema';
 import { uid } from '@/lib/ids';
 import { todayISO } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
+import { logActivity } from './activity';
 import { DataError } from './errors';
 
 export type InventoryRow = typeof inventory.$inferSelect;
@@ -76,6 +77,7 @@ export async function adjustStock(user: SessionUser, id: string, delta: number, 
   const qty = it.qty + d;
   await db.update(inventory).set({ qty }).where(eq(inventory.id, id));
   await db.insert(inventoryLog).values({ id: uid('il'), itemId: id, delta: d, reason: reason || '', userId: user.id, date: todayISO() });
+  await logActivity(user.id, `${d > 0 ? 'restocked' : 'used'} ${Math.abs(d)} ${it.unit} of ${it.name}`);
   return qty;
 }
 
