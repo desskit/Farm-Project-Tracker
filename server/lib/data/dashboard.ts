@@ -3,7 +3,7 @@
  * (store.js:925-992). Merges chores and maintenance into Overdue / Due Today /
  * Coming Up buckets. Project tasks and rent join as those resources land.
  */
-import { chores, users, assets, maintenanceItems, meterReadings } from '@/db/schema';
+import { chores, users, assets, maintenanceItems, meterReadings, projects, projectTasks } from '@/db/schema';
 import { db } from '@/db';
 import { bucketForDate, type Bucket } from '@/lib/domain/dashboard';
 import { describeSchedule } from '@/lib/domain/recurrence';
@@ -12,7 +12,7 @@ import { todayISO } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
 
 export type DashboardItem = {
-  kind: 'chore' | 'maintenance';
+  kind: 'chore' | 'maintenance' | 'task';
   id: string;
   title: string;
   subtitle: string;
@@ -30,13 +30,16 @@ export type DashboardBuckets = {
 };
 
 export async function getDashboard(currentUser: SessionUser, scope: 'mine' | 'all'): Promise<DashboardBuckets> {
-  const [allChores, allUsers, allAssets, allItems, allReadings] = await Promise.all([
+  const [allChores, allUsers, allAssets, allItems, allReadings, allProjects, allTasks] = await Promise.all([
     db.select().from(chores),
     db.select({ id: users.id, name: users.name }).from(users),
     db.select().from(assets),
     db.select().from(maintenanceItems),
     db.select({ assetId: meterReadings.assetId, reading: meterReadings.reading }).from(meterReadings),
+    db.select({ id: projects.id, name: projects.name }).from(projects),
+    db.select().from(projectTasks),
   ]);
+  const projectName = new Map(allProjects.map((p) => [p.id, p.name]));
   const nameById = new Map(allUsers.map((u) => [u.id, u.name]));
   const userName = (id: string | null) => (id ? (nameById.get(id) ?? 'Unassigned') : 'Unassigned');
   const assetById = new Map(allAssets.map((a) => [a.id, a]));
@@ -79,6 +82,24 @@ export async function getDashboard(currentUser: SessionUser, scope: 'mine' | 'al
       href: `/maintenance/${m.assetId}`,
       bucket: st.bucket as Exclude<Bucket, 'later'>,
       actionLabel: 'Log',
+      gated: false,
+    });
+  }
+
+  for (const t of allTasks) {
+    if (t.done || !t.dueDate) continue;
+    const b = bucketForDate(t.dueDate);
+    if (b === 'later') continue;
+    if (scope === 'mine' && t.assignedTo !== currentUser.id) continue;
+    buckets[b].push({
+      kind: 'task',
+      id: t.id,
+      title: t.title,
+      subtitle: `${projectName.get(t.projectId) ?? 'Project'} · ${userName(t.assignedTo)}`,
+      dueDate: t.dueDate,
+      href: `/projects/${t.projectId}`,
+      bucket: b,
+      actionLabel: 'Open',
       gated: false,
     });
   }
