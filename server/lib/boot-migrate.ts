@@ -11,6 +11,7 @@ import { db } from '@/db';
 import { users, notificationPrefs } from '@/db/schema';
 import { hashPassword } from '@/lib/auth/password';
 import { uid } from '@/lib/ids';
+import { startCron } from '@/lib/notify/cron';
 
 await migrate(db, { migrationsFolder: path.join(process.cwd(), 'db', 'migrations') });
 // eslint-disable-next-line no-console
@@ -32,3 +33,6 @@ if (!anyUser.length) {
     console.warn('[boot] no users found and SEED_ADMIN_EMAIL/PASSWORD are unset — set them to create the first admin');
   }
 }
+
+// Start the hourly notification scheduler (no-op if email/push aren't configured).
+startCron();

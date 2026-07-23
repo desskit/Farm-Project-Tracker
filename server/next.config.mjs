@@ -4,8 +4,8 @@ const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
   experimental: {
-    // Leave the libsql driver out of the server bundle (prebuilt native addon).
-    serverComponentsExternalPackages: ['@libsql/client'],
+    // Keep these server-only packages out of the bundle (native addons / node deps).
+    serverComponentsExternalPackages: ['@libsql/client', 'nodemailer', 'web-push', 'node-cron'],
     // Run instrumentation.ts on boot (applies DB migrations).
     instrumentationHook: true,
     // Include the migration SQL in the standalone output's file tracing so the
