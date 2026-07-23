@@ -7,6 +7,7 @@ import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
 import type { Bucket } from '@/lib/domain/dashboard';
 import { fmtDate } from '@/lib/domain/dates';
+import { uploadPhoto } from '@/lib/client/photo';
 import { ChoreForm, type ChorePayload } from '../chore-form';
 
 export function ChoreDetail({
@@ -33,11 +34,11 @@ export function ChoreDetail({
   const nameById = new Map(people.map((p) => [p.id, p.name]));
   const [editing, setEditing] = useState(false);
   const [notes, setNotes] = useState('');
+  const [photo, setPhoto] = useState<File | null>(null);
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const canComplete = !chore.requirePhoto;
   const stepsRemaining = chore.steps.length > 0 && checked.size < chore.steps.length;
 
   async function request(url: string, method: string, body?: unknown): Promise<boolean> {
@@ -61,11 +62,25 @@ export function ChoreDetail({
       setError('Tick every checklist step first.');
       return;
     }
+    if (chore.requirePhoto && !photo) {
+      setError('A photo is required to complete this chore.');
+      return;
+    }
     setBusy('complete');
-    const ok = await request(`/api/chores/${chore.id}/complete`, 'POST', { notes });
+    setError(null);
+    let photoId: string | null = null;
+    try {
+      if (photo) photoId = await uploadPhoto(photo);
+    } catch (err) {
+      setBusy(null);
+      setError(err instanceof Error ? err.message : 'Photo upload failed.');
+      return;
+    }
+    const ok = await request(`/api/chores/${chore.id}/complete`, 'POST', { notes, photoId });
     setBusy(null);
     if (ok) {
       setNotes('');
+      setPhoto(null);
       setChecked(new Set());
       router.refresh();
     }
@@ -180,44 +195,43 @@ export function ChoreDetail({
 
       <div className="section-title">Complete</div>
       <div className="card">
-        {!canComplete ? (
-          <p className="subtle" style={{ margin: 0 }}>
-            Photo upload isn&apos;t available yet — that arrives in the Photos phase. For now this chore can&apos;t be
-            completed from the app.
-          </p>
-        ) : (
-          <form onSubmit={onComplete}>
-            {chore.steps.length > 0 && (
-              <div className="field">
-                <label>Checklist — tick each step</label>
-                {chore.steps.map((step, i) => (
-                  <label className="inline-check" key={i} style={{ marginBottom: 6 }}>
-                    <input
-                      type="checkbox"
-                      checked={checked.has(i)}
-                      onChange={() =>
-                        setChecked((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(i)) next.delete(i);
-                          else next.add(i);
-                          return next;
-                        })
-                      }
-                    />
-                    {step}
-                  </label>
-                ))}
-              </div>
-            )}
+        <form onSubmit={onComplete}>
+          {chore.steps.length > 0 && (
             <div className="field">
-              <label>Note (optional)</label>
-              <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <label>Checklist — tick each step</label>
+              {chore.steps.map((step, i) => (
+                <label className="inline-check" key={i} style={{ marginBottom: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={checked.has(i)}
+                    onChange={() =>
+                      setChecked((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(i)) next.delete(i);
+                        else next.add(i);
+                        return next;
+                      })
+                    }
+                  />
+                  {step}
+                </label>
+              ))}
             </div>
-            <button type="submit" disabled={busy === 'complete'} className="btn primary block">
-              {busy === 'complete' ? 'Saving…' : 'Mark done'}
-            </button>
-          </form>
-        )}
+          )}
+          {chore.requirePhoto && (
+            <div className="field">
+              <label>📷 Photo proof (required)</label>
+              <input type="file" accept="image/*" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+            </div>
+          )}
+          <div className="field">
+            <label>Note (optional)</label>
+            <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+          <button type="submit" disabled={busy === 'complete'} className="btn primary block">
+            {busy === 'complete' ? 'Saving…' : 'Mark done'}
+          </button>
+        </form>
         {error && <p className="error-text">{error}</p>}
       </div>
 
@@ -236,6 +250,14 @@ export function ChoreDetail({
               <span>
                 <strong>{fmtDate(c.date)}</strong> · {nameById.get(c.completedBy ?? '') ?? 'Unknown'}
                 {c.notes ? ` · ${c.notes}` : ''}
+                {c.photoId && (
+                  <>
+                    {' '}
+                    <a href={`/api/attachments/${c.photoId}`} target="_blank" rel="noopener" className="chip-link">
+                      📷 proof
+                    </a>
+                  </>
+                )}
               </span>
               {isManager && (
                 <button className="icon-btn" style={{ color: 'var(--overdue)' }} title="Send back" disabled={busy === 'sendback-' + c.id} onClick={() => onSendBack(c.id)}>

@@ -6,6 +6,7 @@ import type { AssetRow, ReadingRow, MaintLogRow, MaintWithStatus } from '@/lib/d
 import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
 import { fmtDate } from '@/lib/domain/dates';
+import { uploadPhoto } from '@/lib/client/photo';
 
 type ItemWithLogs = MaintWithStatus & { logs: MaintLogRow[]; costTotal: number };
 
@@ -165,6 +166,14 @@ export function AssetDetail({
                     {l.reading != null ? ` · ${l.reading}` : ''}
                     {l.cost ? ` · $${l.cost}` : ''}
                     {l.notes ? ` · ${l.notes}` : ''}
+                    {l.photoId && (
+                      <>
+                        {' '}
+                        <a href={`/api/attachments/${l.photoId}`} target="_blank" rel="noopener" className="chip-link">
+                          📷 proof
+                        </a>
+                      </>
+                    )}
                   </span>
                   {isManager && idx === 0 && (
                     <button className="icon-btn" style={{ color: 'var(--overdue)' }} title="Send back" disabled={busy === 'sb-' + l.id} onClick={() => onSendBack(l.id)}>
@@ -238,15 +247,8 @@ function LogServiceForm({ item, meterUnit, onError }: { item: ItemWithLogs; mete
   const [reading, setReading] = useState('');
   const [cost, setCost] = useState('');
   const [notes, setNotes] = useState('');
+  const [photo, setPhoto] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-
-  if (item.requirePhoto) {
-    return (
-      <p className="subtle" style={{ margin: '8px 0 0' }}>
-        📷 This item needs a photo of the completed work — photo upload arrives in the Photos phase.
-      </p>
-    );
-  }
 
   if (!open) {
     return (
@@ -258,11 +260,22 @@ function LogServiceForm({ item, meterUnit, onError }: { item: ItemWithLogs; mete
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (item.requirePhoto && !photo) {
+      onError('A photo of the completed work is required for this item.');
+      return;
+    }
     setLoading(true);
     onError(null);
     const body: Record<string, unknown> = { notes };
     if (reading !== '') body.reading = Number(reading);
     if (cost !== '') body.cost = Number(cost);
+    try {
+      if (photo) body.photoId = await uploadPhoto(photo);
+    } catch (err) {
+      setLoading(false);
+      onError(err instanceof Error ? err.message : 'Photo upload failed.');
+      return;
+    }
     const res = await fetch(`/api/maintenance/${item.id}/log`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -278,6 +291,7 @@ function LogServiceForm({ item, meterUnit, onError }: { item: ItemWithLogs; mete
     setReading('');
     setCost('');
     setNotes('');
+    setPhoto(null);
     router.refresh();
   }
 
@@ -293,6 +307,12 @@ function LogServiceForm({ item, meterUnit, onError }: { item: ItemWithLogs; mete
         <label>Cost ($, optional)</label>
         <input type="number" step="0.01" min={0} value={cost} onChange={(e) => setCost(e.target.value)} />
       </div>
+      {item.requirePhoto && (
+        <div className="field">
+          <label>📷 Photo of completed work (required)</label>
+          <input type="file" accept="image/*" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+        </div>
+      )}
       <div className="field">
         <label>Notes</label>
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Parts used, observations…" />

@@ -1,5 +1,5 @@
 'use client';
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { ProjectRow, TaskRow } from '@/lib/data/projects';
@@ -7,6 +7,7 @@ import { STATUS_LABELS, type ProjectStatus } from '@/lib/domain/project-status';
 import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
 import { fmtDate } from '@/lib/domain/dates';
+import { uploadPhoto } from '@/lib/client/photo';
 
 export function ProjectDetail({
   project,
@@ -24,6 +25,8 @@ export function ProjectDetail({
   const nameById = new Map(people.map((p) => [p.id, p.name]));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingTaskRef = useRef<string | null>(null);
 
   const done = tasks.filter((t) => t.done).length;
   const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
@@ -51,11 +54,31 @@ export function ProjectDetail({
   }
 
   async function onToggle(t: TaskRow) {
+    // Completing a photo-required task opens the camera/file picker first.
     if (!t.done && t.requirePhoto) {
-      setError('This task needs a photo of the completed work — photo upload arrives in the Photos phase.');
+      pendingTaskRef.current = t.id;
+      photoInputRef.current?.click();
       return;
     }
     await act('toggle-' + t.id, `/api/tasks/${t.id}/toggle`, 'POST');
+  }
+
+  async function onPhotoPicked(file: File | null) {
+    const taskId = pendingTaskRef.current;
+    pendingTaskRef.current = null;
+    if (photoInputRef.current) photoInputRef.current.value = '';
+    if (!file || !taskId) return;
+    setBusy('toggle-' + taskId);
+    setError(null);
+    try {
+      const photoId = await uploadPhoto(file);
+      const ok = await request(`/api/tasks/${taskId}/toggle`, 'POST', { photoId });
+      if (ok) router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Photo upload failed.');
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function onStatus(status: ProjectStatus) {
@@ -124,6 +147,16 @@ export function ProjectDetail({
         <span className="count-pill">{tasks.length}</span>
       </div>
       {!tasks.length && <div className="empty">No tasks yet.</div>}
+      {/* Hidden picker used to capture a photo when completing a proof-required task. */}
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style={{ display: 'none' }}
+        onChange={(e) => onPhotoPicked(e.target.files?.[0] ?? null)}
+      />
+
       {tasks.map((t) => (
         <div className="card" key={t.id}>
           {t.sentBack && (
@@ -146,6 +179,11 @@ export function ProjectDetail({
                 {t.dueDate && <span className="chip">due {fmtDate(t.dueDate)}</span>}
                 {t.requirePhoto && !t.done && <span className="chip">📷 proof</span>}
                 {t.done && t.doneAt && <span className="chip">done {fmtDate(t.doneAt)} by {nameById.get(t.doneBy ?? '') ?? 'Unknown'}</span>}
+                {t.done && t.donePhotoId && (
+                  <a href={`/api/attachments/${t.donePhotoId}`} target="_blank" rel="noopener" className="chip-link" style={{ fontSize: 12 }}>
+                    📷 proof
+                  </a>
+                )}
               </div>
             </div>
             <div className="row-actions">
