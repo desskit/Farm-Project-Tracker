@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
 import { listUsers } from '@/lib/data/users';
 import { InviteForm } from './invite-form';
@@ -9,7 +10,10 @@ export default async function PeoplePage() {
   if (user.role !== 'admin') {
     return (
       <main className="view">
-        <div className="view-head">
+        <div className="sub-head">
+          <Link href="/more" className="btn small ghost back-btn">
+            ‹ More
+          </Link>
           <h1>People</h1>
         </div>
         <div className="empty">Only admins can manage people.</div>
@@ -21,7 +25,10 @@ export default async function PeoplePage() {
 
   return (
     <main className="view">
-      <div className="view-head">
+      <div className="sub-head">
+        <Link href="/more" className="btn small ghost back-btn">
+          ‹ More
+        </Link>
         <h1>People</h1>
       </div>
 

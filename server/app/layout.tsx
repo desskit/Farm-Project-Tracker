@@ -27,7 +27,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         {user && <TopBar user={user} />}
         {children}
-        {user && <BottomNav isAdmin={user.role === 'admin'} overdue={counts?.overdue ?? 0} />}
+        {user && <BottomNav overdue={counts?.overdue ?? 0} />}
       </body>
     </html>
   );

@@ -4,20 +4,19 @@ import { usePathname } from 'next/navigation';
 
 type Tab = { href: string; label: string; icon: string; match: (path: string) => boolean };
 
-export function BottomNav({ isAdmin, overdue }: { isAdmin: boolean; overdue: number }) {
+const TABS: Tab[] = [
+  { href: '/', label: 'Today', icon: '🏠', match: (p) => p === '/' },
+  { href: '/chores', label: 'Chores', icon: '🔁', match: (p) => p.startsWith('/chores') },
+  { href: '/maintenance', label: 'Upkeep', icon: '🔧', match: (p) => p.startsWith('/maintenance') },
+  { href: '/projects', label: 'Projects', icon: '📋', match: (p) => p.startsWith('/projects') },
+  { href: '/more', label: 'More', icon: '⋯', match: (p) => p.startsWith('/more') || p.startsWith('/people') },
+];
+
+export function BottomNav({ overdue }: { overdue: number }) {
   const pathname = usePathname();
-
-  const tabs: Tab[] = [
-    { href: '/', label: 'Today', icon: '🏠', match: (p) => p === '/' },
-    { href: '/chores', label: 'Chores', icon: '🔁', match: (p) => p.startsWith('/chores') },
-  ];
-  if (isAdmin) {
-    tabs.push({ href: '/people', label: 'People', icon: '🧑‍🌾', match: (p) => p.startsWith('/people') });
-  }
-
   return (
     <nav className="nav">
-      {tabs.map((tab) => {
+      {TABS.map((tab) => {
         const active = tab.match(pathname);
         const showBadge = tab.href === '/' && overdue > 0;
         return (
