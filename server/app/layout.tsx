@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { getSessionUser } from '@/lib/auth/session';
+import { TopNav } from './_components/top-nav';
 
 export const metadata: Metadata = {
   title: 'Farm Project Tracker',
@@ -14,10 +16,14 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const user = await getSessionUser();
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {user && <TopNav user={user} />}
+        {children}
+      </body>
     </html>
   );
 }
