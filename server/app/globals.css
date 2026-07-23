@@ -532,3 +532,44 @@ a.tap-link:hover .item-title { color: var(--brand); }
 
 /* Bottom-nav label (kept small, matches the icon column) */
 .nav-lbl { font-size: 11px; line-height: 1; }
+
+/* ---------------- work timers ---------------- */
+.timer-line { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.timer-live { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 15px; color: var(--brand); }
+.timers-strip {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 16px 0;
+}
+.timer-chip {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--upcoming-bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 12px;
+  padding: 8px 12px; font-size: 14px;
+  box-shadow: var(--shadow);
+}
+.timer-chip > span:first-child { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timer-chip .timer-live { color: var(--brand); }
+
+/* ---------------- calendar ---------------- */
+.cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.cal-nav strong { font-size: 17px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-dow { text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); padding-bottom: 2px; }
+.cal-cell {
+  position: relative; aspect-ratio: 1 / 1;
+  border: 1px solid var(--border); border-radius: 9px;
+  padding: 4px; background: var(--surface);
+  display: flex; flex-direction: column; align-items: center; cursor: pointer;
+}
+.cal-cell.empty { border: none; background: transparent; cursor: default; }
+.cal-cell.today { border-color: var(--today); }
+.cal-cell.sel { outline: 2px solid var(--brand); outline-offset: -2px; }
+.cal-cell.has { background: var(--surface-2); }
+.cal-num { font-size: 13px; font-weight: 600; }
+.cal-dots { display: flex; gap: 2px; margin-top: auto; flex-wrap: wrap; justify-content: center; }
+.cal-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--muted); }
+.cal-dot.chore { background: var(--brand); }
+.cal-dot.maintenance { background: var(--today); }
+.cal-dot.task { background: #5b7cc0; }
+.cal-dot.rent { background: var(--overdue); }

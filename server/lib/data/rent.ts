@@ -11,6 +11,7 @@ import { uid } from '@/lib/ids';
 import { todayISO, currentMonthKey } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
 import { logActivity } from './activity';
+import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
 
 export type RentAssignmentRow = typeof rentAssignments.$inferSelect;
@@ -54,6 +55,7 @@ export async function setRent(user: SessionUser, targetUserId: string, amount: n
   if (ch[0] && ch[0].status === 'unpaid') {
     await db.update(rentCharges).set({ amount: amt, dueDate: `${mk}-${pad2(day)}` }).where(eq(rentCharges.id, ch[0].id));
   }
+  publishChange('rent');
 }
 
 export async function stopRent(user: SessionUser, targetUserId: string): Promise<void> {
@@ -64,6 +66,7 @@ export async function stopRent(user: SessionUser, targetUserId: string): Promise
   for (const c of charges) {
     if (c.status === 'unpaid') await db.delete(rentCharges).where(eq(rentCharges.id, c.id));
   }
+  publishChange('rent');
 }
 
 /** Lazily create this month's charge for every active assignment. */
@@ -141,6 +144,7 @@ export async function reopenRent(user: SessionUser, chargeId: string): Promise<v
     .update(rentCharges)
     .set({ status: 'unpaid', markedAt: null, markedBy: null, verifiedAt: null, verifiedBy: null })
     .where(eq(rentCharges.id, chargeId));
+  publishChange('rent');
 }
 
 export function rentSummary(charges: RentChargeRow[]): RentSummary {

@@ -12,6 +12,8 @@ import { todayISO } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
 import { STATUS_LABELS, type ProjectStatus } from '@/lib/domain/project-status';
 import { logActivity } from './activity';
+import { stopTimersFor } from './timers';
+import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
 
 export type ProjectRow = typeof projects.$inferSelect;
@@ -71,15 +73,18 @@ export async function updateProject(user: SessionUser, id: string, data: Partial
   if (data.name != null && data.name.trim()) patch.name = data.name.trim();
   if (data.status) patch.status = data.status;
   await db.update(projects).set(patch).where(eq(projects.id, id));
+  publishChange('project');
   return (await getProject(id))!;
 }
 export async function updateProjectStatus(user: SessionUser, id: string, status: ProjectStatus): Promise<void> {
   if (!canCreateProject(user)) throw new DataError('Only managers and admins can change status.', 403);
   await db.update(projects).set({ status }).where(eq(projects.id, id));
+  publishChange('project');
 }
 export async function deleteProject(user: SessionUser, id: string): Promise<void> {
   if (!canCreateProject(user)) throw new DataError('Only managers and admins can delete projects.', 403);
   await db.delete(projects).where(eq(projects.id, id)); // tasks cascade via FK
+  publishChange('project');
 }
 
 /* ---------------- tasks ---------------- */
@@ -109,6 +114,7 @@ export async function addTask(user: SessionUser, projectId: string, data: TaskIn
     requirePhoto: !!data.requirePhoto,
     open: !!data.open,
   });
+  publishChange('task');
   return (await taskById(id))!;
 }
 
@@ -125,12 +131,14 @@ export async function updateTask(user: SessionUser, taskId: string, data: Partia
   };
   if (data.title != null && data.title.trim()) patch.title = data.title.trim();
   await db.update(projectTasks).set(patch).where(eq(projectTasks.id, taskId));
+  publishChange('task');
   return (await taskById(taskId))!;
 }
 
 export async function deleteTask(user: SessionUser, taskId: string): Promise<void> {
   if (!isManager(user)) throw new DataError('Only managers and admins can delete tasks.', 403);
   await db.delete(projectTasks).where(eq(projectTasks.id, taskId));
+  publishChange('task');
 }
 
 /** Toggles a task done/undone. Blocks completion of a photo-required task with no photo. */
@@ -149,7 +157,12 @@ export async function toggleTask(user: SessionUser, taskId: string, photoId?: st
       sentBack: done ? null : t.sentBack,
     })
     .where(eq(projectTasks.id, taskId));
-  if (done) await logActivity(user.id, `completed task "${t.title}"`);
+  if (done) {
+    await stopTimersFor('task', taskId); // finishing the task stops any running clock
+    await logActivity(user.id, `completed task "${t.title}"`);
+  } else {
+    publishChange('task');
+  }
 }
 
 export async function claimTask(user: SessionUser, taskId: string): Promise<void> {
@@ -157,6 +170,7 @@ export async function claimTask(user: SessionUser, taskId: string): Promise<void
   if (!t) throw new DataError('No such task.', 404);
   if (!t.open || t.assignedTo || t.done) throw new DataError('This task is not open to claim.', 400);
   await db.update(projectTasks).set({ assignedTo: user.id }).where(eq(projectTasks.id, taskId));
+  publishChange('task');
 }
 
 export async function releaseTask(user: SessionUser, taskId: string): Promise<void> {
@@ -165,6 +179,7 @@ export async function releaseTask(user: SessionUser, taskId: string): Promise<vo
   if (!t.open) throw new DataError('This item is not an open item.', 400);
   if (t.assignedTo !== user.id && !isManager(user)) throw new DataError('Only the current owner or a manager can release it.', 403);
   await db.update(projectTasks).set({ assignedTo: null }).where(eq(projectTasks.id, taskId));
+  publishChange('task');
 }
 
 export async function sendBackTask(user: SessionUser, taskId: string, reason?: string): Promise<void> {
@@ -177,4 +192,5 @@ export async function sendBackTask(user: SessionUser, taskId: string, reason?: s
     .update(projectTasks)
     .set({ done: false, doneBy: null, doneAt: null, donePhotoId: null, sentBack })
     .where(eq(projectTasks.id, taskId));
+  publishChange('task');
 }

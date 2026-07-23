@@ -16,6 +16,8 @@ import { nextOccurrenceAfter } from '@/lib/domain/recurrence';
 import { todayISO, addDays } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
 import { logActivity } from './activity';
+import { stopTimersFor } from './timers';
+import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
 
 export type ChoreRow = typeof chores.$inferSelect;
@@ -80,12 +82,14 @@ export async function updateChore(user: SessionUser, id: string, data: Partial<C
   if (Array.isArray(data.steps)) patch.steps = data.steps.filter(Boolean);
 
   await db.update(chores).set(patch).where(eq(chores.id, id));
+  publishChange('chore');
   return (await choreById(id))!;
 }
 
 export async function deleteChore(user: SessionUser, id: string): Promise<void> {
   if (!isManager(user)) throw new DataError('Only managers and admins can delete chores.', 403);
   await db.delete(chores).where(eq(chores.id, id)); // completions cascade via FK
+  publishChange('chore');
 }
 
 export async function choreCompletionsFor(choreId: string): Promise<ChoreCompletionRow[]> {
@@ -138,9 +142,8 @@ export async function completeChore(
       ? nextOccurrenceAfter(chore.schedule, chore.nextDue)
       : nextOccurrenceAfter(chore.schedule, today);
   await db.update(chores).set({ nextDue, sentBack: null }).where(eq(chores.id, id));
+  await stopTimersFor('chore', id); // completing the work stops any running clock
   await logActivity(user.id, `completed chore "${chore.name}"`);
-  // Note: stopping any running time-tracking timer for this chore is deferred
-  // until time tracking is ported (a later phase) — no timers exist yet.
 }
 
 export async function claimChore(user: SessionUser, id: string): Promise<void> {
@@ -148,6 +151,7 @@ export async function claimChore(user: SessionUser, id: string): Promise<void> {
   if (!chore) throw new DataError('No such chore.', 404);
   if (!chore.open || chore.assignedTo) throw new DataError('This chore is not open to claim.', 400);
   await db.update(chores).set({ assignedTo: user.id }).where(eq(chores.id, id));
+  publishChange('chore');
 }
 
 export async function releaseChore(user: SessionUser, id: string): Promise<void> {
@@ -158,6 +162,7 @@ export async function releaseChore(user: SessionUser, id: string): Promise<void>
     throw new DataError('Only the current owner or a manager can release it.', 403);
   }
   await db.update(chores).set({ assignedTo: null }).where(eq(chores.id, id));
+  publishChange('chore');
 }
 
 /** Undoes a chore completion and flags the chore "sent back" for redo. */

@@ -9,6 +9,7 @@ import {
   itemCostTotal,
   assetCostTotal,
 } from '@/lib/data/maintenance';
+import { timerStatesFor } from '@/lib/data/timers';
 import { listUsers } from '@/lib/data/users';
 import { AssetDetail } from './asset-detail';
 
@@ -34,6 +35,7 @@ export default async function AssetDetailPage({ params }: { params: { assetId: s
       costTotal: await itemCostTotal(item.id),
     })),
   );
+  const timers = await timerStatesFor(user.id, 'maintenance', items.map((i) => i.id));
 
   return (
     <main className="view">
@@ -45,6 +47,7 @@ export default async function AssetDetailPage({ params }: { params: { assetId: s
         assetCost={cost}
         people={people}
         currentUser={user}
+        timers={timers}
       />
     </main>
   );

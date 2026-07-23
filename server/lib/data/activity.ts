@@ -7,6 +7,7 @@ import { desc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { activity, users } from '@/db/schema';
 import { uid } from '@/lib/ids';
+import { publishChange } from '@/lib/realtime/bus';
 
 export type ActivityRow = { id: string; ts: number; userId: string | null; text: string; userName: string };
 
@@ -17,6 +18,8 @@ export async function logActivity(userId: string | null, text: string): Promise<
   } catch {
     /* ignore */
   }
+  // Anything worth logging is worth pushing to other devices in real time.
+  publishChange('activity');
 }
 
 export async function listActivity(limit = 40): Promise<ActivityRow[]> {

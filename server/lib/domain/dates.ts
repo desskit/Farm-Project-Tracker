@@ -65,6 +65,17 @@ export function fmtDate(s: string): string {
   return parseISO(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+/** Human-friendly duration from a second count (ported from js/store.js:1140). */
+export function fmtDur(sec: number): string {
+  sec = Math.max(0, Math.round(sec));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h) return `${h}h ${m}m`;
+  if (m) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
 export function relativeLabel(s: string): string {
   const n = diffDays(s, todayISO());
   if (n === 0) return 'today';

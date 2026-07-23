@@ -8,6 +8,7 @@ import type { SessionUser } from '@/lib/auth/session';
 import type { Bucket } from '@/lib/domain/dashboard';
 import { fmtDate } from '@/lib/domain/dates';
 import { uploadPhoto } from '@/lib/client/photo';
+import { TimerControl } from '@/app/_components/timer-control';
 import { ChoreForm, type ChorePayload } from '../chore-form';
 
 export function ChoreDetail({
@@ -19,6 +20,9 @@ export function ChoreDetail({
   scheduleLabel,
   bucket,
   dueLabel,
+  timerRunning,
+  timerStartedAt,
+  timerTotalSec,
 }: {
   chore: ChoreRow;
   completions: ChoreCompletionRow[];
@@ -28,6 +32,9 @@ export function ChoreDetail({
   scheduleLabel: string;
   bucket: Bucket;
   dueLabel: string;
+  timerRunning: boolean;
+  timerStartedAt: number | null;
+  timerTotalSec: number;
 }) {
   const router = useRouter();
   const isManager = currentUser.role === 'manager' || currentUser.role === 'admin';
@@ -191,6 +198,13 @@ export function ChoreDetail({
             </>
           )}
         </div>
+        <TimerControl
+          kind="chore"
+          refId={chore.id}
+          running={timerRunning}
+          startedAt={timerStartedAt}
+          totalSec={timerTotalSec}
+        />
       </div>
 
       <div className="section-title">Complete</div>

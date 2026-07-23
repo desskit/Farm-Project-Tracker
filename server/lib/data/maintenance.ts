@@ -11,6 +11,8 @@ import { todayISO, addDays, addMonths } from '@/lib/domain/dates';
 import { maintenanceStatus, type MaintStatus } from '@/lib/domain/maintenance';
 import type { SessionUser } from '@/lib/auth/session';
 import { logActivity } from './activity';
+import { stopTimersFor } from './timers';
+import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
 
 export type AssetRow = typeof assets.$inferSelect;
@@ -40,6 +42,7 @@ export async function addAsset(user: SessionUser, data: { name: string; category
     meterUnit: data.meterUnit || null,
     notes: data.notes || '',
   });
+  publishChange('asset');
   return (await assetById(id))!;
 }
 export async function updateAsset(user: SessionUser, id: string, data: { name?: string; category?: string; notes?: string }): Promise<AssetRow> {
@@ -50,11 +53,13 @@ export async function updateAsset(user: SessionUser, id: string, data: { name?: 
   if (data.name != null && data.name.trim()) patch.name = data.name.trim();
   if (data.category != null) patch.category = data.category || 'Equipment';
   await db.update(assets).set(patch).where(eq(assets.id, id));
+  publishChange('asset');
   return (await assetById(id))!;
 }
 export async function deleteAsset(user: SessionUser, id: string): Promise<void> {
   if (!isManager(user)) throw new DataError('Only managers and admins can delete assets.', 403);
   await db.delete(assets).where(eq(assets.id, id)); // items/logs/readings cascade via FK
+  publishChange('asset');
 }
 
 /* ---------------- meter readings ---------------- */
@@ -74,6 +79,7 @@ export async function addReading(user: SessionUser, assetId: string, reading: nu
   const prev = await latestReading(assetId);
   if (prev != null && reading < prev) throw new DataError(`Reading is below the latest (${prev} ${a.meterUnit}).`, 400);
   await db.insert(meterReadings).values({ id: uid('mr'), assetId, reading, userId: user.id, date: date || todayISO() });
+  publishChange('asset');
 }
 
 /* ---------------- maintenance items ---------------- */
@@ -146,12 +152,14 @@ export async function updateMaintenance(
     patch.dueAtReading = (item.lastDoneReading ?? 0) + intervalValue;
   }
   await db.update(maintenanceItems).set(patch).where(eq(maintenanceItems.id, id));
+  publishChange('maintenance');
   return (await maintenanceById(id))!;
 }
 
 export async function deleteMaintenance(user: SessionUser, id: string): Promise<void> {
   if (!isManager(user)) throw new DataError('Only managers and admins can delete maintenance items.', 403);
   await db.delete(maintenanceItems).where(eq(maintenanceItems.id, id)); // logs cascade
+  publishChange('maintenance');
 }
 
 /* ---------------- service logs ---------------- */
@@ -203,6 +211,7 @@ export async function logService(
     patch.dueAtReading = lastDoneReading + item.intervalValue;
   }
   await db.update(maintenanceItems).set(patch).where(eq(maintenanceItems.id, itemId));
+  await stopTimersFor('maintenance', itemId); // finishing the service stops any running clock
   await logActivity(user.id, `logged "${item.name}"${asset ? ` on ${asset.name}` : ''}`);
 }
 
@@ -224,6 +233,7 @@ export async function sendBackService(user: SessionUser, logId: string, reason?:
     patch.sentBack = { by: user.id, at: Date.now(), reason: reason || '', worker: log.userId } as SentBack;
     await db.update(maintenanceItems).set(patch).where(eq(maintenanceItems.id, item.id));
   }
+  publishChange('maintenance');
 }
 
 /* ---------------- status (with reading lookups) ---------------- */

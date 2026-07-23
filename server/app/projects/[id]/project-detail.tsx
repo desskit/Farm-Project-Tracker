@@ -8,17 +8,21 @@ import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
 import { fmtDate } from '@/lib/domain/dates';
 import { uploadPhoto } from '@/lib/client/photo';
+import { TimerControl } from '@/app/_components/timer-control';
+import type { TimerState } from '@/lib/data/timers';
 
 export function ProjectDetail({
   project,
   tasks,
   people,
   currentUser,
+  timers,
 }: {
   project: ProjectRow;
   tasks: TaskRow[];
   people: PersonRow[];
   currentUser: SessionUser;
+  timers: Record<string, TimerState>;
 }) {
   const router = useRouter();
   const canManage = currentUser.role === 'manager' || currentUser.role === 'admin';
@@ -185,6 +189,15 @@ export function ProjectDetail({
                   </a>
                 )}
               </div>
+              {!t.done && timers[t.id] && (
+                <TimerControl
+                  kind="task"
+                  refId={t.id}
+                  running={timers[t.id].running}
+                  startedAt={timers[t.id].startedAt}
+                  totalSec={timers[t.id].totalSec}
+                />
+              )}
             </div>
             <div className="row-actions">
               {t.open && !t.assignedTo && !t.done && (

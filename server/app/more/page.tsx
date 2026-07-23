@@ -19,6 +19,7 @@ export default async function MorePage() {
   if (isManager) farm.push({ href: '/more/team', icon: '👥', label: 'Team', sub: 'Farm-wide status' });
 
   const settings: Tile[] = [
+    { href: '/more/calendar', icon: '📅', label: 'Calendar', sub: 'What’s due, by day' },
     { href: '/people', icon: '🧑‍🌾', label: 'People', sub: isAdmin ? 'Manage the crew' : 'The crew' },
     { href: '/more/activity', icon: '🕙', label: 'Activity', sub: 'Recent history' },
     { href: '/more/notifications', icon: '🔔', label: 'Notifications', sub: 'Digests & push' },

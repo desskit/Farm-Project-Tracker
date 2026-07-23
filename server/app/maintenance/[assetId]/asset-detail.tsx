@@ -7,6 +7,8 @@ import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
 import { fmtDate } from '@/lib/domain/dates';
 import { uploadPhoto } from '@/lib/client/photo';
+import { TimerControl } from '@/app/_components/timer-control';
+import type { TimerState } from '@/lib/data/timers';
 
 type ItemWithLogs = MaintWithStatus & { logs: MaintLogRow[]; costTotal: number };
 
@@ -18,6 +20,7 @@ export function AssetDetail({
   assetCost,
   people,
   currentUser,
+  timers,
 }: {
   asset: AssetRow;
   items: ItemWithLogs[];
@@ -26,6 +29,7 @@ export function AssetDetail({
   assetCost: number;
   people: PersonRow[];
   currentUser: SessionUser;
+  timers: Record<string, TimerState>;
 }) {
   const router = useRouter();
   const isManager = currentUser.role === 'manager' || currentUser.role === 'admin';
@@ -146,6 +150,16 @@ export function AssetDetail({
             {item.requirePhoto && <span className="chip">📷 proof</span>}
             {item.costTotal > 0 && <span className="chip">${item.costTotal.toFixed(2)}</span>}
           </div>
+
+          {timers[item.id] && (
+            <TimerControl
+              kind="maintenance"
+              refId={item.id}
+              running={timers[item.id].running}
+              startedAt={timers[item.id].startedAt}
+              totalSec={timers[item.id].totalSec}
+            />
+          )}
 
           <LogServiceForm item={item} meterUnit={asset.meterUnit} onError={setError} />
 

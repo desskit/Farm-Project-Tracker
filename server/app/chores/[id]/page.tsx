@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { getSessionUser } from '@/lib/auth/session';
 import { choreById, choreCompletionsFor, choreStreak } from '@/lib/data/chores';
+import { activeTimerFor, totalSeconds } from '@/lib/data/timers';
 import { listUsers } from '@/lib/data/users';
 import { describeSchedule } from '@/lib/domain/recurrence';
 import { bucketForDate } from '@/lib/domain/dashboard';
@@ -14,10 +15,12 @@ export default async function ChoreDetailPage({ params }: { params: { id: string
   const chore = await choreById(params.id);
   if (!chore) notFound();
 
-  const [completions, streak, people] = await Promise.all([
+  const [completions, streak, people, timer, timerTotal] = await Promise.all([
     choreCompletionsFor(params.id),
     choreStreak(params.id),
     listUsers(),
+    activeTimerFor(user.id, 'chore', params.id),
+    totalSeconds('chore', params.id),
   ]);
 
   return (
@@ -31,6 +34,9 @@ export default async function ChoreDetailPage({ params }: { params: { id: string
         scheduleLabel={describeSchedule(chore.schedule)}
         bucket={bucketForDate(chore.nextDue)}
         dueLabel={relativeLabel(chore.nextDue)}
+        timerRunning={!!timer}
+        timerStartedAt={timer?.start ?? null}
+        timerTotalSec={timerTotal}
       />
     </main>
   );

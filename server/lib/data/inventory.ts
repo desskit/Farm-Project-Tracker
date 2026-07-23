@@ -9,6 +9,7 @@ import { uid } from '@/lib/ids';
 import { todayISO } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
 import { logActivity } from './activity';
+import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
 
 export type InventoryRow = typeof inventory.$inferSelect;
@@ -46,6 +47,7 @@ export async function addInventoryItem(user: SessionUser, data: InventoryInput):
     reorderAt: Number(data.reorderAt) || 0,
     notes: data.notes || '',
   });
+  publishChange('inventory');
   return (await inventoryById(id))!;
 }
 
@@ -59,12 +61,14 @@ export async function updateInventoryItem(user: SessionUser, id: string, data: P
   if (data.unit != null) patch.unit = data.unit || 'count';
   if (data.reorderAt != null) patch.reorderAt = Number(data.reorderAt) || 0;
   await db.update(inventory).set(patch).where(eq(inventory.id, id));
+  publishChange('inventory');
   return (await inventoryById(id))!;
 }
 
 export async function deleteInventoryItem(user: SessionUser, id: string): Promise<void> {
   if (!isManager(user)) throw new DataError('Only managers and admins can delete inventory.', 403);
   await db.delete(inventory).where(eq(inventory.id, id)); // log cascades via FK
+  publishChange('inventory');
 }
 
 /** Anyone can use/restock; each adjustment is logged with who/when. */
