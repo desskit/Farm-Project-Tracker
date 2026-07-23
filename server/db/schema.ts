@@ -52,6 +52,18 @@ export const invites = sqliteTable('invites', {
   usedAt: integer('used_at'),
 });
 
+/**
+ * Login throttle — one row per throttle key (e.g. "email:foo@bar" or an IP).
+ * Counts recent failures within a window; a lockout stamps `locked_until`.
+ * Rows are pruned by the nightly cleanup job.
+ */
+export const authThrottle = sqliteTable('auth_throttle', {
+  key: text('key').primaryKey(),
+  failures: integer('failures').notNull().default(0),
+  firstFailedAt: integer('first_failed_at').notNull(),
+  lockedUntil: integer('locked_until'),
+});
+
 /* ---------------- attachments (files on disk) ---------------- */
 export const attachments = sqliteTable('attachments', {
   id: text('id').primaryKey(),

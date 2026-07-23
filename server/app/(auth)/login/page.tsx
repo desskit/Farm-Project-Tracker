@@ -1,6 +1,7 @@
 'use client';
 import { Suspense, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 
 export default function LoginPage() {
   return (
@@ -58,6 +59,11 @@ function LoginForm() {
           </button>
         </form>
       </div>
+      <p className="subtle" style={{ marginTop: 14, textAlign: 'center' }}>
+        <Link href="/forgot" className="chip-link">
+          Forgot your password?
+        </Link>
+      </p>
     </main>
   );
 }

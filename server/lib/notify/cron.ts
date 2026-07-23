@@ -7,6 +7,7 @@
 import 'server-only';
 import cron from 'node-cron';
 import { runDigestTick } from './digest';
+import { cleanupAuthTables } from '@/lib/auth/cleanup';
 
 const g = globalThis as unknown as { __fptCronStarted?: boolean };
 
@@ -20,6 +21,13 @@ export function startCron(): void {
       console.error('[cron] digest tick failed', e);
     });
   });
+  // Nightly auth housekeeping (03:20) — prune expired sessions/invites/throttle.
+  cron.schedule('20 3 * * *', () => {
+    cleanupAuthTables().catch((e) => {
+      // eslint-disable-next-line no-console
+      console.error('[cron] auth cleanup failed', e);
+    });
+  });
   // eslint-disable-next-line no-console
-  console.log('[cron] hourly digest schedule started');
+  console.log('[cron] schedules started (hourly digest, nightly cleanup)');
 }

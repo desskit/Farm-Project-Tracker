@@ -8,6 +8,13 @@
       "when": 1784596540029,
       "tag": "0000_smooth_wither",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1784846822494,
+      "tag": "0001_lowly_lethal_legion",
+      "breakpoints": true
     }
   ]
 }

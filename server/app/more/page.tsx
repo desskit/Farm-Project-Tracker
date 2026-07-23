@@ -20,6 +20,7 @@ export default async function MorePage() {
 
   const settings: Tile[] = [
     { href: '/more/calendar', icon: '📅', label: 'Calendar', sub: 'What’s due, by day' },
+    { href: '/more/account', icon: '🔑', label: 'Account', sub: 'Password & sign-in' },
     { href: '/people', icon: '🧑‍🌾', label: 'People', sub: isAdmin ? 'Manage the crew' : 'The crew' },
     { href: '/more/activity', icon: '🕙', label: 'Activity', sub: 'Recent history' },
     { href: '/more/notifications', icon: '🔔', label: 'Notifications', sub: 'Digests & push' },
