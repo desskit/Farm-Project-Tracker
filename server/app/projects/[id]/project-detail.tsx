@@ -17,12 +17,14 @@ export function ProjectDetail({
   people,
   currentUser,
   timers,
+  aiEnabled,
 }: {
   project: ProjectRow;
   tasks: TaskRow[];
   people: PersonRow[];
   currentUser: SessionUser;
   timers: Record<string, TimerState>;
+  aiEnabled: boolean;
 }) {
   const router = useRouter();
   const canManage = currentUser.role === 'manager' || currentUser.role === 'admin';
@@ -220,9 +222,118 @@ export function ProjectDetail({
         </div>
       ))}
 
+      {canManage && aiEnabled && <SuggestSteps projectId={project.id} onError={setError} />}
+
       {canManage && <AddTaskForm projectId={project.id} people={people} onError={setError} />}
 
       {error && <p className="error-text">{error}</p>}
+    </>
+  );
+}
+
+function SuggestSteps({ projectId, onError }: { projectId: string; onError: (m: string | null) => void }) {
+  const router = useRouter();
+  const [steps, setSteps] = useState<{ title: string; description?: string }[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [adding, setAdding] = useState<string | null>(null);
+
+  async function generate() {
+    setLoading(true);
+    onError(null);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/suggest-steps`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        onError(data.error || 'Could not generate suggestions.');
+        return;
+      }
+      setSteps(Array.isArray(data.steps) ? data.steps : []);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function addStep(step: { title: string; description?: string }) {
+    const res = await fetch(`/api/projects/${projectId}/tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: step.title, description: step.description || '' }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      onError(data.error || 'Could not add task.');
+      return false;
+    }
+    return true;
+  }
+
+  async function addOne(step: { title: string; description?: string }, index: number) {
+    setAdding(`one-${index}`);
+    onError(null);
+    const ok = await addStep(step);
+    setAdding(null);
+    if (ok) {
+      setSteps((prev) => prev?.filter((_, i) => i !== index) ?? null);
+      router.refresh();
+    }
+  }
+
+  async function addAll() {
+    if (!steps?.length) return;
+    setAdding('all');
+    onError(null);
+    for (const step of steps) {
+      const ok = await addStep(step);
+      if (!ok) break;
+    }
+    setAdding(null);
+    setSteps(null);
+    router.refresh();
+  }
+
+  return (
+    <>
+      <div className="section-title">Plan with AI</div>
+      <div className="card">
+        {!steps ? (
+          <>
+            <p className="subtle" style={{ marginTop: 0 }}>
+              Let Claude suggest a task breakdown from this project&apos;s name and description.
+            </p>
+            <button className="btn block" disabled={loading} onClick={generate}>
+              {loading ? 'Thinking…' : '✨ Suggest steps'}
+            </button>
+          </>
+        ) : steps.length === 0 ? (
+          <p className="subtle" style={{ margin: 0 }}>
+            No suggestions came back. Try adding a description, then generate again.
+          </p>
+        ) : (
+          <>
+            <ul className="suggest-list">
+              {steps.map((s, i) => (
+                <li key={i}>
+                  <div className="item-main">
+                    <p className="s-title">{s.title}</p>
+                    {s.description && <p className="s-desc">{s.description}</p>}
+                  </div>
+                  <button className="btn small primary" disabled={adding !== null} onClick={() => addOne(s, i)}>
+                    {adding === `one-${i}` ? '…' : 'Add'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="row-actions" style={{ marginTop: 10, flexWrap: 'wrap' }}>
+              <button className="btn primary" disabled={adding !== null} onClick={addAll}>
+                {adding === 'all' ? 'Adding…' : `Add all ${steps.length}`}
+              </button>
+              <button className="btn ghost" disabled={adding !== null} onClick={() => setSteps(null)}>
+                Discard
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </>
   );
 }

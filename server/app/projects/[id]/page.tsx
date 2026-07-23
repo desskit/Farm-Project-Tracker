@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { getSessionUser } from '@/lib/auth/session';
 import { getProject, projectTasksFor } from '@/lib/data/projects';
 import { timerStatesFor } from '@/lib/data/timers';
+import { aiSuggestConfigured } from '@/lib/ai/suggest-steps';
 import { listUsers } from '@/lib/data/users';
 import { ProjectDetail } from './project-detail';
 
@@ -17,7 +18,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
 
   return (
     <main className="view">
-      <ProjectDetail project={project} tasks={tasks} people={people} currentUser={user} timers={timers} />
+      <ProjectDetail project={project} tasks={tasks} people={people} currentUser={user} timers={timers} aiEnabled={aiSuggestConfigured()} />
     </main>
   );
 }

@@ -5,7 +5,7 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     // Keep these server-only packages out of the bundle (native addons / node deps).
-    serverComponentsExternalPackages: ['@libsql/client', 'nodemailer', 'web-push', 'node-cron'],
+    serverComponentsExternalPackages: ['@libsql/client', 'nodemailer', 'web-push', 'node-cron', '@anthropic-ai/sdk'],
     // Run instrumentation.ts on boot (applies DB migrations).
     instrumentationHook: true,
     // Include the migration SQL in the standalone output's file tracing so the

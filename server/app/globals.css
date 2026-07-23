@@ -573,3 +573,14 @@ a.tap-link:hover .item-title { color: var(--brand); }
 .cal-dot.maintenance { background: var(--today); }
 .cal-dot.task { background: #5b7cc0; }
 .cal-dot.rent { background: var(--overdue); }
+
+/* ---------------- AI suggest steps ---------------- */
+.suggest-list { list-style: none; padding: 0; margin: 0 0 12px; }
+.suggest-list li {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px;
+  background: var(--surface-2);
+}
+.suggest-list li .item-main { flex: 1; min-width: 0; }
+.suggest-list .s-title { font-weight: 650; margin: 0; }
+.suggest-list .s-desc { font-size: 13px; color: var(--muted); margin: 2px 0 0; }
