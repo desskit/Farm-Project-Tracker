@@ -584,3 +584,12 @@ a.tap-link:hover .item-title { color: var(--brand); }
 .suggest-list li .item-main { flex: 1; min-width: 0; }
 .suggest-list .s-title { font-weight: 650; margin: 0; }
 .suggest-list .s-desc { font-size: 13px; color: var(--muted); margin: 2px 0 0; }
+
+/* Dashboard weather widget (tappable link into the full weather page) */
+.wx-widget { display: block; text-decoration: none; color: inherit; }
+.wx-widget:active { transform: translateY(1px) scale(.997); }
+.wx-fire-pill {
+  --fire: #b8860b;
+  font-size: 12px; font-weight: 700; color: #fff; background: var(--fire);
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}

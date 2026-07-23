@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
 import { getDashboard, type DashboardItem } from '@/lib/data/dashboard';
 import { CompleteChoreButton } from './_components/complete-chore-button';
+import { WeatherWidget } from './_components/weather-widget';
 
 export default async function HomePage({ searchParams }: { searchParams: { scope?: string } }) {
   const user = await getSessionUser();
@@ -41,6 +42,8 @@ export default async function HomePage({ searchParams }: { searchParams: { scope
           </Link>
         </div>
       </div>
+
+      <WeatherWidget />
 
       {total === 0 ? (
         <div className="empty">Nothing due in the next 7 days{scope === 'mine' ? ' for you' : ''}. 🎉</div>
