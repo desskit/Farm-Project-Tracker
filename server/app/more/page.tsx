@@ -1,16 +1,18 @@
 import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
+import { lowStockItems } from '@/lib/data/inventory';
 
-type Tile = { href: string; icon: string; label: string; sub: string };
+type Tile = { href: string; icon: string; label: string; sub: string; badge?: number; warn?: boolean };
 
 export default async function MorePage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
   const isManager = user.role === 'manager' || user.role === 'admin';
   const isAdmin = user.role === 'admin';
+  const low = (await lowStockItems()).length;
 
   const farm: Tile[] = [
-    { href: '/more/supplies', icon: '📦', label: 'Supplies', sub: 'Feed, fuel & parts' },
+    { href: '/more/supplies', icon: '📦', label: 'Supplies', sub: 'Feed, fuel & parts', badge: low || undefined, warn: low > 0 },
     { href: '/more/leaderboard', icon: '🏆', label: 'Leaderboard', sub: 'Points & streaks' },
     { href: '/more/rent', icon: '💵', label: 'Rent', sub: isManager ? 'Collect & verify' : 'Your charges' },
   ];
@@ -63,7 +65,8 @@ export default async function MorePage() {
 
 function TileLink({ tile }: { tile: Tile }) {
   return (
-    <Link href={tile.href} className="more-tile">
+    <Link href={tile.href} className={`more-tile${tile.warn ? ' warn' : ''}`}>
+      {tile.badge ? <span className="more-tile-badge">{tile.badge}</span> : null}
       <span className="more-tile-ico">{tile.icon}</span>
       <span className="more-tile-lbl">{tile.label}</span>
       <span className="more-tile-sub">{tile.sub}</span>

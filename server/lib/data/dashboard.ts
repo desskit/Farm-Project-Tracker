@@ -3,16 +3,17 @@
  * (store.js:925-992). Merges chores and maintenance into Overdue / Due Today /
  * Coming Up buckets. Project tasks and rent join as those resources land.
  */
-import { chores, users, assets, maintenanceItems, meterReadings, projects, projectTasks } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+import { chores, users, assets, maintenanceItems, meterReadings, projects, projectTasks, rentCharges } from '@/db/schema';
 import { db } from '@/db';
 import { bucketForDate, type Bucket } from '@/lib/domain/dashboard';
 import { describeSchedule } from '@/lib/domain/recurrence';
 import { maintenanceStatus } from '@/lib/domain/maintenance';
-import { todayISO } from '@/lib/domain/dates';
+import { todayISO, currentMonthKey } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
 
 export type DashboardItem = {
-  kind: 'chore' | 'maintenance' | 'task';
+  kind: 'chore' | 'maintenance' | 'task' | 'rent';
   id: string;
   title: string;
   subtitle: string;
@@ -30,7 +31,7 @@ export type DashboardBuckets = {
 };
 
 export async function getDashboard(currentUser: SessionUser, scope: 'mine' | 'all'): Promise<DashboardBuckets> {
-  const [allChores, allUsers, allAssets, allItems, allReadings, allProjects, allTasks] = await Promise.all([
+  const [allChores, allUsers, allAssets, allItems, allReadings, allProjects, allTasks, monthCharges] = await Promise.all([
     db.select().from(chores),
     db.select({ id: users.id, name: users.name }).from(users),
     db.select().from(assets),
@@ -38,6 +39,8 @@ export async function getDashboard(currentUser: SessionUser, scope: 'mine' | 'al
     db.select({ assetId: meterReadings.assetId, reading: meterReadings.reading }).from(meterReadings),
     db.select({ id: projects.id, name: projects.name }).from(projects),
     db.select().from(projectTasks),
+    // Read-only: existing charges for this month (creation happens on the Rent page).
+    db.select().from(rentCharges).where(eq(rentCharges.month, currentMonthKey())),
   ]);
   const projectName = new Map(allProjects.map((p) => [p.id, p.name]));
   const nameById = new Map(allUsers.map((u) => [u.id, u.name]));
@@ -100,6 +103,26 @@ export async function getDashboard(currentUser: SessionUser, scope: 'mine' | 'al
       href: `/projects/${t.projectId}`,
       bucket: b,
       actionLabel: 'Open',
+      gated: false,
+    });
+  }
+
+  for (const c of monthCharges) {
+    if (c.status === 'verified') continue;
+    // "mine" shows the renter's own still-unpaid charge; "all" shows every
+    // non-verified charge (matches the prototype's dashboard filter).
+    if (scope === 'mine' && (c.userId !== currentUser.id || c.status === 'marked')) continue;
+    const b = bucketForDate(c.dueDate);
+    if (b === 'later') continue;
+    buckets[b].push({
+      kind: 'rent',
+      id: c.id,
+      title: `Rent · $${c.amount}`,
+      subtitle: `${userName(c.userId)} · ${c.status === 'marked' ? 'awaiting verification' : 'unpaid'}`,
+      dueDate: c.dueDate,
+      href: '/more/rent',
+      bucket: b,
+      actionLabel: c.status === 'marked' ? 'Review' : 'Pay',
       gated: false,
     });
   }
