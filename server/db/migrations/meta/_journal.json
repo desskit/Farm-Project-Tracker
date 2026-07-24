@@ -15,6 +15,13 @@
       "when": 1784846822494,
       "tag": "0001_lowly_lethal_legion",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784855175464,
+      "tag": "0002_third_calypso",
+      "breakpoints": true
     }
   ]
 }

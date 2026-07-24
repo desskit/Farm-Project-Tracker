@@ -55,6 +55,7 @@ export async function getDashboard(currentUser: SessionUser, scope: 'mine' | 'al
   const buckets: DashboardBuckets = { overdue: [], today: [], upcoming: [] };
 
   for (const c of allChores) {
+    if (c.done) continue; // completed one-time chores drop off the board
     const b = bucketForDate(c.nextDue);
     if (b === 'later') continue;
     if (scope === 'mine' && c.assignedTo !== currentUser.id) continue;

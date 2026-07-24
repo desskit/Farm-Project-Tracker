@@ -165,11 +165,17 @@ export function ChoreDetail({
           {scheduleLabel}
         </p>
         <div className="item-badges">
-          <span className={`badge ${badgeClass(bucket)}`}>{bucketLabel(bucket)}</span>
+          {chore.done ? (
+            <span className="badge">✓ Completed</span>
+          ) : (
+            <>
+              <span className={`badge ${badgeClass(bucket)}`}>{bucketLabel(bucket)}</span>
+              <span className="chip">Due {dueLabel}</span>
+            </>
+          )}
           <span className="chip">
             {chore.assignedTo ? (nameById.get(chore.assignedTo) ?? 'Unassigned') : chore.open ? '🙌 open' : 'Unassigned'}
           </span>
-          <span className="chip">Due {dueLabel}</span>
           {chore.requirePhoto && <span className="chip">📷 photo required</span>}
         </div>
         {streak >= 2 && (
@@ -198,17 +204,21 @@ export function ChoreDetail({
             </>
           )}
         </div>
-        <TimerControl
-          kind="chore"
-          refId={chore.id}
-          running={timerRunning}
-          startedAt={timerStartedAt}
-          totalSec={timerTotalSec}
-        />
+        {!chore.done && (
+          <TimerControl
+            kind="chore"
+            refId={chore.id}
+            running={timerRunning}
+            startedAt={timerStartedAt}
+            totalSec={timerTotalSec}
+          />
+        )}
       </div>
 
-      <div className="section-title">Complete</div>
-      <div className="card">
+      {!chore.done && (
+        <>
+          <div className="section-title">Complete</div>
+          <div className="card">
         <form onSubmit={onComplete}>
           {chore.steps.length > 0 && (
             <div className="field">
@@ -247,7 +257,9 @@ export function ChoreDetail({
           </button>
         </form>
         {error && <p className="error-text">{error}</p>}
-      </div>
+          </div>
+        </>
+      )}
 
       <div className="section-title">
         History

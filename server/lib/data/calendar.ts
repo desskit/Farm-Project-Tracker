@@ -27,6 +27,7 @@ export async function calendarItems(fromISO: string, toISO: string): Promise<Cal
 
   // Chores recur — walk each schedule from its next-due up to the window end.
   for (const c of choreRows) {
+    if (c.done) continue; // completed one-time chores are off the calendar
     let d = c.nextDue;
     let guard = 0;
     while (d < fromISO && guard < 800) {

@@ -4,13 +4,19 @@ import type { PersonRow } from '@/lib/data/users';
 import type { ChoreRow } from '@/lib/data/chores';
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-type ScheduleType = 'daily' | 'everyNDays' | 'weekly' | 'monthly';
+type ScheduleType = 'once' | 'daily' | 'everyNDays' | 'weekly' | 'monthly';
+
+function todayLocal(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 export type ChorePayload = {
   name: string;
   schedule: { type: ScheduleType; n?: number; weekdays?: number[]; day?: number };
   catchUp: 'mustCatchUp' | 'skipToNext';
   assignedTo: string | null;
+  nextDue?: string;
   open: boolean;
   requirePhoto: boolean;
   steps: string[];
@@ -36,6 +42,7 @@ export function ChoreForm({
   const [n, setN] = useState(initSchedule?.n ?? 2);
   const [weekdays, setWeekdays] = useState<number[]>(initSchedule?.weekdays ?? []);
   const [day, setDay] = useState(initSchedule?.day ?? 1);
+  const [dueDate, setDueDate] = useState(initial?.nextDue ?? todayLocal());
   const [catchUp, setCatchUp] = useState<'mustCatchUp' | 'skipToNext'>(initial?.catchUp ?? 'skipToNext');
   const [assignedTo, setAssignedTo] = useState(initial?.assignedTo ?? '');
   const [open, setOpen] = useState(initial?.open ?? false);
@@ -61,6 +68,7 @@ export function ChoreForm({
       schedule,
       catchUp,
       assignedTo: assignedTo || null,
+      nextDue: scheduleType === 'once' ? dueDate : undefined,
       open,
       requirePhoto,
       steps: steps
@@ -84,14 +92,22 @@ export function ChoreForm({
       </div>
 
       <div className="field">
-        <label>Repeats</label>
+        <label>Schedule</label>
         <select value={scheduleType} onChange={(e) => setScheduleType(e.target.value as ScheduleType)}>
+          <option value="once">One-time (no repeat)</option>
           <option value="daily">Every day</option>
           <option value="everyNDays">Every N days</option>
           <option value="weekly">Specific weekdays</option>
           <option value="monthly">Monthly</option>
         </select>
       </div>
+
+      {scheduleType === 'once' && (
+        <div className="field">
+          <label>Due date</label>
+          <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required />
+        </div>
+      )}
 
       {scheduleType === 'everyNDays' && (
         <div className="field">
@@ -121,13 +137,15 @@ export function ChoreForm({
         </div>
       )}
 
-      <div className="field">
-        <label>If missed</label>
-        <select value={catchUp} onChange={(e) => setCatchUp(e.target.value as typeof catchUp)}>
-          <option value="skipToNext">Skip to next occurrence</option>
-          <option value="mustCatchUp">Must catch up (stays overdue)</option>
-        </select>
-      </div>
+      {scheduleType !== 'once' && (
+        <div className="field">
+          <label>If missed</label>
+          <select value={catchUp} onChange={(e) => setCatchUp(e.target.value as typeof catchUp)}>
+            <option value="skipToNext">Skip to next occurrence</option>
+            <option value="mustCatchUp">Must catch up (stays overdue)</option>
+          </select>
+        </div>
+      )}
 
       <div className="field">
         <label>Assign to</label>

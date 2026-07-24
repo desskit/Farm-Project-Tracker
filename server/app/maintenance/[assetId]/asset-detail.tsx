@@ -92,13 +92,16 @@ export function AssetDetail({
           {asset.meterUnit ? ` · ${asset.meterUnit}` : ''} · total spend ${assetCost.toFixed(2)}
         </p>
         {asset.notes && <p style={{ margin: '8px 0 0' }}>{asset.notes}</p>}
-        {isManager && (
-          <div className="row-actions" style={{ marginTop: 12 }}>
+        <div className="row-actions" style={{ marginTop: 12, flexWrap: 'wrap' }}>
+          <Link href={`/maintenance/${asset.id}/qr`} className="btn small ghost">
+            📱 QR code
+          </Link>
+          {isManager && (
             <button className="btn small ghost danger" disabled={busy === 'del-asset'} onClick={onDeleteAsset}>
               Delete asset
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Meter readings */}

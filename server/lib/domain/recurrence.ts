@@ -36,6 +36,9 @@ export function clampToSeason(schedule: Schedule, s: string): string {
 export function nextOccurrenceAfter(schedule: Schedule, from: string): string {
   let d: string;
   switch (schedule.type) {
+    case 'once':
+      // One-time chores don't recur; callers mark them done instead of rolling.
+      return from;
     case 'daily':
       d = addDays(from, 1);
       break;
@@ -71,6 +74,8 @@ export function nextOccurrenceAfter(schedule: Schedule, from: string): string {
 export function describeSchedule(schedule: Schedule): string {
   let base: string;
   switch (schedule.type) {
+    case 'once':
+      return 'One-time';
     case 'daily':
       base = 'Every day';
       break;

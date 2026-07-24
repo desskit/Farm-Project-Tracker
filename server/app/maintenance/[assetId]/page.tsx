@@ -10,8 +10,10 @@ import {
   assetCostTotal,
 } from '@/lib/data/maintenance';
 import { timerStatesFor } from '@/lib/data/timers';
+import { listNotes } from '@/lib/data/notes';
 import { listUsers } from '@/lib/data/users';
 import { AssetDetail } from './asset-detail';
+import { NotesSection } from '@/app/_components/notes-section';
 
 export default async function AssetDetailPage({ params }: { params: { assetId: string } }) {
   const user = await getSessionUser();
@@ -35,7 +37,10 @@ export default async function AssetDetailPage({ params }: { params: { assetId: s
       costTotal: await itemCostTotal(item.id),
     })),
   );
-  const timers = await timerStatesFor(user.id, 'maintenance', items.map((i) => i.id));
+  const [timers, notes] = await Promise.all([
+    timerStatesFor(user.id, 'maintenance', items.map((i) => i.id)),
+    listNotes('asset', params.assetId),
+  ]);
 
   return (
     <main className="view">
@@ -49,6 +54,7 @@ export default async function AssetDetailPage({ params }: { params: { assetId: s
         currentUser={user}
         timers={timers}
       />
+      <NotesSection parentType="asset" parentId={asset.id} notes={notes} currentUser={user} />
     </main>
   );
 }

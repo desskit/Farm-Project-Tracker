@@ -28,7 +28,7 @@ function isManager(user: SessionUser): boolean {
 }
 
 export async function listChores(): Promise<ChoreRow[]> {
-  const rows = await db.select().from(chores);
+  const rows = await db.select().from(chores).where(eq(chores.done, false));
   return rows.sort((a, b) => (a.nextDue < b.nextDue ? -1 : 1));
 }
 
@@ -137,11 +137,16 @@ export async function completeChore(
     notes: notes || '',
     photoId: photoId || null,
   });
-  const nextDue =
-    chore.catchUp === 'mustCatchUp'
-      ? nextOccurrenceAfter(chore.schedule, chore.nextDue)
-      : nextOccurrenceAfter(chore.schedule, today);
-  await db.update(chores).set({ nextDue, sentBack: null }).where(eq(chores.id, id));
+  if (chore.schedule.type === 'once') {
+    // One-time chores don't roll forward — mark them done and drop from lists.
+    await db.update(chores).set({ done: true, sentBack: null }).where(eq(chores.id, id));
+  } else {
+    const nextDue =
+      chore.catchUp === 'mustCatchUp'
+        ? nextOccurrenceAfter(chore.schedule, chore.nextDue)
+        : nextOccurrenceAfter(chore.schedule, today);
+    await db.update(chores).set({ nextDue, sentBack: null }).where(eq(chores.id, id));
+  }
   await stopTimersFor('chore', id); // completing the work stops any running clock
   await logActivity(user.id, `completed chore "${chore.name}"`);
 }
@@ -178,7 +183,7 @@ export async function sendBackChoreCompletion(user: SessionUser, completionId: s
   if (chore) {
     const today = todayISO();
     const sentBack: SentBack = { by: user.id, at: Date.now(), reason: reason || '', worker: comp.completedBy };
-    const patch: Partial<typeof chores.$inferInsert> = { sentBack };
+    const patch: Partial<typeof chores.$inferInsert> = { sentBack, done: false };
     if (chore.nextDue > today) patch.nextDue = today;
     await db.update(chores).set(patch).where(eq(chores.id, chore.id));
     await logActivity(user.id, `sent back chore "${chore.name}"`);

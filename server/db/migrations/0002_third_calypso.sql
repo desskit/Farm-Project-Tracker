@@ -1,0 +1,1 @@
+ALTER TABLE `chores` ADD `done` integer DEFAULT false NOT NULL;

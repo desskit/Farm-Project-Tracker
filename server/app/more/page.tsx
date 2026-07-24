@@ -14,11 +14,13 @@ export default async function MorePage() {
   const farm: Tile[] = [
     { href: '/more/supplies', icon: '📦', label: 'Supplies', sub: 'Feed, fuel & parts', badge: low || undefined, warn: low > 0 },
     { href: '/more/leaderboard', icon: '🏆', label: 'Leaderboard', sub: 'Points & streaks' },
+    { href: '/more/time', icon: '⏱', label: 'Time report', sub: 'Hours logged' },
     { href: '/more/rent', icon: '💵', label: 'Rent', sub: isManager ? 'Collect & verify' : 'Your charges' },
   ];
   if (isManager) farm.push({ href: '/more/team', icon: '👥', label: 'Team', sub: 'Farm-wide status' });
 
   const settings: Tile[] = [
+    { href: '/more/search', icon: '🔍', label: 'Search', sub: 'Find anything' },
     { href: '/more/calendar', icon: '📅', label: 'Calendar', sub: 'What’s due, by day' },
     { href: '/more/account', icon: '🔑', label: 'Account', sub: 'Password & sign-in' },
     { href: '/people', icon: '🧑‍🌾', label: 'People', sub: isAdmin ? 'Manage the crew' : 'The crew' },

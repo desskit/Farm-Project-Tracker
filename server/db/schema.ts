@@ -17,7 +17,8 @@ import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
 export type Role = 'admin' | 'manager' | 'worker';
 
 export type Schedule = {
-  type: 'daily' | 'everyNDays' | 'weekly' | 'monthly';
+  // 'once' is a one-time chore that does not repeat — it's marked done on completion.
+  type: 'once' | 'daily' | 'everyNDays' | 'weekly' | 'monthly';
   n?: number;
   weekdays?: number[];
   day?: number;
@@ -86,6 +87,8 @@ export const chores = sqliteTable('chores', {
   open: integer('open', { mode: 'boolean' }).notNull().default(false),
   steps: text('steps', { mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
   sentBack: text('sent_back', { mode: 'json' }).$type<SentBack>(),
+  // One-time ('once') chores are marked done on completion instead of rolling to a next date.
+  done: integer('done', { mode: 'boolean' }).notNull().default(false),
 });
 
 export const choreCompletions = sqliteTable('chore_completions', {

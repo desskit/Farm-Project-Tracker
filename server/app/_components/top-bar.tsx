@@ -10,6 +10,9 @@ export function TopBar({ user }: { user: SessionUser }) {
           <span className="brand-name">Farm Tracker</span>
         </Link>
         <div className="user-area">
+          <Link href="/more/search" className="topbar-search" aria-label="Search" title="Search">
+            🔍
+          </Link>
           <span className="role-badge">{user.role}</span>
           <a href="/api/auth/logout" className="topbar-link">
             Log out

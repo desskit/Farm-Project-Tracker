@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const scheduleSchema = z.object({
-  type: z.enum(['daily', 'everyNDays', 'weekly', 'monthly']),
+  type: z.enum(['once', 'daily', 'everyNDays', 'weekly', 'monthly']),
   n: z.number().int().positive().optional(),
   weekdays: z.array(z.number().int().min(0).max(6)).optional(),
   day: z.number().int().min(1).max(31).optional(),

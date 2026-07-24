@@ -593,3 +593,33 @@ a.tap-link:hover .item-title { color: var(--brand); }
   font-size: 12px; font-weight: 700; color: #fff; background: var(--fire);
   padding: 2px 9px; border-radius: 999px; white-space: nowrap;
 }
+
+/* ---------------- notes / logbook ---------------- */
+.note-add-row { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+.note-photo-btn { position: relative; overflow: hidden; }
+.note-row {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 0; border-top: 1px solid var(--border);
+}
+.note-main { flex: 1; min-width: 0; }
+.note-body { margin: 0; white-space: pre-wrap; }
+.note-meta { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+
+/* ---------------- search ---------------- */
+.search-hit { display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
+.search-hit:active { transform: translateY(1px) scale(.997); }
+.search-ico { font-size: 22px; width: 34px; text-align: center; flex: none; }
+.search-chev { color: var(--muted); font-size: 22px; flex: none; }
+.topbar-search { font-size: 19px; text-decoration: none; line-height: 1; padding: 4px; }
+
+/* ---------------- QR sticker ---------------- */
+.qr-card { text-align: center; }
+.qr-name { font-size: 20px; font-weight: 800; margin: 0 0 2px; }
+.qr-img { max-width: 260px; margin: 14px auto; }
+.qr-img svg { width: 100%; height: auto; display: block; }
+.qr-url { font-size: 12px; color: var(--muted); word-break: break-all; margin: 0 0 8px; }
+@media print {
+  .no-print, .nav, .topbar { display: none !important; }
+  .view { padding: 0 !important; }
+  .qr-card { border: none !important; box-shadow: none !important; }
+}
