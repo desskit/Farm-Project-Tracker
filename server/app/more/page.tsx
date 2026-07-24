@@ -15,6 +15,7 @@ export default async function MorePage() {
     { href: '/more/supplies', icon: '📦', label: 'Supplies', sub: 'Feed, fuel & parts', badge: low || undefined, warn: low > 0 },
     { href: '/more/leaderboard', icon: '🏆', label: 'Leaderboard', sub: 'Points & streaks' },
     { href: '/more/time', icon: '⏱', label: 'Time report', sub: 'Hours logged' },
+    { href: '/more/spend', icon: '💸', label: 'Spending', sub: 'Upkeep costs' },
     { href: '/more/rent', icon: '💵', label: 'Rent', sub: isManager ? 'Collect & verify' : 'Your charges' },
   ];
   if (isManager) farm.push({ href: '/more/team', icon: '👥', label: 'Team', sub: 'Farm-wide status' });

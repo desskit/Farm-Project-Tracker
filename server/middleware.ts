@@ -23,6 +23,7 @@ const PUBLIC_PREFIXES = [
   '/api/health',
   '/manifest.webmanifest',
   '/icon.svg',
+  '/sw.js',
 ];
 
 const isProd = process.env.NODE_ENV === 'production';

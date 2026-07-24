@@ -6,6 +6,7 @@ import { TopBar } from './_components/top-bar';
 import { BottomNav } from './_components/bottom-nav';
 import { RealtimeSync } from './_components/realtime-sync';
 import { TimersStrip } from './_components/timers-strip';
+import { PwaRegister } from './_components/pwa-register';
 import { activeTimersForUser } from '@/lib/data/timers';
 
 export const metadata: Metadata = {
@@ -29,6 +30,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <body>
+        <PwaRegister />
         {user && <TopBar user={user} />}
         {user && <RealtimeSync />}
         {user && timers.length > 0 && <TimersStrip timers={timers} />}

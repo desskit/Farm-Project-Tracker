@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
+import { RestoreForm } from './restore-form';
 
 export default async function DataPage() {
   const user = await getSessionUser();
@@ -26,6 +27,7 @@ export default async function DataPage() {
               Download backup (JSON)
             </a>
           </div>
+          <RestoreForm />
           <div className="notice">
             The live database and uploaded files also live in the server&apos;s <strong>/data</strong> volume — the whole
             thing is captured by a Proxmox snapshot or the volume backup described in the deploy guide. This JSON export
