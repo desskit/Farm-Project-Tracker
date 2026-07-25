@@ -45,13 +45,29 @@ export async function addAsset(user: SessionUser, data: { name: string; category
   publishChange('asset');
   return (await assetById(id))!;
 }
-export async function updateAsset(user: SessionUser, id: string, data: { name?: string; category?: string; notes?: string }): Promise<AssetRow> {
+export async function updateAsset(
+  user: SessionUser,
+  id: string,
+  data: {
+    name?: string;
+    category?: string;
+    notes?: string;
+    makeModel?: string;
+    serial?: string;
+    purchaseDate?: string | null;
+    purchaseCost?: number | null;
+  },
+): Promise<AssetRow> {
   if (!isManager(user)) throw new DataError('Only managers and admins can edit assets.', 403);
   const a = await assetById(id);
   if (!a) throw new DataError('No such asset.', 404);
   const patch: Partial<typeof assets.$inferInsert> = { notes: data.notes || '' };
   if (data.name != null && data.name.trim()) patch.name = data.name.trim();
   if (data.category != null) patch.category = data.category || 'Equipment';
+  if (data.makeModel !== undefined) patch.makeModel = data.makeModel || '';
+  if (data.serial !== undefined) patch.serial = data.serial || '';
+  if (data.purchaseDate !== undefined) patch.purchaseDate = data.purchaseDate || null;
+  if (data.purchaseCost !== undefined) patch.purchaseCost = data.purchaseCost ?? null;
   await db.update(assets).set(patch).where(eq(assets.id, id));
   publishChange('asset');
   return (await assetById(id))!;

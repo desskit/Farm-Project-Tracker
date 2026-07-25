@@ -49,6 +49,18 @@ export async function getAttachment(id: string): Promise<{ row: AttachmentRow; a
   return { row, absPath: path.join(UPLOAD_DIR, row.path) };
 }
 
+/** Removes an attachment's row and its file from disk. Missing files are ignored. */
+export async function deleteAttachment(id: string): Promise<void> {
+  const found = await getAttachment(id);
+  if (!found) return;
+  try {
+    await fs.unlink(found.absPath);
+  } catch {
+    /* already gone — the row still needs clearing */
+  }
+  await db.delete(attachments).where(eq(attachments.id, id));
+}
+
 export async function readAttachment(id: string): Promise<{ row: AttachmentRow; data: Buffer } | null> {
   const found = await getAttachment(id);
   if (!found) return null;

@@ -12,6 +12,7 @@ export default async function MorePage() {
   const low = (await lowStockItems()).length;
 
   const farm: Tile[] = [
+    { href: '/more/assets', icon: '🚜', label: 'Assets', sub: 'Equipment & documents' },
     { href: '/more/supplies', icon: '📦', label: 'Supplies', sub: 'Feed, fuel & parts', badge: low || undefined, warn: low > 0 },
     { href: '/more/leaderboard', icon: '🏆', label: 'Leaderboard', sub: 'Points & streaks' },
     { href: '/more/time', icon: '⏱', label: 'Time report', sub: 'Hours logged' },

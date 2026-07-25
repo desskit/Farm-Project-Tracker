@@ -93,6 +93,14 @@ export function AssetDetail({
           {asset.category}
           {asset.meterUnit ? ` · ${asset.meterUnit}` : ''} · total spend ${assetCost.toFixed(2)}
         </p>
+        {(asset.makeModel || asset.serial || asset.purchaseDate || asset.purchaseCost != null) && (
+          <div className="chips" style={{ marginTop: 8 }}>
+            {asset.makeModel && <span className="chip">{asset.makeModel}</span>}
+            {asset.serial && <span className="chip">SN {asset.serial}</span>}
+            {asset.purchaseDate && <span className="chip">bought {fmtDate(asset.purchaseDate)}</span>}
+            {asset.purchaseCost != null && <span className="chip">${asset.purchaseCost.toFixed(2)}</span>}
+          </div>
+        )}
         {asset.notes && <p style={{ margin: '8px 0 0' }}>{asset.notes}</p>}
         <div className="row-actions" style={{ marginTop: 12, flexWrap: 'wrap' }}>
           <Link href={`/maintenance/${asset.id}/qr`} className="btn small ghost">
@@ -470,6 +478,10 @@ function EditAssetForm({
   const [name, setName] = useState(asset.name);
   const [category, setCategory] = useState(asset.category);
   const [notes, setNotes] = useState(asset.notes);
+  const [makeModel, setMakeModel] = useState(asset.makeModel);
+  const [serial, setSerial] = useState(asset.serial);
+  const [purchaseDate, setPurchaseDate] = useState(asset.purchaseDate ?? '');
+  const [purchaseCost, setPurchaseCost] = useState(asset.purchaseCost == null ? '' : String(asset.purchaseCost));
   const [saving, setSaving] = useState(false);
 
   async function submit(e: FormEvent) {
@@ -479,7 +491,15 @@ function EditAssetForm({
     const res = await fetch(`/api/assets/${asset.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, category, notes }),
+      body: JSON.stringify({
+        name,
+        category,
+        notes,
+        makeModel,
+        serial,
+        purchaseDate: purchaseDate || null,
+        purchaseCost: purchaseCost === '' ? null : Number(purchaseCost),
+      }),
     });
     setSaving(false);
     if (!res.ok) {
@@ -500,6 +520,22 @@ function EditAssetForm({
       <div className="field">
         <label>Category</label>
         <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Equipment" />
+      </div>
+      <div className="field">
+        <label>Make &amp; model</label>
+        <input type="text" value={makeModel} onChange={(e) => setMakeModel(e.target.value)} placeholder="e.g. John Deere 3025E" />
+      </div>
+      <div className="field">
+        <label>Serial / VIN</label>
+        <input type="text" value={serial} onChange={(e) => setSerial(e.target.value)} />
+      </div>
+      <div className="field">
+        <label>Purchase date</label>
+        <input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
+      </div>
+      <div className="field">
+        <label>Purchase cost ($)</label>
+        <input type="number" step="0.01" min={0} value={purchaseCost} onChange={(e) => setPurchaseCost(e.target.value)} />
       </div>
       <div className="field">
         <label>Notes</label>

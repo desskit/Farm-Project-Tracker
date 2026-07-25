@@ -11,6 +11,10 @@ export const updateAssetSchema = z.object({
   name: z.string().trim().min(1).optional(),
   category: z.string().optional(),
   notes: z.string().optional(),
+  makeModel: z.string().optional(),
+  serial: z.string().optional(),
+  purchaseDate: z.string().nullable().optional(),
+  purchaseCost: z.number().nullable().optional(),
 });
 
 export const addReadingSchema = z.object({

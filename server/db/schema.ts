@@ -112,6 +112,11 @@ export const assets = sqliteTable('assets', {
   category: text('category').notNull().default('Equipment'),
   meterUnit: text('meter_unit'), // 'hours' | 'miles' | null
   notes: text('notes').notNull().default(''),
+  // Registry details — what the farm owns, beyond what needs servicing.
+  makeModel: text('make_model').notNull().default(''),
+  serial: text('serial').notNull().default(''),
+  purchaseDate: text('purchase_date'),
+  purchaseCost: real('purchase_cost'),
 });
 
 export const meterReadings = sqliteTable('meter_readings', {
@@ -146,6 +151,23 @@ export const maintenanceLogs = sqliteTable('maintenance_logs', {
   notes: text('notes').notNull().default(''),
   cost: real('cost').notNull().default(0),
   photoId: text('photo_id').references(() => attachments.id, { onDelete: 'set null' }),
+});
+
+/**
+ * Documents filed against an asset — receipts, manuals, warranties. The file
+ * itself lives in `attachments`; this row carries the label and kind so the
+ * registry can group them.
+ */
+export type AssetDocType = 'receipt' | 'manual' | 'warranty' | 'other';
+export const assetDocs = sqliteTable('asset_docs', {
+  id: text('id').primaryKey(),
+  assetId: text('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  docType: text('doc_type').$type<AssetDocType>().notNull().default('other'),
+  attachmentId: text('attachment_id').notNull().references(() => attachments.id, { onDelete: 'cascade' }),
+  uploadedBy: text('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
+  date: text('date').notNull(),
+  ts: integer('ts').notNull().default(now),
 });
 
 /* ---------------- projects & tasks ---------------- */
