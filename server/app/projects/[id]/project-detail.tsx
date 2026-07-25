@@ -9,7 +9,9 @@ import type { SessionUser } from '@/lib/auth/session';
 import { fmtDate } from '@/lib/domain/dates';
 import { uploadPhoto } from '@/lib/client/photo';
 import { TimerControl } from '@/app/_components/timer-control';
+import { NotesSection } from '@/app/_components/notes-section';
 import type { TimerState } from '@/lib/data/timers';
+import type { NoteRow } from '@/lib/data/notes';
 
 export function ProjectDetail({
   project,
@@ -17,6 +19,7 @@ export function ProjectDetail({
   people,
   currentUser,
   timers,
+  taskNotes,
   aiEnabled,
 }: {
   project: ProjectRow;
@@ -24,6 +27,7 @@ export function ProjectDetail({
   people: PersonRow[];
   currentUser: SessionUser;
   timers: Record<string, TimerState>;
+  taskNotes: Record<string, NoteRow[]>;
   aiEnabled: boolean;
 }) {
   const router = useRouter();
@@ -31,6 +35,9 @@ export function ProjectDetail({
   const nameById = new Map(people.map((p) => [p.id, p.name]));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [editingProject, setEditingProject] = useState(false);
+  const [editingTask, setEditingTask] = useState<string | null>(null);
+  const [notesOpen, setNotesOpen] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const pendingTaskRef = useRef<string | null>(null);
 
@@ -140,10 +147,18 @@ export function ProjectDetail({
           <span className="badge neutral">{STATUS_LABELS[project.status]}</span>
         )}
         {canManage && (
-          <div className="row-actions" style={{ marginTop: 12 }}>
+          <div className="row-actions" style={{ marginTop: 12, flexWrap: 'wrap' }}>
+            <button className="btn small ghost" disabled={busy !== null} onClick={() => setEditingProject((v) => !v)}>
+              {editingProject ? 'Cancel edit' : 'Edit project'}
+            </button>
             <button className="btn small ghost danger" disabled={busy === 'del-project'} onClick={onDeleteProject}>
               Delete project
             </button>
+          </div>
+        )}
+        {canManage && editingProject && (
+          <div style={{ marginTop: 12 }}>
+            <EditProjectForm project={project} onDone={() => setEditingProject(false)} onError={setError} />
           </div>
         )}
       </div>
@@ -207,6 +222,23 @@ export function ProjectDetail({
                   Claim
                 </button>
               )}
+              <button
+                className="icon-btn"
+                title="Notes"
+                onClick={() => setNotesOpen((v) => (v === t.id ? null : t.id))}
+              >
+                💬{taskNotes[t.id]?.length ? ` ${taskNotes[t.id].length}` : ''}
+              </button>
+              {canManage && !t.done && (
+                <button
+                  className="icon-btn"
+                  title="Edit task"
+                  disabled={busy !== null}
+                  onClick={() => setEditingTask((v) => (v === t.id ? null : t.id))}
+                >
+                  ✏️
+                </button>
+              )}
               {canManage && t.done && (
                 <button className="icon-btn" style={{ color: 'var(--overdue)' }} title="Send back" disabled={busy === 'sb-' + t.id} onClick={() => onSendBack(t.id)}>
                   ↩
@@ -219,6 +251,23 @@ export function ProjectDetail({
               )}
             </div>
           </div>
+
+          {canManage && editingTask === t.id && (
+            <div style={{ marginTop: 10 }}>
+              <EditTaskForm task={t} people={people} onDone={() => setEditingTask(null)} onError={setError} />
+            </div>
+          )}
+
+          {notesOpen === t.id && (
+            <div className="task-notes">
+              <NotesSection
+                parentType="task"
+                parentId={t.id}
+                notes={taskNotes[t.id] ?? []}
+                currentUser={currentUser}
+              />
+            </div>
+          )}
         </div>
       ))}
 
@@ -414,5 +463,161 @@ function AddTaskForm({ projectId, people, onError }: { projectId: string; people
         </form>
       </div>
     </>
+  );
+}
+
+/** Edit a project's name, description, and target date in place. */
+function EditProjectForm({
+  project,
+  onDone,
+  onError,
+}: {
+  project: ProjectRow;
+  onDone: () => void;
+  onError: (m: string | null) => void;
+}) {
+  const router = useRouter();
+  const [name, setName] = useState(project.name);
+  const [description, setDescription] = useState(project.description ?? '');
+  const [targetDate, setTargetDate] = useState(project.targetDate ?? '');
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    onError(null);
+    const res = await fetch(`/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description, targetDate: targetDate || null }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      onError(data.error || 'Could not save the project.');
+      return;
+    }
+    onDone();
+    router.refresh();
+  }
+
+  return (
+    <form onSubmit={submit}>
+      <div className="field">
+        <label>Name</label>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+      </div>
+      <div className="field">
+        <label>Description</label>
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+      </div>
+      <div className="field">
+        <label>Target date (optional)</label>
+        <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
+      </div>
+      <div className="form-actions">
+        <button type="button" className="btn" onClick={onDone}>
+          Cancel
+        </button>
+        <button type="submit" disabled={saving} className="btn primary">
+          {saving ? 'Saving…' : 'Save project'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/** Edit a task's title, description, assignee, due date, and flags. */
+function EditTaskForm({
+  task,
+  people,
+  onDone,
+  onError,
+}: {
+  task: TaskRow;
+  people: PersonRow[];
+  onDone: () => void;
+  onError: (m: string | null) => void;
+}) {
+  const router = useRouter();
+  const [title, setTitle] = useState(task.title);
+  const [description, setDescription] = useState(task.description ?? '');
+  const [assignedTo, setAssignedTo] = useState(task.assignedTo ?? '');
+  const [dueDate, setDueDate] = useState(task.dueDate ?? '');
+  const [open, setOpen] = useState(task.open);
+  const [requirePhoto, setRequirePhoto] = useState(task.requirePhoto);
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    onError(null);
+    const res = await fetch(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title,
+        description,
+        assignedTo: assignedTo || null,
+        dueDate: dueDate || null,
+        open,
+        requirePhoto,
+      }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      onError(data.error || 'Could not save the task.');
+      return;
+    }
+    onDone();
+    router.refresh();
+  }
+
+  return (
+    <form onSubmit={submit}>
+      <div className="field">
+        <label>Title</label>
+        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
+      </div>
+      <div className="field">
+        <label>Description</label>
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+      </div>
+      <div className="field">
+        <label>Assign to</label>
+        <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
+          <option value="">Unassigned</option>
+          {people
+            .filter((p) => p.active || p.id === assignedTo)
+            .map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+                {p.active ? '' : ' (deactivated)'}
+              </option>
+            ))}
+        </select>
+      </div>
+      <div className="field">
+        <label>Due date (optional)</label>
+        <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+      </div>
+      <label className="inline-check" style={{ marginBottom: 8 }}>
+        <input type="checkbox" checked={open} onChange={(e) => setOpen(e.target.checked)} />
+        Leave open for anyone to claim
+      </label>
+      <label className="inline-check" style={{ marginBottom: 12 }}>
+        <input type="checkbox" checked={requirePhoto} onChange={(e) => setRequirePhoto(e.target.checked)} />
+        Require a photo to complete
+      </label>
+      <div className="form-actions">
+        <button type="button" className="btn" onClick={onDone}>
+          Cancel
+        </button>
+        <button type="submit" disabled={saving} className="btn primary">
+          {saving ? 'Saving…' : 'Save task'}
+        </button>
+      </div>
+    </form>
   );
 }

@@ -623,3 +623,7 @@ a.tap-link:hover .item-title { color: var(--brand); }
   .view { padding: 0 !important; }
   .qr-card { border: none !important; box-shadow: none !important; }
 }
+
+/* Inline notes panel inside a project task row */
+.task-notes { margin-top: 10px; padding-top: 4px; border-top: 1px dashed var(--border); }
+.task-notes .section-title { margin-top: 6px; }

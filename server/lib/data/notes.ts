@@ -4,7 +4,7 @@
  * Mirrors the prototype's notes, backed by the `notes` table.
  */
 import 'server-only';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { notes, users } from '@/db/schema';
 import { uid } from '@/lib/ids';
@@ -49,6 +49,39 @@ export async function listNotes(parentType: NoteParentType, parentId: string): P
     .where(and(eq(notes.parentType, parentType), eq(notes.parentId, parentId)))
     .orderBy(desc(notes.ts));
   return rows.map((r) => ({ ...r, userName: r.userName ?? 'Someone' }));
+}
+
+/**
+ * Notes for many parents of the same type in one query, grouped by parent id —
+ * used by list views (a project's tasks) that would otherwise fan out.
+ */
+export async function listNotesForParents(
+  parentType: NoteParentType,
+  parentIds: string[],
+): Promise<Record<string, NoteRow[]>> {
+  const out: Record<string, NoteRow[]> = {};
+  if (!parentIds.length) return out;
+  const rows = await db
+    .select({
+      id: notes.id,
+      parentType: notes.parentType,
+      parentId: notes.parentId,
+      userId: notes.userId,
+      userName: users.name,
+      date: notes.date,
+      ts: notes.ts,
+      body: notes.body,
+      photoId: notes.photoId,
+    })
+    .from(notes)
+    .leftJoin(users, eq(users.id, notes.userId))
+    .where(and(eq(notes.parentType, parentType), inArray(notes.parentId, parentIds)))
+    .orderBy(desc(notes.ts));
+  for (const id of parentIds) out[id] = [];
+  for (const r of rows) {
+    (out[r.parentId] ??= []).push({ ...r, userName: r.userName ?? 'Someone' });
+  }
+  return out;
 }
 
 export async function addNote(

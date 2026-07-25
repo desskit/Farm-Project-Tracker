@@ -25,6 +25,7 @@ export function SupplyDetail({
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
   const low = item.qty <= item.reorderAt;
 
   async function adjust(amount: number, note: string) {
@@ -108,13 +109,25 @@ export function SupplyDetail({
         </form>
 
         {isManager && (
-          <div className="row-actions" style={{ marginTop: 10 }}>
+          <div className="row-actions" style={{ marginTop: 10, flexWrap: 'wrap' }}>
+            <button className="btn small ghost" disabled={busy} onClick={() => setEditing((v) => !v)}>
+              {editing ? 'Cancel edit' : 'Edit details'}
+            </button>
             <button className="btn small ghost danger" disabled={busy} onClick={onDelete}>
               Delete item
             </button>
           </div>
         )}
       </div>
+
+      {isManager && editing && (
+        <>
+          <div className="section-title">Edit item</div>
+          <div className="card">
+            <EditSupplyForm item={item} onDone={() => setEditing(false)} />
+          </div>
+        </>
+      )}
 
       <div className="section-title">History</div>
       <div className="card">
@@ -136,5 +149,70 @@ export function SupplyDetail({
         )}
       </div>
     </>
+  );
+}
+
+/** Rename a supply and tune its unit / reorder threshold without recreating it. */
+function EditSupplyForm({ item, onDone }: { item: InventoryRow; onDone: () => void }) {
+  const router = useRouter();
+  const [name, setName] = useState(item.name);
+  const [category, setCategory] = useState(item.category);
+  const [unit, setUnit] = useState(item.unit);
+  const [reorderAt, setReorderAt] = useState(String(item.reorderAt));
+  const [notes, setNotes] = useState(item.notes);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setErr(null);
+    const res = await fetch(`/api/inventory/${item.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, category, unit, reorderAt: Number(reorderAt) || 0, notes }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setErr(data.error || 'Could not save changes.');
+      return;
+    }
+    onDone();
+    router.refresh();
+  }
+
+  return (
+    <form onSubmit={submit}>
+      <div className="field">
+        <label>Name</label>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+      </div>
+      <div className="field">
+        <label>Category</label>
+        <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Feed" />
+      </div>
+      <div className="field">
+        <label>Unit</label>
+        <input type="text" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="e.g. bags, gallons" />
+      </div>
+      <div className="field">
+        <label>Reorder when at or below</label>
+        <input type="number" step="any" min={0} value={reorderAt} onChange={(e) => setReorderAt(e.target.value)} />
+      </div>
+      <div className="field">
+        <label>Notes</label>
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+      </div>
+      {err && <p className="error-text">{err}</p>}
+      <div className="form-actions">
+        <button type="button" className="btn" onClick={onDone}>
+          Cancel
+        </button>
+        <button type="submit" disabled={saving} className="btn primary">
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
+    </form>
   );
 }

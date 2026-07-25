@@ -8,6 +8,7 @@ import 'server-only';
 import cron from 'node-cron';
 import { runDigestTick } from './digest';
 import { cleanupAuthTables } from '@/lib/auth/cleanup';
+import { reconcileChoreDueDates } from '@/lib/data/reconcile';
 
 const g = globalThis as unknown as { __fptCronStarted?: boolean };
 
@@ -21,6 +22,19 @@ export function startCron(): void {
       console.error('[cron] digest tick failed', e);
     });
   });
+  // Just after midnight (local TZ): roll missed "skip to next" chores forward so
+  // the board reads correctly when the crew wakes up.
+  cron.schedule('15 0 * * *', () => {
+    reconcileChoreDueDates()
+      .then(({ rolled }) => {
+        // eslint-disable-next-line no-console
+        if (rolled) console.log(`[cron] reconciled ${rolled} chore due date(s)`);
+      })
+      .catch((e) => {
+        // eslint-disable-next-line no-console
+        console.error('[cron] chore reconciliation failed', e);
+      });
+  });
   // Nightly auth housekeeping (03:20) — prune expired sessions/invites/throttle.
   cron.schedule('20 3 * * *', () => {
     cleanupAuthTables().catch((e) => {
@@ -28,6 +42,8 @@ export function startCron(): void {
       console.error('[cron] auth cleanup failed', e);
     });
   });
+  // Catch up immediately at boot too, in case the server was off overnight.
+  reconcileChoreDueDates().catch(() => {});
   // eslint-disable-next-line no-console
-  console.log('[cron] schedules started (hourly digest, nightly cleanup)');
+  console.log('[cron] schedules started (hourly digest, nightly reconcile + cleanup)');
 }

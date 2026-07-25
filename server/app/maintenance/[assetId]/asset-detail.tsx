@@ -36,6 +36,8 @@ export function AssetDetail({
   const nameById = new Map(people.map((p) => [p.id, p.name]));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [editingAsset, setEditingAsset] = useState(false);
+  const [editingItem, setEditingItem] = useState<string | null>(null);
 
   async function request(url: string, method: string, body?: unknown): Promise<boolean> {
     setError(null);
@@ -97,11 +99,21 @@ export function AssetDetail({
             📱 QR code
           </Link>
           {isManager && (
+            <button className="btn small ghost" disabled={busy !== null} onClick={() => setEditingAsset((v) => !v)}>
+              {editingAsset ? 'Cancel edit' : 'Edit asset'}
+            </button>
+          )}
+          {isManager && (
             <button className="btn small ghost danger" disabled={busy === 'del-asset'} onClick={onDeleteAsset}>
               Delete asset
             </button>
           )}
         </div>
+        {isManager && editingAsset && (
+          <div style={{ marginTop: 12 }}>
+            <EditAssetForm asset={asset} onDone={() => setEditingAsset(false)} onError={setError} />
+          </div>
+        )}
       </div>
 
       {/* Meter readings */}
@@ -167,10 +179,27 @@ export function AssetDetail({
           <LogServiceForm item={item} meterUnit={asset.meterUnit} onError={setError} />
 
           {isManager && (
-            <div className="row-actions" style={{ marginTop: 8 }}>
+            <div className="row-actions" style={{ marginTop: 8, flexWrap: 'wrap' }}>
+              <button
+                className="btn small ghost"
+                disabled={busy !== null}
+                onClick={() => setEditingItem((v) => (v === item.id ? null : item.id))}
+              >
+                {editingItem === item.id ? 'Cancel edit' : 'Edit'}
+              </button>
               <button className="btn small ghost danger" disabled={busy === 'del-' + item.id} onClick={() => onDeleteItem(item.id)}>
                 Delete item
               </button>
+            </div>
+          )}
+          {isManager && editingItem === item.id && (
+            <div style={{ marginTop: 10 }}>
+              <EditMaintenanceForm
+                item={item}
+                meterUnit={asset.meterUnit}
+                onDone={() => setEditingItem(null)}
+                onError={setError}
+              />
             </div>
           )}
 
@@ -424,5 +453,160 @@ function AddMaintenanceForm({ assetId, hasMeter, onError }: { assetId: string; h
         </form>
       </div>
     </>
+  );
+}
+
+/** Rename an asset or update its category/notes without losing service history. */
+function EditAssetForm({
+  asset,
+  onDone,
+  onError,
+}: {
+  asset: AssetRow;
+  onDone: () => void;
+  onError: (m: string | null) => void;
+}) {
+  const router = useRouter();
+  const [name, setName] = useState(asset.name);
+  const [category, setCategory] = useState(asset.category);
+  const [notes, setNotes] = useState(asset.notes);
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    onError(null);
+    const res = await fetch(`/api/assets/${asset.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, category, notes }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      onError(data.error || 'Could not save the asset.');
+      return;
+    }
+    onDone();
+    router.refresh();
+  }
+
+  return (
+    <form onSubmit={submit}>
+      <div className="field">
+        <label>Name</label>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+      </div>
+      <div className="field">
+        <label>Category</label>
+        <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Equipment" />
+      </div>
+      <div className="field">
+        <label>Notes</label>
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+      </div>
+      <p className="subtle" style={{ fontSize: 12, marginTop: -4 }}>
+        The meter unit can&apos;t be changed once readings exist — it would invalidate the history.
+      </p>
+      <div className="form-actions">
+        <button type="button" className="btn" onClick={onDone}>
+          Cancel
+        </button>
+        <button type="submit" disabled={saving} className="btn primary">
+          {saving ? 'Saving…' : 'Save asset'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/** Adjust a maintenance item's name, interval, or photo requirement. */
+function EditMaintenanceForm({
+  item,
+  meterUnit,
+  onDone,
+  onError,
+}: {
+  item: ItemWithLogs;
+  meterUnit: string | null;
+  onDone: () => void;
+  onError: (m: string | null) => void;
+}) {
+  const router = useRouter();
+  const [name, setName] = useState(item.name);
+  const [intervalValue, setIntervalValue] = useState(String(item.intervalValue));
+  const [intervalUnit, setIntervalUnit] = useState<'months' | 'days'>(item.intervalUnit ?? 'months');
+  const [requirePhoto, setRequirePhoto] = useState(item.requirePhoto);
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const v = Number(intervalValue);
+    if (!v || v <= 0) {
+      onError('Enter an interval greater than zero.');
+      return;
+    }
+    setSaving(true);
+    onError(null);
+    const res = await fetch(`/api/maintenance/${item.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, intervalValue: v, intervalUnit, requirePhoto }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      onError(data.error || 'Could not save this item.');
+      return;
+    }
+    onDone();
+    router.refresh();
+  }
+
+  return (
+    <form onSubmit={submit}>
+      <div className="field">
+        <label>What needs doing</label>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+      </div>
+      <div className="field">
+        <label>Every</label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            type="number"
+            min={1}
+            step="any"
+            value={intervalValue}
+            onChange={(e) => setIntervalValue(e.target.value)}
+            style={{ flex: 1 }}
+          />
+          {item.intervalType === 'calendar' ? (
+            <select value={intervalUnit} onChange={(e) => setIntervalUnit(e.target.value as 'months' | 'days')} style={{ flex: 1 }}>
+              <option value="months">months</option>
+              <option value="days">days</option>
+            </select>
+          ) : (
+            <span className="btn" style={{ flex: 1, pointerEvents: 'none' }}>
+              {meterUnit || 'units'}
+            </span>
+          )}
+        </div>
+      </div>
+      <label className="inline-check" style={{ marginBottom: 12 }}>
+        <input type="checkbox" checked={requirePhoto} onChange={(e) => setRequirePhoto(e.target.checked)} />
+        Require a photo of completed work
+      </label>
+      <p className="subtle" style={{ fontSize: 12, marginTop: -4 }}>
+        Changing the interval recalculates when this is next due.
+      </p>
+      <div className="form-actions">
+        <button type="button" className="btn" onClick={onDone}>
+          Cancel
+        </button>
+        <button type="submit" disabled={saving} className="btn primary">
+          {saving ? 'Saving…' : 'Save item'}
+        </button>
+      </div>
+    </form>
   );
 }
