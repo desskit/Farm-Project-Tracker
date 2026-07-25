@@ -11,12 +11,40 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
   return arr;
 }
 
-export function NotificationsView({ prefs: initial, emailReady, pushReady }: { prefs: Prefs; emailReady: boolean; pushReady: boolean }) {
+export function NotificationsView({
+  prefs: initial,
+  emailReady,
+  pushReady,
+  isAdmin,
+}: {
+  prefs: Prefs;
+  emailReady: boolean;
+  pushReady: boolean;
+  isAdmin: boolean;
+}) {
   const [prefs, setPrefs] = useState<Prefs>(initial);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pushMsg, setPushMsg] = useState<string | null>(null);
   const [pushBusy, setPushBusy] = useState(false);
+  const [testMsg, setTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [testBusy, setTestBusy] = useState(false);
+
+  async function sendTestEmail() {
+    setTestBusy(true);
+    setTestMsg(null);
+    try {
+      const res = await fetch('/api/admin/test-email', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      setTestMsg(
+        res.ok
+          ? { ok: true, text: `Sent to ${data.to}. Check your inbox (and spam).` }
+          : { ok: false, text: data.error || 'Could not send the test email.' },
+      );
+    } finally {
+      setTestBusy(false);
+    }
+  }
 
   async function save(next: Prefs) {
     setPrefs(next);
@@ -107,6 +135,27 @@ export function NotificationsView({ prefs: initial, emailReady, pushReady }: { p
           {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Changes save automatically.'}
         </p>
       </div>
+
+      {isAdmin && (
+        <>
+          <div className="section-title">Email delivery</div>
+          <div className="card">
+            <p className="subtle" style={{ marginTop: 0 }}>
+              {emailReady
+                ? 'Send yourself a test message to confirm SMTP is working.'
+                : 'SMTP isn’t configured on this server, so invites, resets, and digests won’t send.'}
+            </p>
+            <button className="btn block" disabled={!emailReady || testBusy} onClick={sendTestEmail}>
+              {testBusy ? 'Sending…' : '✉️ Send test email'}
+            </button>
+            {testMsg && (
+              <p className={testMsg.ok ? undefined : 'error-text'} style={testMsg.ok ? { color: 'var(--brand)', fontWeight: 600 } : undefined}>
+                {testMsg.text}
+              </p>
+            )}
+          </div>
+        </>
+      )}
 
       <div className="section-title">This device</div>
       <div className="card">

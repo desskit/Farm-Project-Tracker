@@ -10,7 +10,7 @@ export default async function HomePage({ searchParams }: { searchParams: { scope
     return (
       <main className="auth-wrap">
         <p className="auth-brand">🌾 Farm Project Tracker</p>
-        <p className="subtle">Server phase — foundation is up.</p>
+        <p className="subtle">Chores, equipment upkeep, and projects — all in one place.</p>
         <p style={{ marginTop: 24 }}>
           <Link href="/login" className="btn primary block">
             Log in

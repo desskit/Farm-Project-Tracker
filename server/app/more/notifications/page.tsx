@@ -22,6 +22,7 @@ export default async function NotificationsPage() {
         prefs={prefs}
         emailReady={emailConfigured()}
         pushReady={pushConfigured()}
+        isAdmin={user.role === 'admin'}
       />
     </main>
   );

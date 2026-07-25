@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { users, notificationPrefs } from '@/db/schema';
+import { users, notificationPrefs, rentCharges, timeEntries } from '@/db/schema';
 import type { Role } from '@/db/schema';
 import { uid } from '@/lib/ids';
 import { createInvite } from '@/lib/auth/invites';
@@ -41,8 +41,39 @@ export async function updateUserRole(targetId: string, role: Role): Promise<void
   await db.update(users).set({ role }).where(eq(users.id, targetId));
 }
 
-export async function removeUser(targetId: string, actingUserId: string): Promise<void> {
+/**
+ * Removes a person. Chore completions, service logs, notes, and activity are
+ * kept (those columns null out), but rent charges and logged time cascade away
+ * with the account — so when a person has either, we refuse the first attempt
+ * and report exactly what would be lost. The caller re-sends with force once
+ * the admin has confirmed.
+ */
+export async function removeUser(
+  targetId: string,
+  actingUserId: string,
+  opts: { force?: boolean } = {},
+): Promise<void> {
   if (targetId === actingUserId) throw new DataError('You cannot remove your own account.', 400);
   await assertNotLastAdmin(targetId, 'remove');
+
+  if (!opts.force) {
+    const [charges, entries] = await Promise.all([
+      db.select({ id: rentCharges.id }).from(rentCharges).where(eq(rentCharges.userId, targetId)),
+      db.select({ id: timeEntries.id }).from(timeEntries).where(eq(timeEntries.userId, targetId)),
+    ]);
+    if (charges.length || entries.length) {
+      const lost = [
+        charges.length ? `${charges.length} rent charge${charges.length === 1 ? '' : 's'}` : null,
+        entries.length ? `${entries.length} logged time entr${entries.length === 1 ? 'y' : 'ies'}` : null,
+      ]
+        .filter(Boolean)
+        .join(' and ');
+      throw new DataError(
+        `Removing this person will permanently delete ${lost}. Their completed chores, service logs, and notes are kept. Confirm to proceed.`,
+        409,
+      );
+    }
+  }
+
   await db.delete(users).where(eq(users.id, targetId));
 }

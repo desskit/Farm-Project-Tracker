@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
 import { listUsers } from '@/lib/data/users';
 import { InviteForm } from './invite-form';
+import { PersonRow } from './person-row';
 
 export default async function PeoplePage() {
   const user = await getSessionUser();
@@ -33,18 +34,7 @@ export default async function PeoplePage() {
       </div>
 
       {people.map((p) => (
-        <div className="card" key={p.id}>
-          <div className="item">
-            <span className="who-avatar sm">{(p.name || '?').charAt(0)}</span>
-            <div className="item-main">
-              <p className="item-title">{p.name}</p>
-              <p className="item-sub">
-                {p.email} · {p.role}
-              </p>
-            </div>
-            {p.pending && <span className="badge today">invite pending</span>}
-          </div>
-        </div>
+        <PersonRow key={p.id} person={p} isSelf={p.id === user.id} />
       ))}
 
       <div className="section-title">Invite someone</div>

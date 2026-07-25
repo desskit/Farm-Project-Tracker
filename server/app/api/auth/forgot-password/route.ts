@@ -6,17 +6,9 @@ import { users } from '@/db/schema';
 import { createInvite } from '@/lib/auth/invites';
 import { checkThrottle, recordFailure, clientIp } from '@/lib/auth/throttle';
 import { emailConfigured, sendMail } from '@/lib/notify/email';
+import { resetEmail } from '@/lib/notify/templates';
 
 const schema = z.object({ email: z.string().trim().email() });
-
-function resetEmail(name: string, url: string): string {
-  return `
-    <p>Hi ${name || 'there'},</p>
-    <p>Someone asked to reset the password for your Farm Project Tracker account.
-    Follow this link to choose a new one — it expires in 7 days:</p>
-    <p><a href="${url}">${url}</a></p>
-    <p>If you didn't request this, you can ignore this email; your password won't change.</p>`;
-}
 
 export async function POST(req: Request) {
   const parsed = schema.safeParse(await req.json().catch(() => null));

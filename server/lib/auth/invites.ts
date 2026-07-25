@@ -4,13 +4,19 @@
  * set their own password and activate the account.
  */
 import { randomBytes } from 'node:crypto';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNull, ne } from 'drizzle-orm';
 import { db } from '@/db';
-import { invites, users } from '@/db/schema';
+import { invites, users, sessions } from '@/db/schema';
 
 const INVITE_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 
+/**
+ * Mints a fresh invite/reset link. Any earlier unused link for this person is
+ * invalidated, so only the most recent email works — an old link sitting in an
+ * inbox stops being an account-takeover route.
+ */
 export async function createInvite(userId: string): Promise<{ token: string; expiresAt: number }> {
+  await db.delete(invites).where(and(eq(invites.userId, userId), isNull(invites.usedAt)));
   const token = randomBytes(24).toString('hex');
   const expiresAt = Date.now() + INVITE_TTL_MS;
   await db.insert(invites).values({ token, userId, expiresAt });
@@ -41,5 +47,10 @@ export async function acceptInvite(token: string, passwordHash: string): Promise
   if (!row) return null;
   await db.update(users).set({ passwordHash }).where(eq(users.id, row.userId));
   await db.update(invites).set({ usedAt: Date.now() }).where(eq(invites.token, token));
+  // Burn any other outstanding link for this person, and sign out every existing
+  // session — a reset is often "someone else may be in my account", so old
+  // sessions must not survive it. The caller issues a fresh session after this.
+  await db.delete(invites).where(and(eq(invites.userId, row.userId), ne(invites.token, token), isNull(invites.usedAt)));
+  await db.delete(sessions).where(eq(sessions.userId, row.userId));
   return { userId: row.userId };
 }

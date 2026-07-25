@@ -19,7 +19,9 @@ console.log('[boot] migrations applied');
 
 const anyUser = await db.select({ id: users.id }).from(users).limit(1);
 if (!anyUser.length) {
-  const email = process.env.SEED_ADMIN_EMAIL;
+  // Lower-cased to match how login looks accounts up — otherwise a mixed-case
+  // SEED_ADMIN_EMAIL would create an admin who could never sign in.
+  const email = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
   const password = process.env.SEED_ADMIN_PASSWORD;
   const name = process.env.SEED_ADMIN_NAME || 'Admin';
   if (email && password) {

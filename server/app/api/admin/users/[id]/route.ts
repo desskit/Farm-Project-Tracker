@@ -18,10 +18,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   try {
     const me = await requireAdmin();
-    await removeUser(params.id, me.id);
+    // ?force=1 is sent after the admin confirms the data-loss warning.
+    const force = new URL(req.url).searchParams.get('force') === '1';
+    await removeUser(params.id, me.id, { force });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return errorResponse(e);

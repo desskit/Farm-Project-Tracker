@@ -9,6 +9,7 @@ export function InviteForm() {
   const [role, setRole] = useState('worker');
   const [error, setError] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [emailed, setEmailed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -30,6 +31,7 @@ export function InviteForm() {
       return;
     }
     setInviteUrl(data.inviteUrl);
+    setEmailed(!!data.emailed);
     setName('');
     setEmail('');
     router.refresh();
@@ -62,7 +64,17 @@ export function InviteForm() {
 
       {inviteUrl && (
         <div className="notice" style={{ marginTop: 12 }}>
-          <strong>Invite link</strong> — email delivery isn&apos;t wired up yet, so copy this and send it to them:
+          {emailed ? (
+            <>
+              <strong>✅ Invite emailed.</strong> They&apos;ll get a link to set their password. Here it is too, in case
+              you&apos;d rather send it yourself:
+            </>
+          ) : (
+            <>
+              <strong>Invite link</strong> — email isn&apos;t configured (or the send failed), so copy this and send it
+              to them:
+            </>
+          )}
           <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
             <code style={{ wordBreak: 'break-all', flex: 1 }}>{inviteUrl}</code>
             <button

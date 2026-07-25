@@ -8,25 +8,8 @@ import { users } from '@/db/schema';
 import { getDashboard, type DashboardBuckets } from '@/lib/data/dashboard';
 import { getPrefs } from '@/lib/data/prefs';
 import { sendMail, emailConfigured } from './email';
+import { digestEmail } from './templates';
 import { sendPushToUser, pushConfigured } from './push';
-import { fmtDate } from '@/lib/domain/dates';
-
-function digestHtml(name: string, b: DashboardBuckets): string {
-  const section = (title: string, items: DashboardBuckets['overdue']) =>
-    items.length
-      ? `<h3 style="margin:16px 0 6px">${title}</h3><ul style="margin:0;padding-left:18px">${items
-          .map((i) => `<li>${i.title} <span style="color:#6b7269">— ${i.subtitle} (due ${fmtDate(i.dueDate)})</span></li>`)
-          .join('')}</ul>`
-      : '';
-  return `
-    <div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1c221e">
-      <p>Morning, ${name}. Here's what's on your plate:</p>
-      ${section('⚠️ Overdue', b.overdue)}
-      ${section('Due today', b.today)}
-      ${section('Coming up (7 days)', b.upcoming)}
-      <p style="color:#6b7269;font-size:13px;margin-top:20px">— Farm Project Tracker</p>
-    </div>`;
-}
 
 /** Runs one hourly tick: sends digests to users whose hour + prefs match. */
 export async function runDigestTick(now = new Date()): Promise<{ sent: number }> {
@@ -48,7 +31,7 @@ export async function runDigestTick(now = new Date()): Promise<{ sent: number }>
 
     if (wantsEmail && emailConfigured() && u.email) {
       const subject = `Farm Tracker · ${b.overdue.length} overdue, ${b.today.length} due today`;
-      if (await sendMail(u.email, subject, digestHtml(u.name, b))) sent++;
+      if (await sendMail(u.email, subject, digestEmail(u.name, b))) sent++;
     }
     if (prefs.push && pushConfigured()) {
       const dueNow = b.overdue.length + b.today.length;

@@ -16,8 +16,11 @@ import { DataError } from './errors';
 export type AttachmentRow = typeof attachments.$inferSelect;
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './data/uploads';
-const MAX_BYTES = 8 * 1024 * 1024; // 8 MB hard cap
-const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+/** Hard cap per upload. Exported so routes can reject before buffering the body. */
+export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // 8 MB
+export const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+const MAX_BYTES = MAX_UPLOAD_BYTES;
+const ALLOWED = ALLOWED_MIME;
 
 function extFor(mime: string): string {
   if (mime === 'image/jpeg') return 'jpg';

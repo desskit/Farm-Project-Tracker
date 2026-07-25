@@ -4,9 +4,12 @@
  * and ensures expired credentials can't linger. Run from the cron scheduler.
  */
 import 'server-only';
-import { and, isNotNull, isNull, lt, or } from 'drizzle-orm';
+import { and, desc, isNotNull, isNull, lt, or } from 'drizzle-orm';
 import { db } from '@/db';
-import { sessions, invites, authThrottle } from '@/db/schema';
+import { sessions, invites, authThrottle, activity } from '@/db/schema';
+
+/** Rows of history to keep; the feed only ever shows the most recent few. */
+const ACTIVITY_KEEP = 5000;
 
 export async function cleanupAuthTables(): Promise<void> {
   const now = Date.now();
@@ -20,4 +23,13 @@ export async function cleanupAuthTables(): Promise<void> {
   await db
     .delete(authThrottle)
     .where(and(lt(authThrottle.firstFailedAt, dayAgo), or(isNull(authThrottle.lockedUntil), lt(authThrottle.lockedUntil, now))));
+
+  // Trim the activity feed so it can't grow without bound over years of use.
+  const cutoff = await db
+    .select({ ts: activity.ts })
+    .from(activity)
+    .orderBy(desc(activity.ts))
+    .limit(1)
+    .offset(ACTIVITY_KEEP);
+  if (cutoff[0]) await db.delete(activity).where(lt(activity.ts, cutoff[0].ts));
 }
