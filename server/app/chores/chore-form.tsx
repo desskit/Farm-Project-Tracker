@@ -151,11 +151,14 @@ export function ChoreForm({
         <label>Assign to</label>
         <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
           <option value="">Unassigned</option>
-          {people.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
+          {people
+            .filter((p) => p.active || p.id === assignedTo)
+            .map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+                {p.active ? '' : ' (deactivated)'}
+              </option>
+            ))}
         </select>
       </div>
 

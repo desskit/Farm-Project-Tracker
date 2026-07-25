@@ -2,6 +2,7 @@
  * Team overview — ported from js/store.js userWorkload() + teamDashboard.
  * Farm-wide status counts plus per-person workload. Manager/admin view.
  */
+import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { users, chores, projectTasks } from '@/db/schema';
 import { bucketForDate } from '@/lib/domain/dashboard';
@@ -25,7 +26,7 @@ export type TeamOverview = {
 
 export async function teamOverview(): Promise<TeamOverview> {
   const [allUsers, allChores, allTasks] = await Promise.all([
-    db.select({ id: users.id, name: users.name, role: users.role }).from(users),
+    db.select({ id: users.id, name: users.name, role: users.role }).from(users).where(eq(users.active, true)),
     db.select().from(chores),
     db.select().from(projectTasks),
   ]);

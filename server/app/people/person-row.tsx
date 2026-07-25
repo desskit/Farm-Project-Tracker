@@ -47,6 +47,31 @@ export function PersonRow({ person, isSelf }: { person: Person; isSelf: boolean 
     setResent({ emailed: !!data.emailed, url: data.inviteUrl });
   }
 
+  async function onSetActive(active: boolean) {
+    if (
+      !active &&
+      !confirm(
+        `Deactivate ${person.name}? They'll be signed out and can't log in, but all their history is kept. You can turn them back on any time.`,
+      )
+    ) {
+      return;
+    }
+    setBusy('active');
+    setError(null);
+    const res = await fetch(`/api/admin/users/${person.id}/active`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active }),
+    });
+    setBusy(null);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || 'Could not update this account.');
+      return;
+    }
+    router.refresh();
+  }
+
   async function onRemove(force = false) {
     if (!force && !confirm(`Remove ${person.name}? They immediately lose access to the farm.`)) return;
     setBusy('remove');
@@ -68,7 +93,7 @@ export function PersonRow({ person, isSelf }: { person: Person; isSelf: boolean 
   }
 
   return (
-    <div className="card">
+    <div className="card" style={person.active ? undefined : { opacity: 0.72 }}>
       <div className="item">
         <span className="who-avatar sm">{(person.name || '?').charAt(0)}</span>
         <div className="item-main">
@@ -78,13 +103,17 @@ export function PersonRow({ person, isSelf }: { person: Person; isSelf: boolean 
           </p>
           <p className="item-sub">{person.email}</p>
         </div>
-        {person.pending && <span className="badge today">invite pending</span>}
+        {!person.active ? (
+          <span className="badge neutral">deactivated</span>
+        ) : (
+          person.pending && <span className="badge today">invite pending</span>
+        )}
       </div>
 
       <div className="row-actions" style={{ marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <select
           value={person.role}
-          disabled={busy !== null}
+          disabled={busy !== null || !person.active}
           onChange={(e) => onRole(e.target.value)}
           aria-label={`Role for ${person.name}`}
           style={{ maxWidth: 140 }}
@@ -93,14 +122,24 @@ export function PersonRow({ person, isSelf }: { person: Person; isSelf: boolean 
           <option value="manager">Manager</option>
           <option value="admin">Admin</option>
         </select>
-        {person.pending && (
+        {person.active && person.pending && (
           <button className="btn small ghost" disabled={busy !== null} onClick={onResend}>
             {busy === 'resend' ? 'Sending…' : '✉️ Resend invite'}
           </button>
         )}
-        {!isSelf && (
+        {!isSelf &&
+          (person.active ? (
+            <button className="btn small ghost" disabled={busy !== null} onClick={() => onSetActive(false)}>
+              {busy === 'active' ? 'Working…' : 'Deactivate'}
+            </button>
+          ) : (
+            <button className="btn small primary" disabled={busy !== null} onClick={() => onSetActive(true)}>
+              {busy === 'active' ? 'Working…' : 'Reactivate'}
+            </button>
+          ))}
+        {!isSelf && !person.active && (
           <button className="btn small ghost danger" disabled={busy !== null} onClick={() => onRemove(false)}>
-            Remove
+            Delete permanently
           </button>
         )}
       </div>

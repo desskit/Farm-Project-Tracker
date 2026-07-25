@@ -195,11 +195,13 @@ function AssignForm({
         <div className="field">
           <label>Person</label>
           <select value={userId} onChange={(e) => pick(e.target.value)}>
-            {people.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
+            {people
+              .filter((p) => p.active)
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
           </select>
         </div>
         <div className="field">

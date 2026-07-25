@@ -22,6 +22,13 @@
       "when": 1784855175464,
       "tag": "0002_third_calypso",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1785002706401,
+      "tag": "0003_careful_molly_hayes",
+      "breakpoints": true
     }
   ]
 }

@@ -37,6 +37,11 @@ export const users = sqliteTable('users', {
   passwordHash: text('password_hash'), // null until the invite is accepted
   role: text('role').$type<Role>().notNull().default('worker'),
   createdAt: integer('created_at').notNull().default(now),
+  // Deactivated people keep all their history but cannot sign in and are not
+  // offered for new assignments. Preferred over deleting, which would cascade
+  // away their rent charges and logged time.
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  deactivatedAt: integer('deactivated_at'),
 });
 
 export const sessions = sqliteTable('sessions', {

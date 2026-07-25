@@ -3,6 +3,7 @@
  * hourly cron tick; each user receives their digest at their configured hour.
  */
 import 'server-only';
+import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { users } from '@/db/schema';
 import { getDashboard, type DashboardBuckets } from '@/lib/data/dashboard';
@@ -16,7 +17,11 @@ export async function runDigestTick(now = new Date()): Promise<{ sent: number }>
   if (!emailConfigured() && !pushConfigured()) return { sent: 0 };
   const hour = now.getHours();
   const isMonday = now.getDay() === 1;
-  const allUsers = await db.select({ id: users.id, name: users.name, email: users.email, role: users.role }).from(users);
+  // Deactivated people get no digests or push.
+  const allUsers = await db
+    .select({ id: users.id, name: users.name, email: users.email, role: users.role })
+    .from(users)
+    .where(eq(users.active, true));
 
   let sent = 0;
   for (const u of allUsers) {

@@ -44,7 +44,9 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     .select({ id: users.id, name: users.name, email: users.email, role: users.role })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
-    .where(and(eq(sessions.id, token), gt(sessions.expiresAt, Date.now())))
+    // Deactivating someone takes effect on their very next request, even if
+    // they already hold a valid session cookie.
+    .where(and(eq(sessions.id, token), gt(sessions.expiresAt, Date.now()), eq(users.active, true)))
     .limit(1);
   return rows[0] ?? null;
 }

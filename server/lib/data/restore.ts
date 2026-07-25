@@ -69,7 +69,19 @@ export async function restoreBackup(admin: SessionUser, backup: Backup): Promise
     for (const u of arr('users')) {
       const id = String(u.id);
       if (existing.has(id)) {
-        await tx.update(schema.users).set({ name: String(u.name), email: String(u.email), role: u.role as never }).where(eq(schema.users.id, id));
+        // Never deactivate (or demote out of admin) the person running the
+        // restore — that would lock them out of their own server.
+        const isActor = id === admin.id;
+        await tx
+          .update(schema.users)
+          .set({
+            name: String(u.name),
+            email: String(u.email),
+            role: (isActor ? 'admin' : u.role) as never,
+            active: isActor ? true : u.active !== false,
+            deactivatedAt: isActor ? null : ((u.deactivatedAt as number | null) ?? null),
+          })
+          .where(eq(schema.users.id, id));
       } else {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await tx.insert(schema.users).values({ ...(u as any), passwordHash: null });

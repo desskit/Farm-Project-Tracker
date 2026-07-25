@@ -3,6 +3,7 @@
  * Points: chore +2, task +5, service +4; photo-verified work adds a bonus.
  * (Photo bonuses activate once photo upload lands — photoId is null for now.)
  */
+import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { users, choreCompletions, projectTasks, maintenanceLogs } from '@/db/schema';
 import { todayISO, addDays, currentMonthKey } from '@/lib/domain/dates';
@@ -31,7 +32,7 @@ function inWindow(date: string | null, win: 'month' | 'all'): boolean {
 
 export async function leaderboard(win: 'month' | 'all'): Promise<LeaderRow[]> {
   const [allUsers, completions, tasks, logs] = await Promise.all([
-    db.select({ id: users.id, name: users.name, role: users.role }).from(users),
+    db.select({ id: users.id, name: users.name, role: users.role }).from(users).where(eq(users.active, true)),
     db.select().from(choreCompletions),
     db.select().from(projectTasks),
     db.select().from(maintenanceLogs),

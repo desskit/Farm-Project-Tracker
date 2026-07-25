@@ -43,6 +43,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
   }
 
+  // Correct credentials, but the account is switched off. Say so plainly —
+  // this is only reachable by someone who already knows the password.
+  if (!user.active) {
+    await clearThrottle(keys);
+    return NextResponse.json(
+      { error: 'This account has been deactivated. Ask a farm admin to turn it back on.' },
+      { status: 403 },
+    );
+  }
+
   await clearThrottle(keys);
   await createSession(user.id);
   return NextResponse.json({ ok: true, user: { id: user.id, name: user.name, role: user.role } });
