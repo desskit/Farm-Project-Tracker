@@ -8,6 +8,8 @@ services:
       PORT: 3000
       DATABASE_URL: file:/data/app.db
       UPLOAD_DIR: /data/uploads
+      BACKUP_DIR: /data/backups
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-7}
       TZ: ${TZ:-UTC}
       PUBLIC_URL: ${PUBLIC_URL}
       SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Admin}

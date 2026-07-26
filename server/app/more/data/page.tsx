@@ -1,11 +1,15 @@
 import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
 import { RestoreForm } from './restore-form';
+import { BackupPanel } from './backup-panel';
+import { listBackups } from '@/lib/backup';
 
 export default async function DataPage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
   const isAdmin = user.role === 'admin';
+  const backups = isAdmin ? await listBackups() : [];
+  const keepDays = Math.max(1, Number(process.env.BACKUP_KEEP_DAYS) || 7);
 
   return (
     <main className="view">
@@ -28,10 +32,11 @@ export default async function DataPage() {
             </a>
           </div>
           <RestoreForm />
+          <BackupPanel backups={backups} keepDays={keepDays} />
           <div className="notice">
-            The live database and uploaded files also live in the server&apos;s <strong>/data</strong> volume — the whole
-            thing is captured by a Proxmox snapshot or the volume backup described in the deploy guide. This JSON export
-            is a convenient portable copy on top of that.
+            The nightly backup above lives on the same <strong>/data</strong> volume as the live data, so it won&apos;t
+            survive the disk itself failing — pair it with a Proxmox snapshot or the off-box volume backup described in
+            the deploy guide. The JSON export is a convenient portable copy on top of both.
           </div>
         </>
       )}

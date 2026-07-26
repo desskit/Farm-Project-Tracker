@@ -9,6 +9,7 @@ import cron from 'node-cron';
 import { runDigestTick } from './digest';
 import { cleanupAuthTables } from '@/lib/auth/cleanup';
 import { reconcileChoreDueDates } from '@/lib/data/reconcile';
+import { runBackup } from '@/lib/backup';
 
 const g = globalThis as unknown as { __fptCronStarted?: boolean };
 
@@ -42,8 +43,21 @@ export function startCron(): void {
       console.error('[cron] auth cleanup failed', e);
     });
   });
+  // Nightly backup (02:40) — before auth cleanup, after chore reconciliation,
+  // so it captures a settled database rather than racing either job.
+  cron.schedule('40 2 * * *', () => {
+    runBackup()
+      .then((r) => {
+        // eslint-disable-next-line no-console
+        console.log(`[cron] backup complete: ${r.date}, ${(r.dbBytes / 1024).toFixed(0)} KB db, ${r.fileCount} files`);
+      })
+      .catch((e) => {
+        // eslint-disable-next-line no-console
+        console.error('[cron] nightly backup failed', e);
+      });
+  });
   // Catch up immediately at boot too, in case the server was off overnight.
   reconcileChoreDueDates().catch(() => {});
   // eslint-disable-next-line no-console
-  console.log('[cron] schedules started (hourly digest, nightly reconcile + cleanup)');
+  console.log('[cron] schedules started (hourly digest, nightly reconcile + backup + cleanup)');
 }
