@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { foldLegacyAssignee } from './assignee-input';
 
 const scheduleSchema = z.object({
   type: z.enum(['once', 'daily', 'everyNDays', 'weekly', 'monthly']),
@@ -8,21 +9,26 @@ const scheduleSchema = z.object({
   season: z.object({ start: z.string(), end: z.string() }).optional(),
 });
 
-export const createChoreSchema = z.object({
+const choreFields = z.object({
   name: z.string().trim().min(1),
   schedule: scheduleSchema,
   catchUp: z.enum(['mustCatchUp', 'skipToNext']).optional(),
-  assignedTo: z.string().nullable().optional(),
+  assigneeIds: z.array(z.string()).optional(),
   nextDue: z.string().optional(),
   requirePhoto: z.boolean().optional(),
   open: z.boolean().optional(),
   steps: z.array(z.string()).optional(),
 });
 
-export const updateChoreSchema = createChoreSchema.partial().extend({
-  // name/schedule stay optional on update, but if present must be non-empty.
-  name: z.string().trim().min(1).optional(),
-});
+export const createChoreSchema = z.preprocess(foldLegacyAssignee, choreFields);
+
+export const updateChoreSchema = z.preprocess(
+  foldLegacyAssignee,
+  choreFields.partial().extend({
+    // name/schedule stay optional on update, but if present must be non-empty.
+    name: z.string().trim().min(1).optional(),
+  }),
+);
 
 export const completeChoreSchema = z.object({
   notes: z.string().optional(),

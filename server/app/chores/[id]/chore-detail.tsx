@@ -173,9 +173,16 @@ export function ChoreDetail({
               <span className="chip">Due {dueLabel}</span>
             </>
           )}
-          <span className="chip">
-            {chore.assignedTo ? (nameById.get(chore.assignedTo) ?? 'Unassigned') : chore.open ? '🙌 open' : 'Unassigned'}
-          </span>
+          {chore.assigneeIds.length ? (
+            // One chip per person, so it's obvious who else is on the job.
+            chore.assigneeIds.map((id) => (
+              <span className="chip" key={id}>
+                {nameById.get(id) ?? 'Someone'}
+              </span>
+            ))
+          ) : (
+            <span className="chip">{chore.open ? '🙌 open' : 'Unassigned'}</span>
+          )}
           {chore.requirePhoto && <span className="chip">📷 photo required</span>}
         </div>
         {streak >= 2 && (
@@ -183,12 +190,12 @@ export function ChoreDetail({
         )}
 
         <div className="row-actions" style={{ marginTop: 12, flexWrap: 'wrap' }}>
-          {chore.open && !chore.assignedTo && (
+          {chore.open && !chore.assigneeIds.includes(currentUser.id) && (
             <button className="btn small primary" disabled={busy === 'claim'} onClick={() => act('claim', `/api/chores/${chore.id}/claim`, 'POST')}>
               Claim
             </button>
           )}
-          {chore.open && chore.assignedTo === currentUser.id && (
+          {chore.open && chore.assigneeIds.includes(currentUser.id) && (
             <button className="btn small ghost" disabled={busy === 'release'} onClick={() => act('release', `/api/chores/${chore.id}/release`, 'POST')}>
               Release
             </button>

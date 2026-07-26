@@ -2,6 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import type { PersonRow } from '@/lib/data/users';
 import type { ChoreRow } from '@/lib/data/chores';
+import { AssigneePicker } from '@/app/_components/assignee-picker';
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 type ScheduleType = 'once' | 'daily' | 'everyNDays' | 'weekly' | 'monthly';
@@ -15,7 +16,7 @@ export type ChorePayload = {
   name: string;
   schedule: { type: ScheduleType; n?: number; weekdays?: number[]; day?: number };
   catchUp: 'mustCatchUp' | 'skipToNext';
-  assignedTo: string | null;
+  assigneeIds: string[];
   nextDue?: string;
   open: boolean;
   requirePhoto: boolean;
@@ -44,7 +45,7 @@ export function ChoreForm({
   const [day, setDay] = useState(initSchedule?.day ?? 1);
   const [dueDate, setDueDate] = useState(initial?.nextDue ?? todayLocal());
   const [catchUp, setCatchUp] = useState<'mustCatchUp' | 'skipToNext'>(initial?.catchUp ?? 'skipToNext');
-  const [assignedTo, setAssignedTo] = useState(initial?.assignedTo ?? '');
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(initial?.assigneeIds ?? []);
   const [open, setOpen] = useState(initial?.open ?? false);
   const [requirePhoto, setRequirePhoto] = useState(initial?.requirePhoto ?? false);
   const [steps, setSteps] = useState((initial?.steps ?? []).join('\n'));
@@ -67,7 +68,7 @@ export function ChoreForm({
       name,
       schedule,
       catchUp,
-      assignedTo: assignedTo || null,
+      assigneeIds,
       nextDue: scheduleType === 'once' ? dueDate : undefined,
       open,
       requirePhoto,
@@ -81,6 +82,7 @@ export function ChoreForm({
     if (!err && !initial) {
       setName('');
       setSteps('');
+      setAssigneeIds([]);
     }
   }
 
@@ -147,20 +149,7 @@ export function ChoreForm({
         </div>
       )}
 
-      <div className="field">
-        <label>Assign to</label>
-        <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
-          <option value="">Unassigned</option>
-          {people
-            .filter((p) => p.active || p.id === assignedTo)
-            .map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.active ? '' : ' (deactivated)'}
-              </option>
-            ))}
-        </select>
-      </div>
+      <AssigneePicker people={people} value={assigneeIds} onChange={setAssigneeIds} />
 
       <label className="inline-check" style={{ marginBottom: 10 }}>
         <input type="checkbox" checked={open} onChange={(e) => setOpen(e.target.checked)} />

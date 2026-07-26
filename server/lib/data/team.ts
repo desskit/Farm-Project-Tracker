@@ -7,6 +7,7 @@ import { db } from '@/db';
 import { users, chores, projectTasks } from '@/db/schema';
 import { bucketForDate } from '@/lib/domain/dashboard';
 import type { Role } from '@/db/schema';
+import { choreAssigneeIdsFor, taskAssigneeIdsFor } from './assignees';
 
 export type Workload = {
   userId: string;
@@ -31,6 +32,11 @@ export async function teamOverview(): Promise<TeamOverview> {
     db.select().from(projectTasks),
   ]);
 
+  const [choreAssignees, taskAssignees] = await Promise.all([
+    choreAssigneeIdsFor(allChores.map((c) => c.id)),
+    taskAssigneeIdsFor(allTasks.map((t) => t.id)),
+  ]);
+
   const tiles = { overdue: 0, today: 0, upcoming: 0 };
   for (const c of allChores) {
     const b = bucketForDate(c.nextDue);
@@ -51,14 +57,14 @@ export async function teamOverview(): Promise<TeamOverview> {
       tasksOverdue: 0,
     };
     for (const c of allChores) {
-      if (c.assignedTo !== u.id) continue;
+      if (!(choreAssignees[c.id] ?? []).includes(u.id)) continue;
       const b = bucketForDate(c.nextDue);
       if (b === 'overdue') w.choresOverdue++;
       else if (b === 'today') w.choresToday++;
       else if (b === 'upcoming') w.choresUpcoming++;
     }
     for (const t of allTasks) {
-      if (t.done || t.assignedTo !== u.id) continue;
+      if (t.done || !(taskAssignees[t.id] ?? []).includes(u.id)) continue;
       w.tasksOpen++;
       if (t.dueDate && bucketForDate(t.dueDate) === 'overdue') w.tasksOverdue++;
     }

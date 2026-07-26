@@ -12,12 +12,23 @@ import { todayISO } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
 import { STATUS_LABELS, type ProjectStatus } from '@/lib/domain/project-status';
 import { logActivity } from './activity';
+import {
+  addTaskAssignee,
+  removeTaskAssignee,
+  setTaskAssignees,
+  taskAssigneeIds,
+  taskAssigneeIdsFor,
+} from './assignees';
 import { stopTimersFor } from './timers';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
 
 export type ProjectRow = typeof projects.$inferSelect;
-export type TaskRow = typeof projectTasks.$inferSelect;
+/**
+ * A task plus the people on it. `assignedTo` is still on the underlying table
+ * as the pre-multi-assignee backup, but `assigneeIds` is what callers read.
+ */
+export type TaskRow = typeof projectTasks.$inferSelect & { assigneeIds: string[] };
 export { STATUS_LABELS };
 export type { ProjectStatus };
 
@@ -90,14 +101,18 @@ export async function deleteProject(user: SessionUser, id: string): Promise<void
 /* ---------------- tasks ---------------- */
 export async function projectTasksFor(projectId: string): Promise<TaskRow[]> {
   const rows = await db.select().from(projectTasks).where(eq(projectTasks.projectId, projectId));
-  return rows.sort((a, b) => a.sort - b.sort);
+  const assignees = await taskAssigneeIdsFor(rows.map((r) => r.id));
+  return rows
+    .map((r) => ({ ...r, assigneeIds: assignees[r.id] ?? [] }))
+    .sort((a, b) => a.sort - b.sort);
 }
 export async function taskById(id: string): Promise<TaskRow | null> {
   const rows = await db.select().from(projectTasks).where(eq(projectTasks.id, id)).limit(1);
-  return rows[0] ?? null;
+  if (!rows[0]) return null;
+  return { ...rows[0], assigneeIds: await taskAssigneeIds(id) };
 }
 
-export type TaskInput = { title: string; description?: string; assignedTo?: string | null; dueDate?: string | null; requirePhoto?: boolean; open?: boolean };
+export type TaskInput = { title: string; description?: string; assigneeIds?: string[]; dueDate?: string | null; requirePhoto?: boolean; open?: boolean };
 
 export async function addTask(user: SessionUser, projectId: string, data: TaskInput): Promise<TaskRow> {
   if (!canCreateProject(user)) throw new DataError('Only managers and admins can add tasks.', 403);
@@ -108,12 +123,12 @@ export async function addTask(user: SessionUser, projectId: string, data: TaskIn
     projectId,
     title: data.title.trim(),
     description: data.description || '',
-    assignedTo: data.assignedTo || null,
     dueDate: data.dueDate || null,
     sort: existing.length,
     requirePhoto: !!data.requirePhoto,
     open: !!data.open,
   });
+  await setTaskAssignees(id, data.assigneeIds ?? []);
   publishChange('task');
   return (await taskById(id))!;
 }
@@ -124,13 +139,13 @@ export async function updateTask(user: SessionUser, taskId: string, data: Partia
   if (!t) throw new DataError('No such task.', 404);
   const patch: Partial<typeof projectTasks.$inferInsert> = {
     description: data.description || '',
-    assignedTo: data.assignedTo || null,
     dueDate: data.dueDate || null,
     requirePhoto: !!data.requirePhoto,
     open: !!data.open,
   };
   if (data.title != null && data.title.trim()) patch.title = data.title.trim();
   await db.update(projectTasks).set(patch).where(eq(projectTasks.id, taskId));
+  if (Array.isArray(data.assigneeIds)) await setTaskAssignees(taskId, data.assigneeIds);
   publishChange('task');
   return (await taskById(taskId))!;
 }
@@ -168,8 +183,9 @@ export async function toggleTask(user: SessionUser, taskId: string, photoId?: st
 export async function claimTask(user: SessionUser, taskId: string): Promise<void> {
   const t = await taskById(taskId);
   if (!t) throw new DataError('No such task.', 404);
-  if (!t.open || t.assignedTo || t.done) throw new DataError('This task is not open to claim.', 400);
-  await db.update(projectTasks).set({ assignedTo: user.id }).where(eq(projectTasks.id, taskId));
+  if (!t.open || t.done) throw new DataError('This task is not open to claim.', 400);
+  if (t.assigneeIds.includes(user.id)) throw new DataError('You are already on this task.', 400);
+  await addTaskAssignee(taskId, user.id);
   publishChange('task');
 }
 
@@ -177,8 +193,15 @@ export async function releaseTask(user: SessionUser, taskId: string): Promise<vo
   const t = await taskById(taskId);
   if (!t) throw new DataError('No such task.', 404);
   if (!t.open) throw new DataError('This item is not an open item.', 400);
-  if (t.assignedTo !== user.id && !isManager(user)) throw new DataError('Only the current owner or a manager can release it.', 403);
-  await db.update(projectTasks).set({ assignedTo: null }).where(eq(projectTasks.id, taskId));
+  if (t.assigneeIds.includes(user.id)) {
+    // Stepping off yourself — anyone else on the task stays.
+    await removeTaskAssignee(taskId, user.id);
+  } else if (isManager(user)) {
+    // A manager clearing an open task takes everyone off it.
+    await setTaskAssignees(taskId, []);
+  } else {
+    throw new DataError('Only someone on the task or a manager can release it.', 403);
+  }
   publishChange('task');
 }
 

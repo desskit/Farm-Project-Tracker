@@ -39,13 +39,22 @@ async function main() {
   );
 
   await db.insert(s.chores).values([
-    { id: 'c_feed', name: 'Feed the chickens', schedule: { type: 'daily' }, catchUp: 'mustCatchUp', assignedTo: uSam, nextDue: addDays(T, -1) },
-    { id: 'c_muck', name: 'Muck out the stalls', schedule: { type: 'daily' }, catchUp: 'skipToNext', assignedTo: uJamie, nextDue: T, requirePhoto: true },
+    { id: 'c_feed', name: 'Feed the chickens', schedule: { type: 'daily' }, catchUp: 'mustCatchUp', nextDue: addDays(T, -1) },
+    { id: 'c_muck', name: 'Muck out the stalls', schedule: { type: 'daily' }, catchUp: 'skipToNext', nextDue: T, requirePhoto: true },
     { id: 'c_troughs', name: 'Check water troughs', schedule: { type: 'daily' }, catchUp: 'mustCatchUp', nextDue: T, open: true },
-    { id: 'c_water', name: 'Water the greenhouse', schedule: { type: 'everyNDays', n: 2 }, catchUp: 'skipToNext', assignedTo: uSam, nextDue: addDays(T, 1) },
-    { id: 'c_cattle', name: 'Move cattle to fresh paddock', schedule: { type: 'weekly', weekdays: [1, 4] }, catchUp: 'skipToNext', assignedTo: uMorgan, nextDue: addDays(T, 2) },
-    { id: 'c_mow', name: 'Mow the orchard', schedule: { type: 'weekly', weekdays: [6], season: { start: '05-01', end: '09-30' } }, catchUp: 'skipToNext', assignedTo: uJamie, nextDue: addDays(T, 4) },
+    { id: 'c_water', name: 'Water the greenhouse', schedule: { type: 'everyNDays', n: 2 }, catchUp: 'skipToNext', nextDue: addDays(T, 1) },
+    { id: 'c_cattle', name: 'Move cattle to fresh paddock', schedule: { type: 'weekly', weekdays: [1, 4] }, catchUp: 'skipToNext', nextDue: addDays(T, 2) },
+    { id: 'c_mow', name: 'Mow the orchard', schedule: { type: 'weekly', weekdays: [6], season: { start: '05-01', end: '09-30' } }, catchUp: 'skipToNext', nextDue: addDays(T, 4) },
     { id: 'c_lockup', name: 'Evening barn lockup', schedule: { type: 'daily' }, catchUp: 'mustCatchUp', nextDue: T, open: true, steps: ['Lock the coop run', 'Shut off the yard water', 'Lights out in the barn', 'Latch the main gate'] },
+  ]);
+  // Moving cattle takes two people — the demo data shows that off.
+  await db.insert(s.choreAssignees).values([
+    { choreId: 'c_feed', userId: uSam },
+    { choreId: 'c_muck', userId: uJamie },
+    { choreId: 'c_water', userId: uSam },
+    { choreId: 'c_cattle', userId: uMorgan },
+    { choreId: 'c_cattle', userId: uJamie },
+    { choreId: 'c_mow', userId: uJamie },
   ]);
 
   await db.insert(s.choreCompletions).values([
@@ -86,12 +95,21 @@ async function main() {
     { id: 'p_irrig', name: 'Overhaul greenhouse irrigation', description: 'Replace hand-watering with a timed drip system.', status: 'idea', createdBy: uMorgan },
   ]);
   await db.insert(s.projectTasks).values([
-    { id: uid('t'), projectId: 'p_shed', title: 'Pour concrete footings', assignedTo: uJamie, dueDate: addDays(T, -5), done: true, doneBy: uJamie, doneAt: addDays(T, -4), sort: 0 },
-    { id: uid('t'), projectId: 'p_shed', title: 'Frame the three walls', description: 'Pressure-treated posts, 2x6 girts.', assignedTo: uSam, dueDate: addDays(T, 3), sort: 1 },
-    { id: uid('t'), projectId: 'p_shed', title: 'Install the roof', assignedTo: uJamie, dueDate: addDays(T, 12), sort: 2, requirePhoto: true },
-    { id: uid('t'), projectId: 'p_shed', title: 'Hang the gate & trim', description: 'Anyone can grab this one.', dueDate: addDays(T, 14), sort: 3, open: true },
-    { id: uid('t'), projectId: 'p_fence', title: 'Walk the line & mark corners', assignedTo: uMorgan, dueDate: addDays(T, 5), sort: 0 },
-    { id: uid('t'), projectId: 'p_fence', title: 'Clear brush along the fence line', dueDate: addDays(T, 6), sort: 1, open: true },
+    { id: 't_footings', projectId: 'p_shed', title: 'Pour concrete footings', dueDate: addDays(T, -5), done: true, doneBy: uJamie, doneAt: addDays(T, -4), sort: 0 },
+    { id: 't_frame', projectId: 'p_shed', title: 'Frame the three walls', description: 'Pressure-treated posts, 2x6 girts.', dueDate: addDays(T, 3), sort: 1 },
+    { id: 't_roof', projectId: 'p_shed', title: 'Install the roof', dueDate: addDays(T, 12), sort: 2, requirePhoto: true },
+    { id: 't_gate', projectId: 'p_shed', title: 'Hang the gate & trim', description: 'Anyone can grab this one.', dueDate: addDays(T, 14), sort: 3, open: true },
+    { id: 't_line', projectId: 'p_fence', title: 'Walk the line & mark corners', dueDate: addDays(T, 5), sort: 0 },
+    { id: 't_brush', projectId: 'p_fence', title: 'Clear brush along the fence line', dueDate: addDays(T, 6), sort: 1, open: true },
+  ]);
+  // Framing and roofing are two-person jobs.
+  await db.insert(s.taskAssignees).values([
+    { taskId: 't_footings', userId: uJamie },
+    { taskId: 't_frame', userId: uSam },
+    { taskId: 't_frame', userId: uJamie },
+    { taskId: 't_roof', userId: uJamie },
+    { taskId: 't_roof', userId: uSam },
+    { taskId: 't_line', userId: uMorgan },
   ]);
   await db.insert(s.notes).values([
     { id: uid('n'), parentType: 'project', parentId: 'p_shed', userId: uJamie, date: addDays(T, -4), ts: Date.now() - 86400000 * 4, body: 'Footings poured and cured — ready for framing.' },

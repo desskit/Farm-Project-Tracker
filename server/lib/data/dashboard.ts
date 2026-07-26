@@ -11,6 +11,7 @@ import { describeSchedule } from '@/lib/domain/recurrence';
 import { maintenanceStatus } from '@/lib/domain/maintenance';
 import { todayISO, currentMonthKey } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
+import { choreAssigneeIdsFor, taskAssigneeIdsFor } from './assignees';
 
 export type DashboardItem = {
   kind: 'chore' | 'maintenance' | 'task' | 'rent';
@@ -42,9 +43,21 @@ export async function getDashboard(currentUser: SessionUser, scope: 'mine' | 'al
     // Read-only: existing charges for this month (creation happens on the Rent page).
     db.select().from(rentCharges).where(eq(rentCharges.month, currentMonthKey())),
   ]);
+  const [choreAssignees, taskAssignees] = await Promise.all([
+    choreAssigneeIdsFor(allChores.map((c) => c.id)),
+    taskAssigneeIdsFor(allTasks.map((t) => t.id)),
+  ]);
   const projectName = new Map(allProjects.map((p) => [p.id, p.name]));
   const nameById = new Map(allUsers.map((u) => [u.id, u.name]));
   const userName = (id: string | null) => (id ? (nameById.get(id) ?? 'Unassigned') : 'Unassigned');
+  /** "Sam & Jamie" reads better on a one-line subtitle than a bare list. */
+  const assigneeLabel = (ids: string[]) => {
+    const names = ids.map((id) => nameById.get(id)).filter(Boolean) as string[];
+    if (!names.length) return 'Unassigned';
+    if (names.length === 1) return names[0];
+    if (names.length === 2) return `${names[0]} & ${names[1]}`;
+    return `${names[0]} +${names.length - 1}`;
+  };
   const assetById = new Map(allAssets.map((a) => [a.id, a]));
   const latestByAsset = new Map<string, number>();
   for (const r of allReadings) {
@@ -58,12 +71,13 @@ export async function getDashboard(currentUser: SessionUser, scope: 'mine' | 'al
     if (c.done) continue; // completed one-time chores drop off the board
     const b = bucketForDate(c.nextDue);
     if (b === 'later') continue;
-    if (scope === 'mine' && c.assignedTo !== currentUser.id) continue;
+    const choreOn = choreAssignees[c.id] ?? [];
+    if (scope === 'mine' && !choreOn.includes(currentUser.id)) continue;
     buckets[b].push({
       kind: 'chore',
       id: c.id,
       title: c.name,
-      subtitle: `${describeSchedule(c.schedule)} · ${userName(c.assignedTo)}`,
+      subtitle: `${describeSchedule(c.schedule)} · ${assigneeLabel(choreOn)}`,
       dueDate: c.nextDue,
       href: `/chores/${c.id}`,
       bucket: b,
@@ -94,12 +108,13 @@ export async function getDashboard(currentUser: SessionUser, scope: 'mine' | 'al
     if (t.done || !t.dueDate) continue;
     const b = bucketForDate(t.dueDate);
     if (b === 'later') continue;
-    if (scope === 'mine' && t.assignedTo !== currentUser.id) continue;
+    const taskOn = taskAssignees[t.id] ?? [];
+    if (scope === 'mine' && !taskOn.includes(currentUser.id)) continue;
     buckets[b].push({
       kind: 'task',
       id: t.id,
       title: t.title,
-      subtitle: `${projectName.get(t.projectId) ?? 'Project'} · ${userName(t.assignedTo)}`,
+      subtitle: `${projectName.get(t.projectId) ?? 'Project'} · ${assigneeLabel(taskOn)}`,
       dueDate: t.dueDate,
       href: `/projects/${t.projectId}`,
       bucket: b,

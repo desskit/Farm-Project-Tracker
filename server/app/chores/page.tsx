@@ -4,6 +4,7 @@ import { listChores } from '@/lib/data/chores';
 import { listUsers } from '@/lib/data/users';
 import { describeSchedule } from '@/lib/domain/recurrence';
 import { bucketForDate } from '@/lib/domain/dashboard';
+import { assigneeLabel } from '@/app/_components/assignee-picker';
 import { AddChoreCard } from './add-chore-card';
 
 export default async function ChoresPage() {
@@ -34,16 +35,13 @@ export default async function ChoresPage() {
                   <p className="item-title">{c.name}</p>
                   <p className="item-sub">
                     {describeSchedule(c.schedule)} ·{' '}
-                    {c.assignedTo
-                      ? (nameById.get(c.assignedTo) ?? 'Unassigned')
-                      : c.open
-                        ? 'Open — up for grabs'
-                        : 'Unassigned'}
+                    {assigneeLabel(c.assigneeIds, nameById) ||
+                      (c.open ? 'Open — up for grabs' : 'Unassigned')}
                   </p>
                   {(c.requirePhoto || c.open || c.steps.length > 0 || c.sentBack) && (
                     <div className="item-badges">
                       {c.sentBack && <span className="badge overdue">↩ redo</span>}
-                      {c.open && !c.assignedTo && <span className="chip">🙌 open</span>}
+                      {c.open && !c.assigneeIds.length && <span className="chip">🙌 open</span>}
                       {c.requirePhoto && <span className="chip">📷 proof</span>}
                       {c.steps.length > 0 && <span className="chip">☑ {c.steps.length} steps</span>}
                     </div>

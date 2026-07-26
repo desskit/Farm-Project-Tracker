@@ -50,11 +50,14 @@ export async function restoreBackup(admin: SessionUser, backup: Backup): Promise
       schema.rentCharges,
       schema.rentAssignments,
       schema.choreCompletions,
+      schema.choreAssignees,
       schema.chores,
       schema.maintenanceLogs,
       schema.maintenanceItems,
       schema.meterReadings,
+      schema.assetDocs,
       schema.assets,
+      schema.taskAssignees,
       schema.projectTasks,
       schema.projects,
       schema.notes,
@@ -119,6 +122,37 @@ export async function restoreBackup(admin: SessionUser, backup: Backup): Promise
       await insertChunked(tx as unknown as typeof db, table, rows);
       counts[key] = rows.length;
     }
+
+    // Asset documents carry a required attachment, so a row whose file isn't on
+    // this server is dropped rather than nulled (which the column forbids).
+    const docs = arr('assetDocs').filter((d) => typeof d.attachmentId === 'string' && attIds.has(d.attachmentId));
+    await insertChunked(tx as unknown as typeof db, schema.assetDocs, docs);
+    counts.assetDocs = docs.length;
+
+    // Assignee join rows last — they need both the work item and the person to
+    // exist. Anything pointing at a user this server doesn't have is skipped.
+    const userIds = new Set((await tx.select({ id: schema.users.id }).from(schema.users)).map((u) => u.id));
+    const choreIds = new Set(arr('chores').map((c) => String(c.id)));
+    const taskIds = new Set(arr('projectTasks').map((t) => String(t.id)));
+    // A backup taken before multi-assignee has no join rows, only the old
+    // single `assignedTo` on each item — derive the links from that instead.
+    const derive = (key: string, idField: string): AnyRow[] =>
+      arr(key)
+        .filter((r) => typeof r.assignedTo === 'string' && r.assignedTo)
+        .map((r) => ({ [idField]: r.id, userId: r.assignedTo }));
+    const rawChoreLinks = backup.choreAssignees ? arr('choreAssignees') : derive('chores', 'choreId');
+    const rawTaskLinks = backup.taskAssignees ? arr('taskAssignees') : derive('projectTasks', 'taskId');
+
+    const choreLinks = rawChoreLinks.filter(
+      (r) => choreIds.has(String(r.choreId)) && userIds.has(String(r.userId)),
+    );
+    const taskLinks = rawTaskLinks.filter(
+      (r) => taskIds.has(String(r.taskId)) && userIds.has(String(r.userId)),
+    );
+    await insertChunked(tx as unknown as typeof db, schema.choreAssignees, choreLinks);
+    await insertChunked(tx as unknown as typeof db, schema.taskAssignees, taskLinks);
+    counts.choreAssignees = choreLinks.length;
+    counts.taskAssignees = taskLinks.length;
   });
 
   await logActivity(admin.id, 'restored farm data from a backup');

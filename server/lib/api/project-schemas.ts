@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { foldLegacyAssignee } from './assignee-input';
 
 const status = z.enum(['idea', 'planned', 'in_progress', 'on_hold', 'done']);
 
@@ -16,17 +17,20 @@ export const updateProjectSchema = z.object({
   targetDate: z.string().nullable().optional(),
 });
 
-export const createTaskSchema = z.object({
+const taskFields = z.object({
   title: z.string().trim().min(1),
   description: z.string().optional(),
-  assignedTo: z.string().nullable().optional(),
+  assigneeIds: z.array(z.string()).optional(),
   dueDate: z.string().nullable().optional(),
   requirePhoto: z.boolean().optional(),
   open: z.boolean().optional(),
 });
 
-export const updateTaskSchema = createTaskSchema.extend({
-  title: z.string().trim().min(1).optional(),
-});
+export const createTaskSchema = z.preprocess(foldLegacyAssignee, taskFields);
+
+export const updateTaskSchema = z.preprocess(
+  foldLegacyAssignee,
+  taskFields.extend({ title: z.string().trim().min(1).optional() }),
+);
 
 export const sendBackSchema = z.object({ reason: z.string().optional() });

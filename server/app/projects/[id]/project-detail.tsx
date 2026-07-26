@@ -10,6 +10,7 @@ import { fmtDate } from '@/lib/domain/dates';
 import { uploadPhoto } from '@/lib/client/photo';
 import { TimerControl } from '@/app/_components/timer-control';
 import { NotesSection } from '@/app/_components/notes-section';
+import { AssigneePicker } from '@/app/_components/assignee-picker';
 import type { TimerState } from '@/lib/data/timers';
 import type { NoteRow } from '@/lib/data/notes';
 
@@ -196,7 +197,16 @@ export function ProjectDetail({
               <p className="item-title c-title">{t.title}</p>
               {t.description && <p className="item-sub">{t.description}</p>}
               <div className="chips">
-                <span className="chip">{t.assignedTo ? (nameById.get(t.assignedTo) ?? 'Unassigned') : t.open ? '🙌 open' : 'Unassigned'}</span>
+                {t.assigneeIds.length ? (
+                  // One chip per person, so it's obvious who else is on the job.
+                  t.assigneeIds.map((id) => (
+                    <span className="chip" key={id}>
+                      {nameById.get(id) ?? 'Someone'}
+                    </span>
+                  ))
+                ) : (
+                  <span className="chip">{t.open ? '🙌 open' : 'Unassigned'}</span>
+                )}
                 {t.dueDate && <span className="chip">due {fmtDate(t.dueDate)}</span>}
                 {t.requirePhoto && !t.done && <span className="chip">📷 proof</span>}
                 {t.done && t.doneAt && <span className="chip">done {fmtDate(t.doneAt)} by {nameById.get(t.doneBy ?? '') ?? 'Unknown'}</span>}
@@ -217,9 +227,14 @@ export function ProjectDetail({
               )}
             </div>
             <div className="row-actions">
-              {t.open && !t.assignedTo && !t.done && (
+              {t.open && !t.done && !t.assigneeIds.includes(currentUser.id) && (
                 <button className="btn small primary" disabled={busy === 'claim-' + t.id} onClick={() => act('claim-' + t.id, `/api/tasks/${t.id}/claim`, 'POST')}>
                   Claim
+                </button>
+              )}
+              {t.open && !t.done && t.assigneeIds.includes(currentUser.id) && (
+                <button className="btn small ghost" disabled={busy === 'release-' + t.id} onClick={() => act('release-' + t.id, `/api/tasks/${t.id}/release`, 'POST')}>
+                  Release
                 </button>
               )}
               <button
@@ -391,7 +406,7 @@ function AddTaskForm({ projectId, people, onError }: { projectId: string; people
   const router = useRouter();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [assignedTo, setAssignedTo] = useState('');
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState('');
   const [open, setOpen] = useState(false);
   const [requirePhoto, setRequirePhoto] = useState(false);
@@ -404,7 +419,7 @@ function AddTaskForm({ projectId, people, onError }: { projectId: string; people
     const res = await fetch(`/api/projects/${projectId}/tasks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, description, assignedTo: assignedTo || null, dueDate: dueDate || null, open, requirePhoto }),
+      body: JSON.stringify({ title, description, assigneeIds, dueDate: dueDate || null, open, requirePhoto }),
     });
     setLoading(false);
     if (!res.ok) {
@@ -415,6 +430,7 @@ function AddTaskForm({ projectId, people, onError }: { projectId: string; people
     setTitle('');
     setDescription('');
     setDueDate('');
+    setAssigneeIds([]);
     router.refresh();
   }
 
@@ -431,20 +447,7 @@ function AddTaskForm({ projectId, people, onError }: { projectId: string; people
             <label>Description</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
-          <div className="field">
-            <label>Assign to</label>
-            <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
-          <option value="">Unassigned</option>
-              {people
-                .filter((p) => p.active || p.id === assignedTo)
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                    {p.active ? '' : ' (deactivated)'}
-                  </option>
-                ))}
-            </select>
-          </div>
+          <AssigneePicker people={people} value={assigneeIds} onChange={setAssigneeIds} />
           <div className="field">
             <label>Due date (optional)</label>
             <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
@@ -542,7 +545,7 @@ function EditTaskForm({
   const router = useRouter();
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? '');
-  const [assignedTo, setAssignedTo] = useState(task.assignedTo ?? '');
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(task.assigneeIds);
   const [dueDate, setDueDate] = useState(task.dueDate ?? '');
   const [open, setOpen] = useState(task.open);
   const [requirePhoto, setRequirePhoto] = useState(task.requirePhoto);
@@ -558,7 +561,7 @@ function EditTaskForm({
       body: JSON.stringify({
         title,
         description,
-        assignedTo: assignedTo || null,
+        assigneeIds,
         dueDate: dueDate || null,
         open,
         requirePhoto,
@@ -584,20 +587,7 @@ function EditTaskForm({
         <label>Description</label>
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
       </div>
-      <div className="field">
-        <label>Assign to</label>
-        <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
-          <option value="">Unassigned</option>
-          {people
-            .filter((p) => p.active || p.id === assignedTo)
-            .map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.active ? '' : ' (deactivated)'}
-              </option>
-            ))}
-        </select>
-      </div>
+      <AssigneePicker people={people} value={assigneeIds} onChange={setAssigneeIds} />
       <div className="field">
         <label>Due date (optional)</label>
         <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />

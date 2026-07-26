@@ -16,11 +16,22 @@ import { nextOccurrenceAfter } from '@/lib/domain/recurrence';
 import { todayISO, addDays } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
 import { logActivity } from './activity';
+import {
+  addChoreAssignee,
+  choreAssigneeIds,
+  choreAssigneeIdsFor,
+  removeChoreAssignee,
+  setChoreAssignees,
+} from './assignees';
 import { stopTimersFor } from './timers';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
 
-export type ChoreRow = typeof chores.$inferSelect;
+/**
+ * A chore plus the people on it. `assignedTo` is still on the underlying table
+ * as the pre-multi-assignee backup, but `assigneeIds` is what callers read.
+ */
+export type ChoreRow = typeof chores.$inferSelect & { assigneeIds: string[] };
 export type ChoreCompletionRow = typeof choreCompletions.$inferSelect;
 
 function isManager(user: SessionUser): boolean {
@@ -29,19 +40,23 @@ function isManager(user: SessionUser): boolean {
 
 export async function listChores(): Promise<ChoreRow[]> {
   const rows = await db.select().from(chores).where(eq(chores.done, false));
-  return rows.sort((a, b) => (a.nextDue < b.nextDue ? -1 : 1));
+  const assignees = await choreAssigneeIdsFor(rows.map((r) => r.id));
+  return rows
+    .map((r) => ({ ...r, assigneeIds: assignees[r.id] ?? [] }))
+    .sort((a, b) => (a.nextDue < b.nextDue ? -1 : 1));
 }
 
 export async function choreById(id: string): Promise<ChoreRow | null> {
   const rows = await db.select().from(chores).where(eq(chores.id, id)).limit(1);
-  return rows[0] ?? null;
+  if (!rows[0]) return null;
+  return { ...rows[0], assigneeIds: await choreAssigneeIds(id) };
 }
 
 export type ChoreInput = {
   name: string;
   schedule: Schedule;
   catchUp?: 'mustCatchUp' | 'skipToNext';
-  assignedTo?: string | null;
+  assigneeIds?: string[];
   nextDue?: string;
   requirePhoto?: boolean;
   open?: boolean;
@@ -56,12 +71,12 @@ export async function addChore(user: SessionUser, data: ChoreInput): Promise<Cho
     name: data.name.trim(),
     schedule: data.schedule,
     catchUp: data.catchUp || 'skipToNext',
-    assignedTo: data.assignedTo || null,
     nextDue: data.nextDue || todayISO(),
     requirePhoto: !!data.requirePhoto,
     open: !!data.open,
     steps: Array.isArray(data.steps) ? data.steps.filter(Boolean) : [],
   });
+  await setChoreAssignees(id, data.assigneeIds ?? []);
   await logActivity(user.id, `added chore "${data.name.trim()}"`);
   return (await choreById(id))!;
 }
@@ -75,13 +90,13 @@ export async function updateChore(user: SessionUser, id: string, data: Partial<C
   if (data.name != null && data.name.trim()) patch.name = data.name.trim();
   if (data.schedule) patch.schedule = data.schedule;
   if (data.catchUp) patch.catchUp = data.catchUp;
-  patch.assignedTo = data.assignedTo || null;
   if (data.nextDue) patch.nextDue = data.nextDue;
   patch.requirePhoto = !!data.requirePhoto;
   patch.open = !!data.open;
   if (Array.isArray(data.steps)) patch.steps = data.steps.filter(Boolean);
 
   await db.update(chores).set(patch).where(eq(chores.id, id));
+  if (Array.isArray(data.assigneeIds)) await setChoreAssignees(id, data.assigneeIds);
   publishChange('chore');
   return (await choreById(id))!;
 }
@@ -154,8 +169,9 @@ export async function completeChore(
 export async function claimChore(user: SessionUser, id: string): Promise<void> {
   const chore = await choreById(id);
   if (!chore) throw new DataError('No such chore.', 404);
-  if (!chore.open || chore.assignedTo) throw new DataError('This chore is not open to claim.', 400);
-  await db.update(chores).set({ assignedTo: user.id }).where(eq(chores.id, id));
+  if (!chore.open) throw new DataError('This chore is not open to claim.', 400);
+  if (chore.assigneeIds.includes(user.id)) throw new DataError('You are already on this chore.', 400);
+  await addChoreAssignee(id, user.id);
   publishChange('chore');
 }
 
@@ -163,10 +179,15 @@ export async function releaseChore(user: SessionUser, id: string): Promise<void>
   const chore = await choreById(id);
   if (!chore) throw new DataError('No such chore.', 404);
   if (!chore.open) throw new DataError('This item is not an open item.', 400);
-  if (chore.assignedTo !== user.id && !isManager(user)) {
-    throw new DataError('Only the current owner or a manager can release it.', 403);
+  if (chore.assigneeIds.includes(user.id)) {
+    // Stepping off yourself — anyone else on the chore stays.
+    await removeChoreAssignee(id, user.id);
+  } else if (isManager(user)) {
+    // A manager clearing an open chore takes everyone off it.
+    await setChoreAssignees(id, []);
+  } else {
+    throw new DataError('Only someone on the chore or a manager can release it.', 403);
   }
-  await db.update(chores).set({ assignedTo: null }).where(eq(chores.id, id));
   publishChange('chore');
 }
 

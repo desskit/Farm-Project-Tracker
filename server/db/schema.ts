@@ -12,7 +12,7 @@
  *  - JSON-shaped fields (schedule, steps, sentBack) use text with { mode: 'json' }.
  */
 import { sql } from 'drizzle-orm';
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, primaryKey } from 'drizzle-orm/sqlite-core';
 
 export type Role = 'admin' | 'manager' | 'worker';
 
@@ -86,6 +86,7 @@ export const chores = sqliteTable('chores', {
   name: text('name').notNull(),
   schedule: text('schedule', { mode: 'json' }).$type<Schedule>().notNull(),
   catchUp: text('catch_up').$type<'mustCatchUp' | 'skipToNext'>().notNull().default('skipToNext'),
+  /** @deprecated superseded by `chore_assignees`; kept as the pre-migration backup. */
   assignedTo: text('assigned_to').references(() => users.id, { onDelete: 'set null' }),
   nextDue: text('next_due').notNull(),
   requirePhoto: integer('require_photo', { mode: 'boolean' }).notNull().default(false),
@@ -154,6 +155,20 @@ export const maintenanceLogs = sqliteTable('maintenance_logs', {
 });
 
 /**
+ * Who a chore is assigned to. A chore can have several people on it, so
+ * assignment lives here rather than in a single column. `chores.assigned_to`
+ * is retained only as the pre-multi-assignee backup and is no longer read.
+ */
+export const choreAssignees = sqliteTable(
+  'chore_assignees',
+  {
+    choreId: text('chore_id').notNull().references(() => chores.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.choreId, t.userId] }) }),
+);
+
+/**
  * Documents filed against an asset — receipts, manuals, warranties. The file
  * itself lives in `attachments`; this row carries the label and kind so the
  * registry can group them.
@@ -186,6 +201,7 @@ export const projectTasks = sqliteTable('project_tasks', {
   projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   description: text('description').notNull().default(''),
+  /** @deprecated superseded by `task_assignees`; kept as the pre-migration backup. */
   assignedTo: text('assigned_to').references(() => users.id, { onDelete: 'set null' }),
   dueDate: text('due_date'),
   done: integer('done', { mode: 'boolean' }).notNull().default(false),
@@ -197,6 +213,16 @@ export const projectTasks = sqliteTable('project_tasks', {
   open: integer('open', { mode: 'boolean' }).notNull().default(false),
   sentBack: text('sent_back', { mode: 'json' }).$type<SentBack>(),
 });
+
+/** Who a project task is assigned to — same shape as chore_assignees. */
+export const taskAssignees = sqliteTable(
+  'task_assignees',
+  {
+    taskId: text('task_id').notNull().references(() => projectTasks.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.taskId, t.userId] }) }),
+);
 
 /* ---------------- inventory ---------------- */
 export const inventory = sqliteTable('inventory', {
