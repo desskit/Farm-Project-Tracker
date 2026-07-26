@@ -44,24 +44,59 @@ export default async function SpendPage({ searchParams }: { searchParams: { peri
         <div>
           <p className="champ-name">{money(report.total)}</p>
           <p className="subtle" style={{ margin: 0 }}>
-            upkeep spend · {def.label.toLowerCase()}
+            total spend · {def.label.toLowerCase()}
           </p>
         </div>
       </div>
 
       {report.total === 0 ? (
-        <div className="empty">No upkeep costs logged in this period. Costs are recorded when you log a service.</div>
+        <div className="empty">
+          Nothing spent in this period. Spend comes from logged services, project expenses, and priced supplies as
+          they&apos;re used.
+        </div>
       ) : (
         <>
-          <div className="section-title">By asset</div>
-          <div className="card">
-            {report.byAsset.map((a) => (
-              <div className="hist-row" key={a.assetId}>
-                <span>{a.name}</span>
-                <strong>{money(a.total)}</strong>
+          {report.byCategory.length > 1 && (
+            <>
+              <div className="section-title">By category</div>
+              <div className="card">
+                {report.byCategory.map((c) => (
+                  <div className="hist-row" key={c.category}>
+                    <span>{c.label}</span>
+                    <strong>{money(c.total)}</strong>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
+
+          {report.byProject.length > 0 && (
+            <>
+              <div className="section-title">By project</div>
+              <div className="card">
+                {report.byProject.map((p) => (
+                  <div className="hist-row" key={p.projectId}>
+                    <Link href={`/projects/${p.projectId}`} className="chip-link">
+                      {p.name}
+                    </Link>
+                    <strong>{money(p.total)}</strong>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {report.byAsset.length > 0 && <div className="section-title">By asset</div>}
+          {report.byAsset.length > 0 && (
+            <div className="card">
+              {report.byAsset.map((a) => (
+                <div className="hist-row" key={a.assetId}>
+                  <span>{a.name}</span>
+                  <strong>{money(a.total)}</strong>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="section-title">By month</div>
           <div className="card">

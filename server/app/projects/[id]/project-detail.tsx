@@ -483,6 +483,7 @@ function EditProjectForm({
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? '');
   const [targetDate, setTargetDate] = useState(project.targetDate ?? '');
+  const [budget, setBudget] = useState(project.budget == null ? '' : String(project.budget));
   const [saving, setSaving] = useState(false);
 
   async function submit(e: FormEvent) {
@@ -492,7 +493,12 @@ function EditProjectForm({
     const res = await fetch(`/api/projects/${project.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, description, targetDate: targetDate || null }),
+      body: JSON.stringify({
+        name,
+        description,
+        targetDate: targetDate || null,
+        budget: budget.trim() === '' ? null : Number(budget),
+      }),
     });
     setSaving(false);
     if (!res.ok) {
@@ -517,6 +523,17 @@ function EditProjectForm({
       <div className="field">
         <label>Target date (optional)</label>
         <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
+      </div>
+      <div className="field">
+        <label>Budget (optional)</label>
+        <input
+          type="number"
+          step="0.01"
+          min={0}
+          value={budget}
+          onChange={(e) => setBudget(e.target.value)}
+          placeholder="Leave blank for no budget"
+        />
       </div>
       <div className="form-actions">
         <button type="button" className="btn" onClick={onDone}>

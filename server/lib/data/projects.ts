@@ -22,6 +22,7 @@ import {
 import { stopTimersFor } from './timers';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
+import { pushAssigned, pushClaimed, pushSentBack } from '@/lib/notify/events';
 
 export type ProjectRow = typeof projects.$inferSelect;
 /**
@@ -60,7 +61,7 @@ export async function listProjectsWithProgress(): Promise<ProjectWithProgress[]>
   });
 }
 
-export type ProjectInput = { name: string; description?: string; status?: ProjectStatus; targetDate?: string | null };
+export type ProjectInput = { name: string; description?: string; status?: ProjectStatus; targetDate?: string | null; budget?: number | null };
 
 export async function addProject(user: SessionUser, data: ProjectInput): Promise<ProjectRow> {
   if (!canCreateProject(user)) throw new DataError('Only farm managers and admins can create projects.', 403);
@@ -71,6 +72,7 @@ export async function addProject(user: SessionUser, data: ProjectInput): Promise
     description: data.description || '',
     status: data.status || 'idea',
     targetDate: data.targetDate || null,
+    budget: data.budget ?? null,
     createdBy: user.id,
   });
   await logActivity(user.id, `created project "${data.name.trim()}"`);
@@ -82,6 +84,7 @@ export async function updateProject(user: SessionUser, id: string, data: Partial
   if (!p) throw new DataError('No such project.', 404);
   const patch: Partial<typeof projects.$inferInsert> = { description: data.description || '', targetDate: data.targetDate || null };
   if (data.name != null && data.name.trim()) patch.name = data.name.trim();
+  if (data.budget !== undefined) patch.budget = data.budget ?? null;
   if (data.status) patch.status = data.status;
   await db.update(projects).set(patch).where(eq(projects.id, id));
   publishChange('project');
@@ -129,6 +132,7 @@ export async function addTask(user: SessionUser, projectId: string, data: TaskIn
     open: !!data.open,
   });
   await setTaskAssignees(id, data.assigneeIds ?? []);
+  await pushAssigned(user.id, data.assigneeIds ?? [], 'task', data.title.trim(), `/projects/${projectId}`);
   publishChange('task');
   return (await taskById(id))!;
 }
@@ -145,7 +149,13 @@ export async function updateTask(user: SessionUser, taskId: string, data: Partia
   };
   if (data.title != null && data.title.trim()) patch.title = data.title.trim();
   await db.update(projectTasks).set(patch).where(eq(projectTasks.id, taskId));
-  if (Array.isArray(data.assigneeIds)) await setTaskAssignees(taskId, data.assigneeIds);
+  if (Array.isArray(data.assigneeIds)) {
+    // Only ping people who weren't already on it — re-saving a form shouldn't
+    // re-notify everyone.
+    const added = data.assigneeIds.filter((u) => !t.assigneeIds.includes(u));
+    await setTaskAssignees(taskId, data.assigneeIds);
+    await pushAssigned(user.id, added, 'task', patch.title ?? t.title, `/projects/${t.projectId}`);
+  }
   publishChange('task');
   return (await taskById(taskId))!;
 }
@@ -186,6 +196,7 @@ export async function claimTask(user: SessionUser, taskId: string): Promise<void
   if (!t.open || t.done) throw new DataError('This task is not open to claim.', 400);
   if (t.assigneeIds.includes(user.id)) throw new DataError('You are already on this task.', 400);
   await addTaskAssignee(taskId, user.id);
+  await pushClaimed(user.id, user.name, t.assigneeIds, t.title, `/projects/${t.projectId}`);
   publishChange('task');
 }
 
@@ -215,5 +226,6 @@ export async function sendBackTask(user: SessionUser, taskId: string, reason?: s
     .update(projectTasks)
     .set({ done: false, doneBy: null, doneAt: null, donePhotoId: null, sentBack })
     .where(eq(projectTasks.id, taskId));
+  await pushSentBack(user.id, t.doneBy, t.title, `/projects/${t.projectId}`, reason);
   publishChange('task');
 }

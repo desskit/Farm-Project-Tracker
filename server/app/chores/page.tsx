@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
 import { listChores } from '@/lib/data/chores';
 import { listUsers } from '@/lib/data/users';
-import { describeSchedule } from '@/lib/domain/recurrence';
+import { describeSchedule, isActiveSeason } from '@/lib/domain/recurrence';
 import { bucketForDate } from '@/lib/domain/dashboard';
+import { todayISO } from '@/lib/domain/dates';
 import { assigneeLabel } from '@/app/_components/assignee-picker';
 import { AddChoreCard } from './add-chore-card';
 
@@ -12,6 +13,7 @@ export default async function ChoresPage() {
   if (!user) return null; // middleware already guards this route
 
   const [chores, people] = await Promise.all([listChores(), listUsers()]);
+  const today = todayISO();
   const nameById = new Map(people.map((p) => [p.id, p.name]));
   const isManager = user.role === 'manager' || user.role === 'admin';
 
@@ -38,9 +40,12 @@ export default async function ChoresPage() {
                     {assigneeLabel(c.assigneeIds, nameById) ||
                       (c.open ? 'Open — up for grabs' : 'Unassigned')}
                   </p>
-                  {(c.requirePhoto || c.open || c.steps.length > 0 || c.sentBack) && (
+                  {(c.requirePhoto || c.open || c.steps.length > 0 || c.sentBack || c.schedule.season) && (
                     <div className="item-badges">
                       {c.sentBack && <span className="badge overdue">↩ redo</span>}
+                      {c.schedule.season && !isActiveSeason(c.schedule.season, today) && (
+                        <span className="chip">💤 out of season</span>
+                      )}
                       {c.open && !c.assigneeIds.length && <span className="chip">🙌 open</span>}
                       {c.requirePhoto && <span className="chip">📷 proof</span>}
                       {c.steps.length > 0 && <span className="chip">☑ {c.steps.length} steps</span>}

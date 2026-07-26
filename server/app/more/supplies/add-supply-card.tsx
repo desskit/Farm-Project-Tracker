@@ -10,6 +10,7 @@ export function AddSupplyCard() {
   const [unit, setUnit] = useState('count');
   const [qty, setQty] = useState('0');
   const [reorderAt, setReorderAt] = useState('0');
+  const [unitCost, setUnitCost] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -28,7 +29,7 @@ export function AddSupplyCard() {
     const res = await fetch('/api/inventory', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, category, unit, qty: Number(qty), reorderAt: Number(reorderAt) }),
+      body: JSON.stringify({ name, category, unit, qty: Number(qty), reorderAt: Number(reorderAt), unitCost: unitCost.trim() === '' ? null : Number(unitCost) }),
     });
     setLoading(false);
     if (!res.ok) {
@@ -64,6 +65,17 @@ export function AddSupplyCard() {
         <div className="field">
           <label>Reorder at</label>
           <input type="number" step="any" value={reorderAt} onChange={(e) => setReorderAt(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Cost per unit (optional)</label>
+          <input
+            type="number"
+            step="0.01"
+            min={0}
+            value={unitCost}
+            onChange={(e) => setUnitCost(e.target.value)}
+            placeholder="e.g. 12.50"
+          />
         </div>
         {error && <p className="error-text">{error}</p>}
         <div className="form-actions">

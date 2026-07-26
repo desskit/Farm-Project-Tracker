@@ -11,6 +11,7 @@ import type { SessionUser } from '@/lib/auth/session';
 import { logActivity } from './activity';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
+import { pushLowStock } from '@/lib/notify/events';
 
 export type InventoryRow = typeof inventory.$inferSelect;
 export type InventoryLogRow = typeof inventoryLog.$inferSelect;
@@ -31,7 +32,12 @@ export async function lowStockItems(): Promise<InventoryRow[]> {
   return (await listInventory()).filter((i) => i.qty <= i.reorderAt);
 }
 
-export type InventoryInput = { name: string; category?: string; unit?: string; qty?: number; reorderAt?: number; notes?: string };
+export type InventoryInput = { name: string; category?: string; unit?: string; qty?: number; reorderAt?: number; notes?: string; unitCost?: number | null };
+
+/** What the shelf is worth: on-hand quantity priced at unit cost. */
+export function inventoryValue(items: InventoryRow[]): number {
+  return items.reduce((sum, i) => sum + (i.unitCost != null ? i.qty * i.unitCost : 0), 0);
+}
 
 export async function addInventoryItem(user: SessionUser, data: InventoryInput): Promise<InventoryRow> {
   if (!isManager(user)) throw new DataError('Only managers and admins can add inventory.', 403);
@@ -46,6 +52,7 @@ export async function addInventoryItem(user: SessionUser, data: InventoryInput):
     qty: Number(data.qty) || 0,
     reorderAt: Number(data.reorderAt) || 0,
     notes: data.notes || '',
+    unitCost: data.unitCost != null ? Number(data.unitCost) : null,
   });
   publishChange('inventory');
   return (await inventoryById(id))!;
@@ -60,6 +67,7 @@ export async function updateInventoryItem(user: SessionUser, id: string, data: P
   if (data.category != null) patch.category = data.category || 'Supplies';
   if (data.unit != null) patch.unit = data.unit || 'count';
   if (data.reorderAt != null) patch.reorderAt = Number(data.reorderAt) || 0;
+  if (data.unitCost !== undefined) patch.unitCost = data.unitCost != null ? Number(data.unitCost) : null;
   await db.update(inventory).set(patch).where(eq(inventory.id, id));
   publishChange('inventory');
   return (await inventoryById(id))!;
@@ -82,6 +90,12 @@ export async function adjustStock(user: SessionUser, id: string, delta: number, 
   await db.update(inventory).set({ qty }).where(eq(inventory.id, id));
   await db.insert(inventoryLog).values({ id: uid('il'), itemId: id, delta: d, reason: reason || '', userId: user.id, date: todayISO() });
   await logActivity(user.id, `${d > 0 ? 'restocked' : 'used'} ${Math.abs(d)} ${it.unit} of ${it.name}`);
+  // Only on the adjustment that crosses the line, so a shelf that sits low
+  // doesn't nag on every draw.
+  if (qty <= it.reorderAt && it.qty > it.reorderAt) {
+    await pushLowStock(user.id, it.name, qty, it.unit);
+  }
+  publishChange('inventory');
   return qty;
 }
 

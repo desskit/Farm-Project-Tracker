@@ -84,6 +84,11 @@ export function SupplyDetail({
           <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--muted)' }}>{item.unit}</span>{' '}
           {low && <span className="badge overdue">Low</span>}
         </p>
+        {item.unitCost != null && (
+          <p className="subtle" style={{ margin: '0 0 4px' }}>
+            ${item.unitCost.toFixed(2)}/{item.unit} · ${(item.qty * item.unitCost).toFixed(2)} on hand
+          </p>
+        )}
 
         <form onSubmit={onSubmit}>
           <div className="field">
@@ -159,6 +164,7 @@ function EditSupplyForm({ item, onDone }: { item: InventoryRow; onDone: () => vo
   const [category, setCategory] = useState(item.category);
   const [unit, setUnit] = useState(item.unit);
   const [reorderAt, setReorderAt] = useState(String(item.reorderAt));
+  const [unitCost, setUnitCost] = useState(item.unitCost == null ? '' : String(item.unitCost));
   const [notes, setNotes] = useState(item.notes);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -170,7 +176,14 @@ function EditSupplyForm({ item, onDone }: { item: InventoryRow; onDone: () => vo
     const res = await fetch(`/api/inventory/${item.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, category, unit, reorderAt: Number(reorderAt) || 0, notes }),
+      body: JSON.stringify({
+        name,
+        category,
+        unit,
+        reorderAt: Number(reorderAt) || 0,
+        unitCost: unitCost.trim() === '' ? null : Number(unitCost),
+        notes,
+      }),
     });
     setSaving(false);
     if (!res.ok) {
@@ -199,6 +212,20 @@ function EditSupplyForm({ item, onDone }: { item: InventoryRow; onDone: () => vo
       <div className="field">
         <label>Reorder when at or below</label>
         <input type="number" step="any" min={0} value={reorderAt} onChange={(e) => setReorderAt(e.target.value)} />
+      </div>
+      <div className="field">
+        <label>Cost per unit (optional)</label>
+        <input
+          type="number"
+          step="0.01"
+          min={0}
+          value={unitCost}
+          onChange={(e) => setUnitCost(e.target.value)}
+          placeholder="Leave blank if you don't track it"
+        />
+        <p className="subtle" style={{ margin: '6px 0 0' }}>
+          Used for on-hand value, and to count what you use as spending.
+        </p>
       </div>
       <div className="field">
         <label>Notes</label>

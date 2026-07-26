@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
 import { listProjectsWithProgress, STATUS_LABELS } from '@/lib/data/projects';
 import { fmtDate } from '@/lib/domain/dates';
+import { spentByProject } from '@/lib/data/project-expenses';
 import { AddProjectCard } from './add-project-card';
 
 export default async function ProjectsPage() {
@@ -9,6 +10,7 @@ export default async function ProjectsPage() {
   if (!user) return null; // middleware already guards this route
   const canCreate = user.role === 'manager' || user.role === 'admin';
   const projects = await listProjectsWithProgress();
+  const spent = await spentByProject(projects.map((p) => p.id));
 
   return (
     <main className="view">
@@ -40,6 +42,15 @@ export default async function ProjectsPage() {
               </div>
               <p className="subtle" style={{ margin: 0 }}>
                 {p.done} / {p.total} tasks done
+                {p.budget != null && p.budget > 0 && (
+                  <>
+                    {' · '}
+                    <span className={spent[p.id] > p.budget ? 'over-text' : undefined}>
+                      ${spent[p.id].toFixed(0)} of ${p.budget.toFixed(0)}
+                    </span>
+                  </>
+                )}
+                {(p.budget == null || p.budget <= 0) && spent[p.id] > 0 && ` · $${spent[p.id].toFixed(0)} spent`}
               </p>
             </Link>
           );

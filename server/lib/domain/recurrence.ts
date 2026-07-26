@@ -94,6 +94,18 @@ export function describeSchedule(schedule: Schedule): string {
     default:
       base = 'Recurring';
   }
-  if (schedule.season) base += ' (seasonal)';
+  if (schedule.season) base += ` · ${describeSeason(schedule.season)}`;
   return base;
+}
+
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "Apr 1 – Oct 31" from a { start, end } pair of "MM-DD" strings. */
+export function describeSeason(season: { start: string; end: string }): string {
+  const fmt = (md: string) => {
+    const [m, d] = md.split('-');
+    const month = MONTH_ABBR[Number(m) - 1];
+    return month ? `${month} ${Number(d)}` : md;
+  };
+  return `${fmt(season.start)} – ${fmt(season.end)}`;
 }

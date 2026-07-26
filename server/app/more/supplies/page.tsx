@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
-import { listInventory } from '@/lib/data/inventory';
+import { listInventory, inventoryValue } from '@/lib/data/inventory';
 import type { InventoryRow } from '@/lib/data/inventory';
 import { AddSupplyCard } from './add-supply-card';
 
@@ -10,6 +10,7 @@ export default async function SuppliesPage() {
   const isManager = user.role === 'manager' || user.role === 'admin';
   const items = await listInventory();
   const low = items.filter((i) => i.qty <= i.reorderAt);
+  const totalValue = inventoryValue(items);
 
   return (
     <main className="view">
@@ -19,6 +20,19 @@ export default async function SuppliesPage() {
         </Link>
         <h1>Supplies</h1>
       </div>
+
+      {totalValue > 0 && (
+        <div className="tiles">
+          <div className="stat-tile">
+            <span className="stat-val">${totalValue.toFixed(0)}</span>
+            <span className="stat-lbl">on-hand value</span>
+          </div>
+          <div className="stat-tile">
+            <span className="stat-val">{items.length}</span>
+            <span className="stat-lbl">item{items.length === 1 ? '' : 's'}</span>
+          </div>
+        </div>
+      )}
 
       {isManager && <AddSupplyCard />}
 
@@ -51,6 +65,7 @@ function SupplyCard({ item }: { item: InventoryRow }) {
           <p className="item-title">{item.name}</p>
           <p className="item-sub">
             {item.category} · reorder at {item.reorderAt} {item.unit}
+            {item.unitCost != null && ` · $${item.unitCost.toFixed(2)}/${item.unit}`}
           </p>
           {low && (
             <div className="item-badges">

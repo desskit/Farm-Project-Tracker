@@ -8,6 +8,7 @@ const schema = z.object({
   email: z.enum(['off', 'daily', 'weekly']).optional(),
   push: z.boolean().optional(),
   digestHour: z.number().int().min(0).max(23).optional(),
+  eventPush: z.boolean().optional(),
 });
 
 export async function GET() {

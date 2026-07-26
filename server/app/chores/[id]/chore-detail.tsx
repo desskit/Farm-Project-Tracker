@@ -18,6 +18,7 @@ export function ChoreDetail({
   people,
   currentUser,
   scheduleLabel,
+  outOfSeason,
   bucket,
   dueLabel,
   timerRunning,
@@ -30,6 +31,8 @@ export function ChoreDetail({
   people: PersonRow[];
   currentUser: SessionUser;
   scheduleLabel: string;
+  /** Computed server-side so it can't drift with the device's clock. */
+  outOfSeason: boolean;
   bucket: Bucket;
   dueLabel: string;
   timerRunning: boolean;
@@ -183,6 +186,7 @@ export function ChoreDetail({
           ) : (
             <span className="chip">{chore.open ? '🙌 open' : 'Unassigned'}</span>
           )}
+          {outOfSeason && <span className="chip">💤 out of season</span>}
           {chore.requirePhoto && <span className="chip">📷 photo required</span>}
         </div>
         {streak >= 2 && (

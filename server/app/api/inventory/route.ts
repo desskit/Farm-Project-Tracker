@@ -10,6 +10,7 @@ const schema = z.object({
   unit: z.string().optional(),
   qty: z.number().optional(),
   reorderAt: z.number().optional(),
+  unitCost: z.number().nonnegative().nullable().optional(),
   notes: z.string().optional(),
 });
 

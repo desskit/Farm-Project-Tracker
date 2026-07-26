@@ -129,8 +129,20 @@ export function NotificationsView({
         </div>
         <label className="inline-check">
           <input type="checkbox" checked={prefs.push} onChange={(e) => save({ ...prefs, push: e.target.checked })} />
-          Push notifications
+          Daily push summary
         </label>
+        <label className="inline-check" style={{ marginTop: 10 }}>
+          <input
+            type="checkbox"
+            checked={prefs.eventPush}
+            onChange={(e) => save({ ...prefs, eventPush: e.target.checked })}
+          />
+          Push as things happen
+        </label>
+        <p className="subtle" style={{ margin: '6px 0 0' }}>
+          Work assigned to you, work sent back for a redo, someone joining a job you&apos;re on, and supplies running
+          low.
+        </p>
         <p className="subtle" style={{ marginTop: 8 }}>
           {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Changes save automatically.'}
         </p>

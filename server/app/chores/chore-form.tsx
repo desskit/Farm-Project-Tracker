@@ -5,6 +5,41 @@ import type { ChoreRow } from '@/lib/data/chores';
 import { AssigneePicker } from '@/app/_components/assignee-picker';
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Seasons are stored as "MM-DD" so they repeat every year, independent of date. */
+function monthDayValue(md: string): { month: number; day: number } {
+  const [m, d] = md.split('-');
+  return { month: Number(m) || 1, day: Number(d) || 1 };
+}
+function monthDayString(month: number, day: number): string {
+  const maxDay = new Date(2024, month, 0).getDate(); // 2024 is a leap year, so Feb 29 stays valid
+  return `${String(month).padStart(2, '0')}-${String(Math.min(day, maxDay)).padStart(2, '0')}`;
+}
+
+/** A month + day pair for one end of a season window. */
+function MonthDayPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { month, day } = monthDayValue(value);
+  const daysInMonth = new Date(2024, month, 0).getDate();
+  return (
+    <div className="md-picker">
+      <select value={month} onChange={(e) => onChange(monthDayString(Number(e.target.value), day))}>
+        {MONTHS.map((m, i) => (
+          <option key={m} value={i + 1}>
+            {m}
+          </option>
+        ))}
+      </select>
+      <select value={Math.min(day, daysInMonth)} onChange={(e) => onChange(monthDayString(month, Number(e.target.value)))}>
+        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
+          <option key={d} value={d}>
+            {d}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
 type ScheduleType = 'once' | 'daily' | 'everyNDays' | 'weekly' | 'monthly';
 
 function todayLocal(): string {
@@ -14,7 +49,7 @@ function todayLocal(): string {
 
 export type ChorePayload = {
   name: string;
-  schedule: { type: ScheduleType; n?: number; weekdays?: number[]; day?: number };
+  schedule: { type: ScheduleType; n?: number; weekdays?: number[]; day?: number; season?: { start: string; end: string } };
   catchUp: 'mustCatchUp' | 'skipToNext';
   assigneeIds: string[];
   nextDue?: string;
@@ -49,6 +84,9 @@ export function ChoreForm({
   const [open, setOpen] = useState(initial?.open ?? false);
   const [requirePhoto, setRequirePhoto] = useState(initial?.requirePhoto ?? false);
   const [steps, setSteps] = useState((initial?.steps ?? []).join('\n'));
+  const [seasonal, setSeasonal] = useState(!!initSchedule?.season);
+  const [seasonStart, setSeasonStart] = useState(initSchedule?.season?.start ?? '04-01');
+  const [seasonEnd, setSeasonEnd] = useState(initSchedule?.season?.end ?? '10-31');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -63,6 +101,8 @@ export function ChoreForm({
     if (scheduleType === 'everyNDays') schedule.n = n;
     if (scheduleType === 'weekly') schedule.weekdays = weekdays;
     if (scheduleType === 'monthly') schedule.day = day;
+    // A one-time chore has a single fixed date, so a repeating season is meaningless.
+    if (seasonal && scheduleType !== 'once') schedule.season = { start: seasonStart, end: seasonEnd };
 
     const err = await onSubmit({
       name,
@@ -137,6 +177,30 @@ export function ChoreForm({
           <label>Day of month</label>
           <input type="number" min={1} max={31} value={day} onChange={(e) => setDay(Number(e.target.value))} />
         </div>
+      )}
+
+      {scheduleType !== 'once' && (
+        <>
+          <label className="inline-check" style={{ marginBottom: 10 }}>
+            <input type="checkbox" checked={seasonal} onChange={(e) => setSeasonal(e.target.checked)} />
+            Only during part of the year
+          </label>
+          {seasonal && (
+            <div className="field">
+              <label>Active season</label>
+              <div className="season-row">
+                <MonthDayPicker value={seasonStart} onChange={setSeasonStart} />
+                <span className="season-sep">to</span>
+                <MonthDayPicker value={seasonEnd} onChange={setSeasonEnd} />
+              </div>
+              <p className="subtle" style={{ margin: '6px 0 0' }}>
+                {seasonStart <= seasonEnd
+                  ? 'Outside this window the chore skips ahead to next season.'
+                  : 'This window wraps the new year — that works fine.'}
+              </p>
+            </div>
+          )}
+        </>
       )}
 
       {scheduleType !== 'once' && (

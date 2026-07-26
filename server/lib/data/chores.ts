@@ -26,6 +26,7 @@ import {
 import { stopTimersFor } from './timers';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
+import { pushAssigned, pushClaimed, pushSentBack } from '@/lib/notify/events';
 
 /**
  * A chore plus the people on it. `assignedTo` is still on the underlying table
@@ -78,6 +79,7 @@ export async function addChore(user: SessionUser, data: ChoreInput): Promise<Cho
   });
   await setChoreAssignees(id, data.assigneeIds ?? []);
   await logActivity(user.id, `added chore "${data.name.trim()}"`);
+  await pushAssigned(user.id, data.assigneeIds ?? [], 'chore', data.name.trim(), `/chores/${id}`);
   return (await choreById(id))!;
 }
 
@@ -96,7 +98,13 @@ export async function updateChore(user: SessionUser, id: string, data: Partial<C
   if (Array.isArray(data.steps)) patch.steps = data.steps.filter(Boolean);
 
   await db.update(chores).set(patch).where(eq(chores.id, id));
-  if (Array.isArray(data.assigneeIds)) await setChoreAssignees(id, data.assigneeIds);
+  if (Array.isArray(data.assigneeIds)) {
+    // Only ping people who weren't already on it — re-saving a form shouldn't
+    // re-notify everyone.
+    const added = data.assigneeIds.filter((u) => !chore.assigneeIds.includes(u));
+    await setChoreAssignees(id, data.assigneeIds);
+    await pushAssigned(user.id, added, 'chore', patch.name ?? chore.name, `/chores/${id}`);
+  }
   publishChange('chore');
   return (await choreById(id))!;
 }
@@ -172,6 +180,7 @@ export async function claimChore(user: SessionUser, id: string): Promise<void> {
   if (!chore.open) throw new DataError('This chore is not open to claim.', 400);
   if (chore.assigneeIds.includes(user.id)) throw new DataError('You are already on this chore.', 400);
   await addChoreAssignee(id, user.id);
+  await pushClaimed(user.id, user.name, chore.assigneeIds, chore.name, `/chores/${id}`);
   publishChange('chore');
 }
 
@@ -208,5 +217,6 @@ export async function sendBackChoreCompletion(user: SessionUser, completionId: s
     if (chore.nextDue > today) patch.nextDue = today;
     await db.update(chores).set(patch).where(eq(chores.id, chore.id));
     await logActivity(user.id, `sent back chore "${chore.name}"`);
+    await pushSentBack(user.id, comp.completedBy, chore.name, `/chores/${chore.id}`, reason);
   }
 }

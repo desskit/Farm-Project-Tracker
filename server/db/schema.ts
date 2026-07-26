@@ -194,6 +194,24 @@ export const projects = sqliteTable('projects', {
   targetDate: text('target_date'),
   createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: integer('created_at').notNull().default(now),
+  /** Planned spend for the project. Null = no budget set, so nothing to track against. */
+  budget: real('budget'),
+});
+
+/**
+ * Money spent on a project — materials, hired help, permits. Kept separate from
+ * maintenance logs (which are per-asset servicing costs) because a project's
+ * spend isn't tied to a piece of equipment.
+ */
+export const projectExpenses = sqliteTable('project_expenses', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  label: text('label').notNull(),
+  amount: real('amount').notNull(),
+  date: text('date').notNull(),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  photoId: text('photo_id').references(() => attachments.id, { onDelete: 'set null' }),
+  ts: integer('ts').notNull().default(now),
 });
 
 export const projectTasks = sqliteTable('project_tasks', {
@@ -233,6 +251,8 @@ export const inventory = sqliteTable('inventory', {
   qty: real('qty').notNull().default(0),
   reorderAt: real('reorder_at').notNull().default(0),
   notes: text('notes').notNull().default(''),
+  /** What one `unit` costs, for on-hand value and consumption spend. Null = unpriced. */
+  unitCost: real('unit_cost'),
 });
 
 export const inventoryLog = sqliteTable('inventory_log', {
@@ -295,6 +315,12 @@ export const notificationPrefs = sqliteTable('notification_prefs', {
   email: text('email').$type<'off' | 'daily' | 'weekly'>().notNull().default('daily'),
   push: integer('push', { mode: 'boolean' }).notNull().default(true),
   digestHour: integer('digest_hour').notNull().default(6),
+  /**
+   * Push as things happen (assigned work, sent-back work, low stock) rather than
+   * only in the daily digest. Separate from `push` so someone can keep the
+   * once-a-day summary without their phone buzzing all afternoon.
+   */
+  eventPush: integer('event_push', { mode: 'boolean' }).notNull().default(true),
 });
 
 export const pushSubscriptions = sqliteTable('push_subscriptions', {

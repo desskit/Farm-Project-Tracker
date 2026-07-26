@@ -3,9 +3,9 @@ import { getSessionUser } from '@/lib/auth/session';
 import { choreById, choreCompletionsFor, choreStreak } from '@/lib/data/chores';
 import { activeTimerFor, totalSeconds } from '@/lib/data/timers';
 import { listUsers } from '@/lib/data/users';
-import { describeSchedule } from '@/lib/domain/recurrence';
+import { describeSchedule, isActiveSeason } from '@/lib/domain/recurrence';
 import { bucketForDate } from '@/lib/domain/dashboard';
-import { relativeLabel } from '@/lib/domain/dates';
+import { relativeLabel, todayISO } from '@/lib/domain/dates';
 import { ChoreDetail } from './chore-detail';
 
 export default async function ChoreDetailPage({ params }: { params: { id: string } }) {
@@ -32,6 +32,7 @@ export default async function ChoreDetailPage({ params }: { params: { id: string
         people={people}
         currentUser={user}
         scheduleLabel={describeSchedule(chore.schedule)}
+        outOfSeason={!!chore.schedule.season && !isActiveSeason(chore.schedule.season, todayISO())}
         bucket={bucketForDate(chore.nextDue)}
         dueLabel={relativeLabel(chore.nextDue)}
         timerRunning={!!timer}

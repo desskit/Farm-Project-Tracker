@@ -8,6 +8,7 @@ export const createProjectSchema = z.object({
   description: z.string().optional(),
   status: status.optional(),
   targetDate: z.string().nullable().optional(),
+  budget: z.number().nonnegative().nullable().optional(),
 });
 
 export const updateProjectSchema = z.object({
@@ -15,6 +16,14 @@ export const updateProjectSchema = z.object({
   description: z.string().optional(),
   status: status.optional(),
   targetDate: z.string().nullable().optional(),
+  budget: z.number().nonnegative().nullable().optional(),
+});
+
+export const createExpenseSchema = z.object({
+  label: z.string().trim().min(1),
+  amount: z.number().positive(),
+  date: z.string().optional(),
+  photoId: z.string().nullable().optional(),
 });
 
 const taskFields = z.object({

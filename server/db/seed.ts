@@ -90,8 +90,8 @@ async function main() {
   ]);
 
   await db.insert(s.projects).values([
-    { id: 'p_shed', name: 'Build run-in shed for horses', description: 'A 12x24 three-sided run-in shed on the south pasture for weather shelter.', status: 'in_progress', targetDate: addDays(T, 45), createdBy: uMorgan },
-    { id: 'p_fence', name: 'Fence the north pasture', description: 'Run new woven-wire fence around the north 6 acres, with a gate by the lane.', status: 'planned', targetDate: addDays(T, 90), createdBy: uMorgan },
+    { id: 'p_shed', name: 'Build run-in shed for horses', description: 'A 12x24 three-sided run-in shed on the south pasture for weather shelter.', status: 'in_progress', targetDate: addDays(T, 45), createdBy: uMorgan, budget: 3200 },
+    { id: 'p_fence', name: 'Fence the north pasture', description: 'Run new woven-wire fence around the north 6 acres, with a gate by the lane.', status: 'planned', targetDate: addDays(T, 90), createdBy: uMorgan, budget: 1800 },
     { id: 'p_irrig', name: 'Overhaul greenhouse irrigation', description: 'Replace hand-watering with a timed drip system.', status: 'idea', createdBy: uMorgan },
   ]);
   await db.insert(s.projectTasks).values([
@@ -116,10 +116,23 @@ async function main() {
   ]);
 
   await db.insert(s.inventory).values([
-    { id: 'inv_feed', name: 'Layer feed', category: 'Feed', unit: 'bags', qty: 6, reorderAt: 4, notes: '50 lb bags' },
-    { id: 'inv_shavings', name: 'Pine shavings', category: 'Bedding', unit: 'bales', qty: 3, reorderAt: 5 },
-    { id: 'inv_diesel', name: 'Off-road diesel', category: 'Fuel', unit: 'gal', qty: 22, reorderAt: 20, notes: 'tractor + generator' },
+    { id: 'inv_feed', name: 'Layer feed', category: 'Feed', unit: 'bags', qty: 6, reorderAt: 4, notes: '50 lb bags', unitCost: 18.5 },
+    { id: 'inv_shavings', name: 'Pine shavings', category: 'Bedding', unit: 'bales', qty: 3, reorderAt: 5, unitCost: 7.25 },
+    { id: 'inv_diesel', name: 'Off-road diesel', category: 'Fuel', unit: 'gal', qty: 22, reorderAt: 20, notes: 'tractor + generator', unitCost: 3.85 },
+    // Left unpriced on purpose, so the UI's "no unit cost" path shows up in demo data.
     { id: 'inv_filter', name: 'Tractor oil filters', category: 'Parts', unit: 'count', qty: 1, reorderAt: 2, notes: 'Kubota HH164-32430' },
+  ]);
+
+  await db.insert(s.inventoryLog).values([
+    { id: uid('il'), itemId: 'inv_feed', userId: uSam, delta: -2, reason: 'fed the flock', date: addDays(T, -6) },
+    { id: uid('il'), itemId: 'inv_diesel', userId: uMorgan, delta: -8, reason: 'tractor fill', date: addDays(T, -3) },
+    { id: uid('il'), itemId: 'inv_shavings', userId: uJamie, delta: -2, reason: 'stall bedding', date: addDays(T, -1) },
+  ]);
+
+  await db.insert(s.projectExpenses).values([
+    { id: uid('px'), projectId: 'p_shed', label: 'Pressure-treated posts', amount: 640.0, date: addDays(T, -12), userId: uMorgan },
+    { id: uid('px'), projectId: 'p_shed', label: 'Concrete + rebar', amount: 285.5, date: addDays(T, -6), userId: uJamie },
+    { id: uid('px'), projectId: 'p_fence', label: 'Woven wire (2 rolls)', amount: 410.0, date: addDays(T, -2), userId: uMorgan },
   ]);
 
   await db.insert(s.rentAssignments).values([
