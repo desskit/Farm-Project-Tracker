@@ -636,3 +636,30 @@ a.tap-link:hover .item-title { color: var(--brand); }
 /* Inline notes panel inside a project task row */
 .task-notes { margin-top: 10px; padding-top: 4px; border-top: 1px dashed var(--border); }
 .task-notes .section-title { margin-top: 6px; }
+
+/* Offline outbox — work saved on the phone that hasn't reached the server yet. */
+.outbox-bar {
+  position: sticky; top: 0; z-index: 21;
+  margin: 10px 16px 0;
+  background: var(--today-bg); border: 1px solid var(--today);
+  border-radius: 12px; padding: 9px 12px;
+}
+.outbox-bar.is-offline { background: var(--surface-2); border-color: var(--border); }
+.outbox-main { display: flex; align-items: center; gap: 9px; }
+.outbox-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--today); flex: none;
+}
+.outbox-bar.is-offline .outbox-dot { background: var(--muted); }
+.outbox-summary {
+  flex: 1; min-width: 0; text-align: left;
+  background: none; border: 0; padding: 0;
+  font: inherit; font-weight: 600; color: var(--text); cursor: pointer;
+}
+.outbox-summary:disabled { cursor: default; }
+.outbox-detail { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+.outbox-row {
+  display: flex; justify-content: space-between; gap: 10px;
+  padding: 4px 0; font-size: 13px;
+}
+.outbox-row.problem { color: var(--overdue); }

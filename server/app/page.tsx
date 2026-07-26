@@ -78,7 +78,7 @@ function BucketSection({ title, items }: { title: string; items: DashboardItem[]
               <p className="item-sub">{it.subtitle}</p>
             </div>
             {it.kind === 'chore' ? (
-              <CompleteChoreButton choreId={it.id} gated={it.gated} />
+              <CompleteChoreButton choreId={it.id} choreName={it.title} gated={it.gated} />
             ) : (
               <Link href={it.href} className="btn small">
                 {it.actionLabel}

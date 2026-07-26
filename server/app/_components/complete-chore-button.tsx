@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { submitQueued } from '@/lib/client/outbox';
 
 /**
  * Quick-complete used on the dashboard and chores list. When the chore
@@ -9,9 +10,18 @@ import Link from 'next/link';
  * detail page instead — mirroring the prototype's complete-chore handler
  * (js/app.js), which opens the full form rather than completing directly.
  */
-export function CompleteChoreButton({ choreId, gated }: { choreId: string; gated: boolean }) {
+export function CompleteChoreButton({
+  choreId,
+  choreName,
+  gated,
+}: {
+  choreId: string;
+  choreName: string;
+  gated: boolean;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [queued, setQueued] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (gated) {
@@ -25,25 +35,31 @@ export function CompleteChoreButton({ choreId, gated }: { choreId: string; gated
   async function onClick() {
     setLoading(true);
     setError(null);
-    const res = await fetch(`/api/chores/${choreId}/complete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+    setQueued(false);
+    const r = await submitQueued({
+      url: `/api/chores/${choreId}/complete`,
+      body: {},
+      label: `Completed ${choreName}`,
     });
     setLoading(false);
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error || 'Something went wrong.');
+    if (r.ok) {
+      router.refresh();
       return;
     }
-    router.refresh();
+    if (r.queued) {
+      // Saved on the device; the outbox bar tracks it from here.
+      setQueued(true);
+      return;
+    }
+    setError(r.error);
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-      <button onClick={onClick} disabled={loading} className="btn small primary">
-        {loading ? '…' : 'Done'}
+      <button onClick={onClick} disabled={loading || queued} className={`btn small ${queued ? 'done' : 'primary'}`}>
+        {loading ? '…' : queued ? 'Saved ✓' : 'Done'}
       </button>
+      {queued && <span className="subtle" style={{ fontSize: 11 }}>syncs when back online</span>}
       {error && <span className="error-text" style={{ fontSize: 11 }}>{error}</span>}
     </div>
   );

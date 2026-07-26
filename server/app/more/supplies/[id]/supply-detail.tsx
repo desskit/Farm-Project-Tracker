@@ -1,6 +1,7 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { submitQueued } from '@/lib/client/outbox';
 import Link from 'next/link';
 import type { InventoryRow, InventoryLogRow } from '@/lib/data/inventory';
 import type { PersonRow } from '@/lib/data/users';
@@ -31,20 +32,21 @@ export function SupplyDetail({
   async function adjust(amount: number, note: string) {
     setBusy(true);
     setError(null);
-    const res = await fetch(`/api/inventory/${item.id}/adjust`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ delta: amount, reason: note }),
+    // Stock is drawn at the barn. The server keys this write, so a replayed
+    // queue entry can't take the amount off twice.
+    const r = await submitQueued({
+      url: `/api/inventory/${item.id}/adjust`,
+      body: { delta: amount, reason: note },
+      label: `${amount > 0 ? 'Restocked' : 'Used'} ${Math.abs(amount)} ${item.unit} of ${item.name}`,
     });
     setBusy(false);
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error || 'Something went wrong.');
+    if (!r.ok && !r.queued) {
+      setError(r.error);
       return;
     }
     setDelta('');
     setReason('');
-    router.refresh();
+    if (r.ok) router.refresh();
   }
 
   async function onSubmit(e: FormEvent) {

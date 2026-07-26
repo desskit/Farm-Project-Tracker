@@ -7,7 +7,8 @@ import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
 import type { Bucket } from '@/lib/domain/dashboard';
 import { fmtDate } from '@/lib/domain/dates';
-import { uploadPhoto } from '@/lib/client/photo';
+import { preparePhoto } from '@/lib/client/photo';
+import { submitQueued } from '@/lib/client/outbox';
 import { TimerControl } from '@/app/_components/timer-control';
 import { ChoreForm, type ChorePayload } from '../chore-form';
 
@@ -47,6 +48,7 @@ export function ChoreDetail({
   const [photo, setPhoto] = useState<File | null>(null);
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [queuedMsg, setQueuedMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const stepsRemaining = chore.steps.length > 0 && checked.size < chore.steps.length;
@@ -78,22 +80,34 @@ export function ChoreDetail({
     }
     setBusy('complete');
     setError(null);
-    let photoId: string | null = null;
+    setQueuedMsg(null);
+    // Resize (but don't upload) up front so the photo can ride along in the
+    // outbox if this device is out of signal.
+    let prepared;
     try {
-      if (photo) photoId = await uploadPhoto(photo);
+      if (photo) prepared = await preparePhoto(photo);
     } catch (err) {
       setBusy(null);
-      setError(err instanceof Error ? err.message : 'Photo upload failed.');
+      setError(err instanceof Error ? err.message : 'Could not read that photo.');
       return;
     }
-    const ok = await request(`/api/chores/${chore.id}/complete`, 'POST', { notes, photoId });
+    const r = await submitQueued({
+      url: `/api/chores/${chore.id}/complete`,
+      body: { notes },
+      label: `Completed ${chore.name}`,
+      photo: prepared,
+      photoField: 'photoId',
+    });
     setBusy(null);
-    if (ok) {
-      setNotes('');
-      setPhoto(null);
-      setChecked(new Set());
-      router.refresh();
+    if (!r.ok && !r.queued) {
+      setError(r.error);
+      return;
     }
+    setNotes('');
+    setPhoto(null);
+    setChecked(new Set());
+    if (r.ok) router.refresh();
+    else setQueuedMsg('Saved on this device — it will sync when you\u2019re back online.');
   }
 
   async function act(key: string, url: string, method: string, body?: unknown, then?: () => void) {
@@ -268,6 +282,7 @@ export function ChoreDetail({
           </button>
         </form>
         {error && <p className="error-text">{error}</p>}
+        {queuedMsg && <p style={{ color: 'var(--brand)', fontWeight: 600 }}>{queuedMsg}</p>}
           </div>
         </>
       )}

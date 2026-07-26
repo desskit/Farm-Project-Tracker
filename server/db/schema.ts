@@ -70,6 +70,25 @@ export const authThrottle = sqliteTable('auth_throttle', {
   lockedUntil: integer('locked_until'),
 });
 
+/**
+ * Remembers the outcome of a write so replaying it is a no-op.
+ *
+ * A phone that saved work offline replays it when signal returns, and the same
+ * request can legitimately arrive twice (queue flushed from two tabs, or a
+ * response lost in transit and the user tapped again). Each queued write
+ * carries a client-generated key; the first one through claims the row with
+ * `status = 0`, and once it finishes the real status and body are stored and
+ * returned verbatim to any repeat. Rows are pruned by the nightly cleanup job.
+ */
+export const idempotencyKeys = sqliteTable('idempotency_keys', {
+  key: text('key').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // 0 while the original request is still running; the HTTP status once done.
+  status: integer('status').notNull().default(0),
+  response: text('response').notNull().default(''),
+  createdAt: integer('created_at').notNull().default(now),
+});
+
 /* ---------------- attachments (files on disk) ---------------- */
 export const attachments = sqliteTable('attachments', {
   id: text('id').primaryKey(),

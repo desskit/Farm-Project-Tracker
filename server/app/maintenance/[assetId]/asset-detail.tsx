@@ -6,7 +6,8 @@ import type { AssetRow, ReadingRow, MaintLogRow, MaintWithStatus } from '@/lib/d
 import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
 import { fmtDate } from '@/lib/domain/dates';
-import { uploadPhoto } from '@/lib/client/photo';
+import { preparePhoto } from '@/lib/client/photo';
+import { submitQueued } from '@/lib/client/outbox';
 import { TimerControl } from '@/app/_components/timer-control';
 import type { TimerState } from '@/lib/data/timers';
 
@@ -265,19 +266,19 @@ function AddReadingForm({ assetId, unit, latest, onError }: { assetId: string; u
     e.preventDefault();
     setLoading(true);
     onError(null);
-    const res = await fetch(`/api/assets/${assetId}/readings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reading: Number(reading) }),
+    // Meter readings are taken at the machine, often out of signal.
+    const r = await submitQueued({
+      url: `/api/assets/${assetId}/readings`,
+      body: { reading: Number(reading) },
+      label: `Reading ${reading} ${unit}`,
     });
     setLoading(false);
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      onError(data.error || 'Something went wrong.');
+    if (!r.ok && !r.queued) {
+      onError(r.error);
       return;
     }
     setReading('');
-    router.refresh();
+    if (r.ok) router.refresh();
   }
 
   return (
@@ -323,22 +324,25 @@ function LogServiceForm({ item, meterUnit, onError }: { item: ItemWithLogs; mete
     const body: Record<string, unknown> = { notes };
     if (reading !== '') body.reading = Number(reading);
     if (cost !== '') body.cost = Number(cost);
+    let prepared;
     try {
-      if (photo) body.photoId = await uploadPhoto(photo);
+      if (photo) prepared = await preparePhoto(photo);
     } catch (err) {
       setLoading(false);
-      onError(err instanceof Error ? err.message : 'Photo upload failed.');
+      onError(err instanceof Error ? err.message : 'Could not read that photo.');
       return;
     }
-    const res = await fetch(`/api/maintenance/${item.id}/log`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+    // Servicing happens in the shop or the field; queue it if there's no signal.
+    const r = await submitQueued({
+      url: `/api/maintenance/${item.id}/log`,
+      body,
+      label: `Serviced ${item.name}`,
+      photo: prepared,
+      photoField: 'photoId',
     });
     setLoading(false);
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      onError(data.error || 'Something went wrong.');
+    if (!r.ok && !r.queued) {
+      onError(r.error);
       return;
     }
     setOpen(false);
@@ -346,7 +350,7 @@ function LogServiceForm({ item, meterUnit, onError }: { item: ItemWithLogs; mete
     setCost('');
     setNotes('');
     setPhoto(null);
-    router.refresh();
+    if (r.ok) router.refresh();
   }
 
   return (

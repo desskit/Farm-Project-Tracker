@@ -3,14 +3,18 @@ import { requireUser } from '@/lib/auth/session';
 import { completeChore } from '@/lib/data/chores';
 import { completeChoreSchema } from '@/lib/api/chore-schemas';
 import { errorResponse } from '@/lib/api/errors';
+import { idempotencyKey, withIdempotency } from '@/lib/api/idempotency';
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireUser();
     const parsed = completeChoreSchema.safeParse(await req.json().catch(() => ({})));
     if (!parsed.success) return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
-    await completeChore(user, params.id, parsed.data.notes, parsed.data.photoId ?? null);
-    return NextResponse.json({ ok: true });
+    // Replay-safe: this may arrive twice from a phone that queued it offline.
+    return await withIdempotency(user.id, idempotencyKey(req), async () => {
+      await completeChore(user, params.id, parsed.data.notes, parsed.data.photoId ?? null);
+      return { status: 200, body: { ok: true } };
+    });
   } catch (e) {
     return errorResponse(e);
   }

@@ -6,6 +6,7 @@ import { TopBar } from './_components/top-bar';
 import { BottomNav } from './_components/bottom-nav';
 import { RealtimeSync } from './_components/realtime-sync';
 import { TimersStrip } from './_components/timers-strip';
+import { OutboxBar } from './_components/outbox-bar';
 import { PwaRegister } from './_components/pwa-register';
 import { activeTimersForUser } from '@/lib/data/timers';
 
@@ -34,6 +35,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {user && <TopBar user={user} />}
         {user && <RealtimeSync />}
         {user && timers.length > 0 && <TimersStrip timers={timers} />}
+        {user && <OutboxBar />}
         {children}
         {user && <BottomNav overdue={counts?.overdue ?? 0} />}
       </body>

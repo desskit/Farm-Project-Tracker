@@ -6,7 +6,7 @@
 import 'server-only';
 import { and, desc, isNotNull, isNull, lt, or } from 'drizzle-orm';
 import { db } from '@/db';
-import { sessions, invites, authThrottle, activity } from '@/db/schema';
+import { sessions, invites, authThrottle, activity, idempotencyKeys } from '@/db/schema';
 
 /** Rows of history to keep; the feed only ever shows the most recent few. */
 const ACTIVITY_KEEP = 5000;
@@ -23,6 +23,10 @@ export async function cleanupAuthTables(): Promise<void> {
   await db
     .delete(authThrottle)
     .where(and(lt(authThrottle.firstFailedAt, dayAgo), or(isNull(authThrottle.lockedUntil), lt(authThrottle.lockedUntil, now))));
+
+  // Replay keys only need to outlive a phone's offline queue. A week is far
+  // longer than anything realistically sitting unsent, and bounds the table.
+  await db.delete(idempotencyKeys).where(lt(idempotencyKeys.createdAt, now - 7 * 24 * 60 * 60 * 1000));
 
   // Trim the activity feed so it can't grow without bound over years of use.
   const cutoff = await db

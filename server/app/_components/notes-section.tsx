@@ -2,7 +2,8 @@
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { fmtDate } from '@/lib/domain/dates';
-import { uploadPhoto } from '@/lib/client/photo';
+import { preparePhoto } from '@/lib/client/photo';
+import { submitQueued } from '@/lib/client/outbox';
 import type { NoteRow, NoteParentType } from '@/lib/data/notes';
 import type { SessionUser } from '@/lib/auth/session';
 
@@ -35,21 +36,22 @@ export function NotesSection({
     setBusy(true);
     setError(null);
     try {
-      let photoId: string | null = null;
-      if (photo) photoId = await uploadPhoto(photo);
-      const res = await fetch('/api/notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ parentType, parentId, body, photoId }),
+      // An observation logged at the far fence still needs to survive.
+      const prepared = photo ? await preparePhoto(photo) : undefined;
+      const r = await submitQueued({
+        url: '/api/notes',
+        body: { parentType, parentId, body },
+        label: `Note: ${body.trim().slice(0, 40) || 'photo'}`,
+        photo: prepared,
+        photoField: 'photoId',
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error || 'Could not add note.');
+      if (!r.ok && !r.queued) {
+        setError(r.error);
         return;
       }
       setBody('');
       setPhoto(null);
-      router.refresh();
+      if (r.ok) router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not add note.');
     } finally {

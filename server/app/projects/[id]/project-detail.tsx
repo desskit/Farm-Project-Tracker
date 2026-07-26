@@ -7,7 +7,8 @@ import { STATUS_LABELS, type ProjectStatus } from '@/lib/domain/project-status';
 import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
 import { fmtDate } from '@/lib/domain/dates';
-import { uploadPhoto } from '@/lib/client/photo';
+import { uploadPhoto, preparePhoto } from '@/lib/client/photo';
+import { submitQueued } from '@/lib/client/outbox';
 import { TimerControl } from '@/app/_components/timer-control';
 import { NotesSection } from '@/app/_components/notes-section';
 import { AssigneePicker } from '@/app/_components/assignee-picker';
@@ -74,7 +75,26 @@ export function ProjectDetail({
       photoInputRef.current?.click();
       return;
     }
-    await act('toggle-' + t.id, `/api/tasks/${t.id}/toggle`, 'POST');
+    await toggleThroughOutbox(t, undefined);
+  }
+
+  /**
+   * Ticking a task off is field work, so it goes through the outbox. The
+   * server keys the write so a replay can't flip the task back.
+   */
+  async function toggleThroughOutbox(t: TaskRow, prepared?: Awaited<ReturnType<typeof preparePhoto>>) {
+    setBusy('toggle-' + t.id);
+    setError(null);
+    const r = await submitQueued({
+      url: `/api/tasks/${t.id}/toggle`,
+      body: {},
+      label: `${t.done ? 'Reopened' : 'Completed'} ${t.title}`,
+      photo: prepared,
+      photoField: 'photoId',
+    });
+    setBusy(null);
+    if (r.ok) router.refresh();
+    else if (!r.queued) setError(r.error);
   }
 
   async function onPhotoPicked(file: File | null) {
@@ -82,16 +102,15 @@ export function ProjectDetail({
     pendingTaskRef.current = null;
     if (photoInputRef.current) photoInputRef.current.value = '';
     if (!file || !taskId) return;
-    setBusy('toggle-' + taskId);
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
     setError(null);
     try {
-      const photoId = await uploadPhoto(file);
-      const ok = await request(`/api/tasks/${taskId}/toggle`, 'POST', { photoId });
-      if (ok) router.refresh();
+      // Resize now, upload during the send — so a proof photo taken out of
+      // signal is queued with the toggle rather than lost.
+      await toggleThroughOutbox(task, await preparePhoto(file));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Photo upload failed.');
-    } finally {
-      setBusy(null);
+      setError(err instanceof Error ? err.message : 'Could not read that photo.');
     }
   }
 

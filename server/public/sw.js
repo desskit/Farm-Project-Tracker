@@ -1,6 +1,6 @@
 /* Farm Project Tracker — service worker: web push, notification clicks, and
    offline app-shell caching. */
-const CACHE = 'farm-cache-v1';
+const CACHE = 'farm-cache-v2';
 const SHELL = ['/icon.svg', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
@@ -19,7 +19,11 @@ self.addEventListener('activate', (event) => {
 
 // Offline strategy:
 //  - Navigations: network-first, falling back to the cached page or a minimal
-//    offline shell. Mutations always need connectivity.
+//    offline shell.
+//  - Writes are never intercepted here. The app queues them itself (see
+//    lib/client/outbox.ts) because it can attach an idempotency key and show
+//    the user what's pending — a Background Sync replay from the worker could
+//    do neither.
 //  - Static build assets: stale-while-revalidate for instant repeat loads.
 //  - Everything else (API, SSE, uploads): straight to the network, uncached.
 self.addEventListener('fetch', (event) => {
@@ -44,7 +48,9 @@ self.addEventListener('fetch', (event) => {
             '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
               '<body style="font-family:system-ui;padding:40px;text-align:center;color:#333">' +
               '<h1 style="font-size:20px">🌾 Offline</h1>' +
-              '<p>You&rsquo;re offline and this page isn&rsquo;t cached yet. Reconnect to load it.</p></body>',
+              '<p>You&rsquo;re offline and this page hasn&rsquo;t been opened on this device yet.</p>' +
+              '<p style="color:#666;font-size:14px">Pages you&rsquo;ve already visited still work, and anything you ' +
+              'save there syncs once you&rsquo;re back in range.</p></body>',
             { headers: { 'Content-Type': 'text/html; charset=utf-8' } },
           );
         }),
