@@ -29,6 +29,8 @@ export function NotificationsView({
   const [pushBusy, setPushBusy] = useState(false);
   const [testMsg, setTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [testBusy, setTestBusy] = useState(false);
+  const [pushTestMsg, setPushTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [pushTestBusy, setPushTestBusy] = useState(false);
 
   async function sendTestEmail() {
     setTestBusy(true);
@@ -43,6 +45,25 @@ export function NotificationsView({
       );
     } finally {
       setTestBusy(false);
+    }
+  }
+
+  async function sendTestPush() {
+    setPushTestBusy(true);
+    setPushTestMsg(null);
+    try {
+      const res = await fetch('/api/admin/test-push', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPushTestMsg({ ok: false, text: data.error || 'Could not send the test push.' });
+        return;
+      }
+      const devices = `${data.delivered} device${data.delivered === 1 ? '' : 's'}`;
+      // A partial success still matters — say which part worked.
+      const extra = data.failed ? ` ${data.failed} other device(s) failed: ${data.error}` : '';
+      setPushTestMsg({ ok: true, text: `Sent to ${devices}. Check your notifications.${extra}` });
+    } finally {
+      setPushTestBusy(false);
     }
   }
 
@@ -179,6 +200,27 @@ export function NotificationsView({
           {pushBusy ? 'Enabling…' : '🔔 Enable push on this device'}
         </button>
         {pushMsg && <p className="subtle" style={{ marginTop: 8 }}>{pushMsg}</p>}
+
+        {isAdmin && (
+          <>
+            <p className="subtle" style={{ marginTop: 14 }}>
+              {pushReady
+                ? 'Send yourself a test notification to confirm the server’s VAPID setup.'
+                : 'VAPID keys aren’t configured on this server, so no push will send.'}
+            </p>
+            <button className="btn block" disabled={!pushReady || pushTestBusy} onClick={sendTestPush}>
+              {pushTestBusy ? 'Sending…' : '🔔 Send test push'}
+            </button>
+            {pushTestMsg && (
+              <p
+                className={pushTestMsg.ok ? undefined : 'error-text'}
+                style={pushTestMsg.ok ? { color: 'var(--brand)', fontWeight: 600 } : undefined}
+              >
+                {pushTestMsg.text}
+              </p>
+            )}
+          </>
+        )}
       </div>
     </>
   );

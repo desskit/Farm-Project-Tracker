@@ -38,21 +38,75 @@ export async function saveSubscription(userId: string, sub: { endpoint: string; 
   }
 }
 
-export async function sendPushToUser(userId: string, payload: { title: string; body: string; url?: string }): Promise<void> {
-  if (!ensureConfigured()) return;
+export type PushResult = {
+  /** Devices the push service accepted. */
+  delivered: number;
+  /** Dead subscriptions removed during this send (browser returned 410/404). */
+  pruned: number;
+  /** Live subscriptions that failed for some other reason. */
+  failed: number;
+  /** First real failure, for surfacing to an admin running a test. */
+  error: string | null;
+};
+
+/** Turns a web-push rejection into something an admin can act on. */
+function describePushError(e: unknown): string {
+  const err = e as { statusCode?: number; body?: string; message?: string };
+  const status = err?.statusCode;
+  const detail = (err?.body || err?.message || 'unknown error').toString().trim().slice(0, 200);
+  if (status === 401 || status === 403) {
+    return `${status} from the push service — the VAPID keys don't match the ones this device subscribed with. Re-enable push on the device after changing keys. (${detail})`;
+  }
+  if (status === 413) return `413 — payload too large. (${detail})`;
+  if (status === 429) return `429 — the push service is rate-limiting this server. (${detail})`;
+  return status ? `${status} — ${detail}` : detail;
+}
+
+/**
+ * Sends to every device a user has registered, reporting what happened.
+ * Dead subscriptions are pruned as a side effect, which is why a "no devices
+ * left" outcome is meaningful rather than an error.
+ */
+export async function sendPushToUserVerbose(
+  userId: string,
+  payload: { title: string; body: string; url?: string },
+): Promise<PushResult> {
+  const result: PushResult = { delivered: 0, pruned: 0, failed: 0, error: null };
+  if (!ensureConfigured()) {
+    result.error = 'VAPID keys are not configured on this server.';
+    return result;
+  }
   const subs = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
-  await Promise.all(
-    subs.map(async (s) => {
-      try {
-        await webpush.sendNotification(
-          { endpoint: s.endpoint, keys: s.keys as { p256dh: string; auth: string } },
-          JSON.stringify(payload),
-        );
-      } catch (e: any) {
-        if (e?.statusCode === 410 || e?.statusCode === 404) {
-          await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, s.id));
-        }
+  for (const s of subs) {
+    try {
+      await webpush.sendNotification(
+        { endpoint: s.endpoint, keys: s.keys as { p256dh: string; auth: string } },
+        JSON.stringify(payload),
+      );
+      result.delivered++;
+    } catch (e) {
+      const status = (e as { statusCode?: number })?.statusCode;
+      if (status === 410 || status === 404) {
+        // The browser dropped this subscription — clean it up rather than
+        // reporting it as a failure the admin needs to fix.
+        await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, s.id));
+        result.pruned++;
+      } else {
+        result.failed++;
+        if (!result.error) result.error = describePushError(e);
       }
-    }),
-  );
+    }
+  }
+  return result;
+}
+
+/** Fire-and-forget send used by the digest and event notifications. */
+export async function sendPushToUser(userId: string, payload: { title: string; body: string; url?: string }): Promise<void> {
+  await sendPushToUserVerbose(userId, payload);
+}
+
+/** How many devices a user currently has registered for push. */
+export async function subscriptionCount(userId: string): Promise<number> {
+  const rows = await db.select({ id: pushSubscriptions.id }).from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
+  return rows.length;
 }
