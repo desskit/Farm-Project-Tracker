@@ -10,6 +10,7 @@ import { runDigestTick } from './digest';
 import { cleanupAuthTables } from '@/lib/auth/cleanup';
 import { reconcileChoreDueDates } from '@/lib/data/reconcile';
 import { runBackup } from '@/lib/backup';
+import { runRentReminders } from './rent-reminders';
 
 const g = globalThis as unknown as { __fptCronStarted?: boolean };
 
@@ -56,8 +57,24 @@ export function startCron(): void {
         console.error('[cron] nightly backup failed', e);
       });
   });
+  // Rent reminders, once a day at 07:00 local — early enough to act on, late
+  // enough not to arrive overnight. The job records what it has already sent,
+  // so a restart during the day can't re-nag anyone.
+  cron.schedule('0 7 * * *', () => {
+    runRentReminders()
+      .then((r) => {
+        // eslint-disable-next-line no-console
+        if (r.notified || r.managersNotified) {
+          console.log(`[cron] rent reminders: ${r.notified} renter(s), ${r.managersNotified} manager message(s)`);
+        }
+      })
+      .catch((e) => {
+        // eslint-disable-next-line no-console
+        console.error('[cron] rent reminders failed', e);
+      });
+  });
   // Catch up immediately at boot too, in case the server was off overnight.
   reconcileChoreDueDates().catch(() => {});
   // eslint-disable-next-line no-console
-  console.log('[cron] schedules started (hourly digest, nightly reconcile + backup + cleanup)');
+  console.log('[cron] schedules started (hourly digest, daily rent reminders, nightly reconcile + backup + cleanup)');
 }

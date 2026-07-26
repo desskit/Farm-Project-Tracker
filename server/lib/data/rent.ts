@@ -69,8 +69,15 @@ export async function stopRent(user: SessionUser, targetUserId: string): Promise
   publishChange('rent');
 }
 
-/** Lazily create this month's charge for every active assignment. */
-async function ensureRentCharges(): Promise<void> {
+/**
+ * Create this month's charge for every active assignment.
+ *
+ * Called on read (so the rent page is always current) and nightly by cron —
+ * the reminder job can't warn anyone about a charge that doesn't exist yet,
+ * and until this ran on a schedule a month's charges only appeared once
+ * somebody happened to open the page.
+ */
+export async function ensureRentCharges(): Promise<void> {
   const mk = currentMonthKey();
   const assignments = await db.select().from(rentAssignments).where(eq(rentAssignments.active, true));
   const existing = await db.select({ userId: rentCharges.userId }).from(rentCharges).where(eq(rentCharges.month, mk));
@@ -117,7 +124,15 @@ export async function markRentPaid(user: SessionUser, chargeId: string, note?: s
   if (c.status === 'verified') throw new DataError('Already verified.', 400);
   await db
     .update(rentCharges)
-    .set({ status: 'marked', markedAt: todayISO(), markedBy: user.id, note: note != null ? note : c.note })
+    .set({
+      status: 'marked',
+      markedAt: todayISO(),
+      markedBy: user.id,
+      note: note != null ? note : c.note,
+      // Paid — stop reminding, and clear the stage so a later reopen starts fresh.
+      reminderStage: null,
+      reminderSentOn: null,
+    })
     .where(eq(rentCharges.id, chargeId));
   await logActivity(user.id, `marked rent paid (${c.month})`);
 }
@@ -142,7 +157,15 @@ export async function reopenRent(user: SessionUser, chargeId: string): Promise<v
   if (!c) throw new DataError('No such charge.', 404);
   await db
     .update(rentCharges)
-    .set({ status: 'unpaid', markedAt: null, markedBy: null, verifiedAt: null, verifiedBy: null })
+    .set({
+      status: 'unpaid',
+      markedAt: null,
+      markedBy: null,
+      verifiedAt: null,
+      verifiedBy: null,
+      reminderStage: null,
+      reminderSentOn: null,
+    })
     .where(eq(rentCharges.id, chargeId));
   publishChange('rent');
 }

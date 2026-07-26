@@ -61,6 +61,16 @@ export function emailLayout(bodyHtml: string): string {
     </div>`;
 }
 
+/**
+ * The app's public origin, for emails sent from cron where there's no request
+ * to derive it from. Null when PUBLIC_URL isn't set, so callers can leave the
+ * link out rather than send a broken one.
+ */
+export function publicUrl(): string | null {
+  const raw = (process.env.PUBLIC_URL || '').trim().replace(/\/+$/, '');
+  return raw || null;
+}
+
 /** A branded call-to-action button, with the raw URL beneath as a fallback. */
 export function emailButton(label: string, url: string): string {
   const safeUrl = escapeHtml(url);

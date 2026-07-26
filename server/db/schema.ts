@@ -326,6 +326,13 @@ export const rentCharges = sqliteTable('rent_charges', {
   verifiedAt: text('verified_at'),
   verifiedBy: text('verified_by').references(() => users.id, { onDelete: 'set null' }),
   note: text('note').notNull().default(''),
+  /**
+   * Which reminder this charge last got, and when. The reminder job runs
+   * daily, so without these a renter would be told the same thing every
+   * morning; with them each stage lands once and overdue repeats weekly.
+   */
+  reminderStage: text('reminder_stage').$type<'upcoming' | 'due' | 'overdue'>(),
+  reminderSentOn: text('reminder_sent_on'),
 });
 
 /* ---------------- notifications & misc ---------------- */

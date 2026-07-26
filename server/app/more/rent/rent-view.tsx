@@ -96,6 +96,9 @@ export function RentView({
                   ) : (
                     <span className="badge overdue">Unpaid · due {fmtDate(c.dueDate)}</span>
                   )}
+                  {c.status === 'unpaid' && c.reminderSentOn && (
+                    <span className="chip">🔔 reminded {fmtDate(c.reminderSentOn)}</span>
+                  )}
                 </div>
                 {c.note && <p className="item-sub" style={{ marginTop: 6 }}>“{c.note}”</p>}
               </div>
