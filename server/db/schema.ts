@@ -335,6 +335,28 @@ export const rentCharges = sqliteTable('rent_charges', {
   reminderSentOn: text('reminder_sent_on'),
 });
 
+/**
+ * Rental paperwork filed against a renter — the lease and everything that
+ * hangs off it. Attached to the person rather than to a monthly charge,
+ * because a lease spans the whole tenancy, not one month's rent.
+ *
+ * These are more sensitive than the app's other attachments (a lease carries
+ * terms and signatures), so the file route checks that the viewer is the
+ * renter or a manager before serving one.
+ */
+export type RentDocType = 'lease' | 'addendum' | 'deposit' | 'inspection' | 'insurance' | 'other';
+export const rentDocs = sqliteTable('rent_docs', {
+  id: text('id').primaryKey(),
+  /** The renter the paperwork belongs to. */
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  docType: text('doc_type').$type<RentDocType>().notNull().default('other'),
+  attachmentId: text('attachment_id').notNull().references(() => attachments.id, { onDelete: 'cascade' }),
+  uploadedBy: text('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
+  date: text('date').notNull(),
+  ts: integer('ts').notNull().default(now),
+});
+
 /* ---------------- notifications & misc ---------------- */
 export const notificationPrefs = sqliteTable('notification_prefs', {
   userId: text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),

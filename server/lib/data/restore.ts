@@ -47,6 +47,7 @@ export async function restoreBackup(admin: SessionUser, backup: Backup): Promise
       schema.activity,
       schema.inventoryLog,
       schema.inventory,
+      schema.rentDocs,
       schema.rentCharges,
       schema.rentAssignments,
       schema.choreCompletions,
@@ -125,11 +126,16 @@ export async function restoreBackup(admin: SessionUser, backup: Backup): Promise
       counts[key] = rows.length;
     }
 
-    // Asset documents carry a required attachment, so a row whose file isn't on
-    // this server is dropped rather than nulled (which the column forbids).
+    // Asset and rental documents carry a required attachment, so a row whose
+    // file isn't on this server is dropped rather than nulled (which the
+    // column forbids).
     const docs = arr('assetDocs').filter((d) => typeof d.attachmentId === 'string' && attIds.has(d.attachmentId));
     await insertChunked(tx as unknown as typeof db, schema.assetDocs, docs);
     counts.assetDocs = docs.length;
+
+    const rentPapers = arr('rentDocs').filter((d) => typeof d.attachmentId === 'string' && attIds.has(d.attachmentId));
+    await insertChunked(tx as unknown as typeof db, schema.rentDocs, rentPapers);
+    counts.rentDocs = rentPapers.length;
 
     // Assignee join rows last — they need both the work item and the person to
     // exist. Anything pointing at a user this server doesn't have is skipped.

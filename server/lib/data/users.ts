@@ -4,6 +4,7 @@ import { users, notificationPrefs, rentCharges, timeEntries, sessions, pushSubsc
 import type { Role } from '@/db/schema';
 import { uid } from '@/lib/ids';
 import { createInvite } from '@/lib/auth/invites';
+import { purgeRentDocsFor, rentDocCountFor } from './rent-docs';
 import { DataError } from './errors';
 
 export type PersonRow = { id: string; name: string; email: string; role: Role; pending: boolean; active: boolean };
@@ -84,10 +85,10 @@ export async function reactivateUser(targetId: string): Promise<void> {
 
 /**
  * Removes a person. Chore completions, service logs, notes, and activity are
- * kept (those columns null out), but rent charges and logged time cascade away
- * with the account — so when a person has either, we refuse the first attempt
- * and report exactly what would be lost. The caller re-sends with force once
- * the admin has confirmed.
+ * kept (those columns null out), but rent charges, logged time, and rental
+ * paperwork go with the account — so when a person has any of those, we refuse
+ * the first attempt and report exactly what would be lost. The caller re-sends
+ * with force once the admin has confirmed.
  */
 export async function removeUser(
   targetId: string,
@@ -98,17 +99,19 @@ export async function removeUser(
   await assertNotLastAdmin(targetId, 'remove');
 
   if (!opts.force) {
-    const [charges, entries] = await Promise.all([
+    const [charges, entries, docCount] = await Promise.all([
       db.select({ id: rentCharges.id }).from(rentCharges).where(eq(rentCharges.userId, targetId)),
       db.select({ id: timeEntries.id }).from(timeEntries).where(eq(timeEntries.userId, targetId)),
+      rentDocCountFor(targetId),
     ]);
-    if (charges.length || entries.length) {
+    if (charges.length || entries.length || docCount) {
       const lost = [
         charges.length ? `${charges.length} rent charge${charges.length === 1 ? '' : 's'}` : null,
         entries.length ? `${entries.length} logged time entr${entries.length === 1 ? 'y' : 'ies'}` : null,
+        docCount ? `${docCount} rental document${docCount === 1 ? '' : 's'} (lease, deposit receipt, etc.)` : null,
       ]
         .filter(Boolean)
-        .join(' and ');
+        .join(', ');
       throw new DataError(
         `Removing this person will permanently delete ${lost}. Deactivating them instead keeps every record and still blocks their access. Confirm only if you really want the data gone.`,
         409,
@@ -116,5 +119,8 @@ export async function removeUser(
     }
   }
 
+  // Delete the paperwork and its files first: the cascade would drop the rows
+  // but leave the files readable, since the access check works off those rows.
+  await purgeRentDocsFor(targetId);
   await db.delete(users).where(eq(users.id, targetId));
 }
