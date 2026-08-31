@@ -137,11 +137,21 @@ function AssignForm({
   onError: (m: string | null) => void;
 }) {
   const router = useRouter();
+  // The dropdown only offers active people, so every default and fallback has
+  // to come from this list too. Seeding state from the unfiltered `people`
+  // let the <select> show one name while state held another — a rent charge
+  // could then be saved against someone the manager never picked.
+  const activePeople = people.filter((p) => p.active);
   const [open, setOpen] = useState(false);
-  const [userId, setUserId] = useState(people[0]?.id ?? '');
+  const [userId, setUserId] = useState(activePeople[0]?.id ?? '');
   const [amount, setAmount] = useState('');
   const [dueDay, setDueDay] = useState('1');
   const [loading, setLoading] = useState(false);
+
+  // What the <select> is actually showing. If `userId` somehow isn't in the
+  // list (someone deactivated while the form sat open), the browser falls back
+  // to the first option — so submit that rather than the stale id.
+  const selectedId = activePeople.some((p) => p.id === userId) ? userId : (activePeople[0]?.id ?? '');
 
   function pick(id: string) {
     setUserId(id);
@@ -152,7 +162,7 @@ function AssignForm({
 
   if (!open) {
     return (
-      <button className="btn block" style={{ marginBottom: 12 }} onClick={() => { setOpen(true); pick(userId); }}>
+      <button className="btn block" style={{ marginBottom: 12 }} onClick={() => { setOpen(true); pick(selectedId); }}>
         + Assign / edit rent
       </button>
     );
@@ -165,7 +175,7 @@ function AssignForm({
     const res = await fetch('/api/rent/assign', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, amount: Number(amount), dueDay: Number(dueDay) }),
+      body: JSON.stringify({ userId: selectedId, amount: Number(amount), dueDay: Number(dueDay) }),
     });
     setLoading(false);
     if (!res.ok) {
@@ -178,12 +188,12 @@ function AssignForm({
   }
 
   async function stop() {
-    if (!confirm(`Stop charging ${people.find((p) => p.id === userId)?.name ?? 'this person'} rent?`)) return;
+    if (!confirm(`Stop charging ${people.find((p) => p.id === selectedId)?.name ?? 'this person'} rent?`)) return;
     setLoading(true);
     const res = await fetch('/api/rent/stop', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify({ userId: selectedId }),
     });
     setLoading(false);
     if (res.ok) {
@@ -197,14 +207,12 @@ function AssignForm({
       <form onSubmit={submit}>
         <div className="field">
           <label>Person</label>
-          <select value={userId} onChange={(e) => pick(e.target.value)}>
-            {people
-              .filter((p) => p.active)
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
+          <select value={selectedId} onChange={(e) => pick(e.target.value)}>
+            {activePeople.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
           </select>
         </div>
         <div className="field">
