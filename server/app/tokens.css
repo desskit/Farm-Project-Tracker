@@ -1,0 +1,297 @@
+/* Design tokens for the redesign.
+ *
+ * Every color the app uses comes from a semantic token (--c-*), never a raw
+ * hex in a component. A brand is a set of values for those tokens, selected
+ * with data-brand on <html> (or any element: the /dev/ui gallery previews
+ * brands side by side this way). data-theme="light" | "dark" forces a mode;
+ * without it the OS setting decides.
+ *
+ * The legacy variables globals.css was written against (--bg, --brand, ...)
+ * are re-pointed at the tokens at the bottom, so screens not yet redesigned
+ * pick up the chosen brand straight away.
+ */
+
+/* ---------- Scale (brand-independent) ---------- */
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --r-pill: 999px;
+
+  --tap: 44px;          /* minimum touch target */
+  --nav-h: 64px;
+  --gutter: 16px;
+  --content-max: 760px;
+
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0ms; --dur: 0ms; }
+}
+
+/* ---------- Status colors (shared; a brand may override) ---------- */
+[data-brand] {
+  color-scheme: light;
+  --c-danger: #b3261e;
+  --c-danger-soft: #fbe9e7;
+  --c-warn: #8a5a00;
+  --c-warn-soft: #fbf0d6;
+  --c-ok: #2b7a4b;
+  --c-ok-soft: #e2f2e8;
+  --c-info: #2f5f9e;
+  --c-info-soft: #e4edf8;
+  --c-overlay: rgba(20, 22, 20, .45);
+  --shadow-1: 0 1px 2px rgba(25, 30, 25, .07);
+  --shadow-2: 0 1px 2px rgba(25, 30, 25, .06), 0 6px 18px rgba(25, 30, 25, .07);
+  --shadow-3: 0 10px 34px rgba(25, 30, 25, .18);
+}
+
+[data-brand][data-theme="dark"] {
+  color-scheme: dark;
+  --c-danger: #f2867c;
+  --c-danger-soft: #3b1f1c;
+  --c-warn: #e9b949;
+  --c-warn-soft: #372c12;
+  --c-ok: #74c69a;
+  --c-ok-soft: #1b3326;
+  --c-info: #8fb4e8;
+  --c-info-soft: #1c2a3d;
+  --c-overlay: rgba(0, 0, 0, .6);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .35);
+  --shadow-2: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .35);
+  --shadow-3: 0 12px 36px rgba(0, 0, 0, .55);
+}
+@media (prefers-color-scheme: dark) {
+  [data-brand]:not([data-theme="light"]) {
+    color-scheme: dark;
+    --c-danger: #f2867c;
+    --c-danger-soft: #3b1f1c;
+    --c-warn: #e9b949;
+    --c-warn-soft: #372c12;
+    --c-ok: #74c69a;
+    --c-ok-soft: #1b3326;
+    --c-info: #8fb4e8;
+    --c-info-soft: #1c2a3d;
+    --c-overlay: rgba(0, 0, 0, .6);
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, .35);
+    --shadow-2: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .35);
+    --shadow-3: 0 12px 36px rgba(0, 0, 0, .55);
+  }
+}
+
+/* ---------- Brand: Meadow ---------- */
+[data-brand="meadow"] {
+  --c-bg: #f5f3ec;
+  --c-surface: #fffdf8;
+  --c-surface-2: #eeebe1;
+  --c-text: #1d2420;
+  --c-text-muted: #5c655d;
+  --c-border: #e1ddd0;
+  --c-border-strong: #c7c1b0;
+  --c-primary: #2e6b4a;
+  --c-primary-hover: #245a3c;
+  --c-on-primary: #ffffff;
+  --c-primary-soft: #e3efe6;
+  --c-accent: #b85a35;
+  --c-on-accent: #ffffff;
+  --c-accent-soft: #f7e5db;
+}
+[data-brand="meadow"][data-theme="dark"] {
+  --c-bg: #121612;
+  --c-surface: #1a201b;
+  --c-surface-2: #232a24;
+  --c-text: #e9ece6;
+  --c-text-muted: #a0a99f;
+  --c-border: #2e372f;
+  --c-border-strong: #435044;
+  --c-primary: #6cc08f;
+  --c-primary-hover: #85cfa3;
+  --c-on-primary: #0d1f14;
+  --c-primary-soft: #1d3125;
+  --c-accent: #e88a64;
+  --c-on-accent: #24120a;
+  --c-accent-soft: #3a241a;
+}
+@media (prefers-color-scheme: dark) {
+  [data-brand="meadow"]:not([data-theme="light"]) {
+    --c-bg: #121612;
+    --c-surface: #1a201b;
+    --c-surface-2: #232a24;
+    --c-text: #e9ece6;
+    --c-text-muted: #a0a99f;
+    --c-border: #2e372f;
+    --c-border-strong: #435044;
+    --c-primary: #6cc08f;
+    --c-primary-hover: #85cfa3;
+    --c-on-primary: #0d1f14;
+    --c-primary-soft: #1d3125;
+    --c-accent: #e88a64;
+    --c-on-accent: #24120a;
+    --c-accent-soft: #3a241a;
+  }
+}
+
+/* ---------- Brand: Barnyard ---------- */
+[data-brand="barnyard"] {
+  --c-bg: #f6f1e9;
+  --c-surface: #fffcf7;
+  --c-surface-2: #efe8dc;
+  --c-text: #231d1b;
+  --c-text-muted: #675e58;
+  --c-border: #e4dccd;
+  --c-border-strong: #cbbfa9;
+  --c-primary: #8f2a2a;
+  --c-primary-hover: #772222;
+  --c-on-primary: #ffffff;
+  --c-primary-soft: #f4e1df;
+  --c-accent: #c98f12;
+  --c-on-accent: #2a1d03;
+  --c-accent-soft: #f8ecd0;
+  /* Keep "overdue" visibly different from the red brand. */
+  --c-danger: #c4320a;
+  --c-danger-soft: #fde9e0;
+}
+[data-brand="barnyard"][data-theme="dark"] {
+  --c-bg: #171312;
+  --c-surface: #201a19;
+  --c-surface-2: #2a2321;
+  --c-text: #f0e9e4;
+  --c-text-muted: #b0a49c;
+  --c-border: #3a302d;
+  --c-border-strong: #554641;
+  --c-primary: #e8776d;
+  --c-primary-hover: #f08f86;
+  --c-on-primary: #2a0c09;
+  --c-primary-soft: #3b1f1c;
+  --c-accent: #f0bf55;
+  --c-on-accent: #2a1d03;
+  --c-accent-soft: #3a2f16;
+  --c-danger: #ff8a5c;
+  --c-danger-soft: #3d2116;
+}
+@media (prefers-color-scheme: dark) {
+  [data-brand="barnyard"]:not([data-theme="light"]) {
+    --c-bg: #171312;
+    --c-surface: #201a19;
+    --c-surface-2: #2a2321;
+    --c-text: #f0e9e4;
+    --c-text-muted: #b0a49c;
+    --c-border: #3a302d;
+    --c-border-strong: #554641;
+    --c-primary: #e8776d;
+    --c-primary-hover: #f08f86;
+    --c-on-primary: #2a0c09;
+    --c-primary-soft: #3b1f1c;
+    --c-accent: #f0bf55;
+    --c-on-accent: #2a1d03;
+    --c-accent-soft: #3a2f16;
+    --c-danger: #ff8a5c;
+    --c-danger-soft: #3d2116;
+  }
+}
+
+/* ---------- Brand: Field Notes ---------- */
+[data-brand="fieldnotes"] {
+  --c-bg: #f2f4f3;
+  --c-surface: #ffffff;
+  --c-surface-2: #e8ecea;
+  --c-text: #16211f;
+  --c-text-muted: #556361;
+  --c-border: #dbe1df;
+  --c-border-strong: #bcc7c4;
+  --c-primary: #1f4e5f;
+  --c-primary-hover: #183f4d;
+  --c-on-primary: #ffffff;
+  --c-primary-soft: #dfeaee;
+  --c-accent: #d4991a;
+  --c-on-accent: #261a00;
+  --c-accent-soft: #faefd2;
+}
+[data-brand="fieldnotes"][data-theme="dark"] {
+  --c-bg: #0f1517;
+  --c-surface: #172023;
+  --c-surface-2: #1f2a2e;
+  --c-text: #e6eeee;
+  --c-text-muted: #99a9a9;
+  --c-border: #2a3a3e;
+  --c-border-strong: #3e5257;
+  --c-primary: #6fb3c8;
+  --c-primary-hover: #8cc5d6;
+  --c-on-primary: #06191f;
+  --c-primary-soft: #18303a;
+  --c-accent: #f2c14e;
+  --c-on-accent: #261a00;
+  --c-accent-soft: #3a3117;
+}
+@media (prefers-color-scheme: dark) {
+  [data-brand="fieldnotes"]:not([data-theme="light"]) {
+    --c-bg: #0f1517;
+    --c-surface: #172023;
+    --c-surface-2: #1f2a2e;
+    --c-text: #e6eeee;
+    --c-text-muted: #99a9a9;
+    --c-border: #2a3a3e;
+    --c-border-strong: #3e5257;
+    --c-primary: #6fb3c8;
+    --c-primary-hover: #8cc5d6;
+    --c-on-primary: #06191f;
+    --c-primary-soft: #18303a;
+    --c-accent: #f2c14e;
+    --c-on-accent: #261a00;
+    --c-accent-soft: #3a3117;
+  }
+}
+
+/* ---------- Derived + legacy bridge ----------
+ * Declared on every [data-brand] element (not just :root) so the var()s
+ * resolve against that element's brand: custom properties inherit their
+ * computed value, so a bridge on :root alone would leak the page brand into
+ * a gallery preview of another one. */
+[data-brand] {
+  --c-focus: color-mix(in srgb, var(--c-primary) 55%, transparent);
+
+  --bg: var(--c-bg);
+  --surface: var(--c-surface);
+  --surface-2: var(--c-surface-2);
+  --text: var(--c-text);
+  --muted: var(--c-text-muted);
+  --border: var(--c-border);
+  --brand: var(--c-primary);
+  --brand-2: var(--c-primary-hover);
+  --brand-ink: var(--c-on-primary);
+  --brand-soft: var(--c-primary-soft);
+  --accent: var(--c-accent);
+  --overdue: var(--c-danger);
+  --overdue-bg: var(--c-danger-soft);
+  --today: var(--c-warn);
+  --today-bg: var(--c-warn-soft);
+  --upcoming: var(--c-primary);
+  --upcoming-bg: var(--c-primary-soft);
+  --radius: var(--r-lg);
+  --radius-sm: var(--r-md);
+  --shadow: var(--shadow-2);
+  --shadow-lg: var(--shadow-3);
+}

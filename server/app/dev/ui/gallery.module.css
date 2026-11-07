@@ -1,0 +1,45 @@
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 var(--gutter) calc(var(--nav-h) + var(--space-10)); }
+.section { margin-top: var(--space-8); }
+.h2 { font-size: var(--text-xl); margin: 0 0 var(--space-1); }
+.lede { color: var(--c-text-muted); margin: 0 0 var(--space-4); max-width: 60ch; }
+
+.brand { margin-bottom: var(--space-5); }
+.brandInner { display: grid; gap: var(--space-4); padding-top: var(--space-2); }
+.brandHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.brandName { margin: 0; font-size: var(--text-xl); display: flex; align-items: center; gap: var(--space-2); }
+.notes { margin: 0; padding-left: 1.2em; color: var(--c-text-muted); font-size: var(--text-sm); display: grid; gap: 4px; }
+.swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+.swatch { width: 28px; height: 28px; border-radius: var(--r-sm); border: 1px solid var(--c-border); }
+
+.phones { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: var(--space-4); }
+
+/* A phone-sized mock of the Today screen, painted entirely by its own data-brand/theme. */
+.phone {
+  position: relative; overflow: hidden;
+  background: var(--c-bg); color: var(--c-text);
+  border: 1px solid var(--c-border-strong); border-radius: 26px;
+  max-width: 380px; width: 100%; justify-self: center;
+  font-family: var(--font-sans);
+}
+.modeTag { position: absolute; top: 10px; right: 12px; font-size: 11px; font-weight: 700; opacity: .8; color: var(--c-on-primary); }
+.topbar { background: var(--c-primary); color: var(--c-on-primary); padding: 14px 16px 16px; }
+.greeting { font-size: 13px; opacity: .85; }
+.topTitle { font-size: 22px; font-weight: 800; margin-top: 2px; }
+.weather { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-top: 8px; opacity: .92; }
+.weather svg { width: 16px; height: 16px; }
+.screen { padding: 12px; display: grid; gap: 12px; }
+.actions { display: flex; gap: 8px; }
+.nav {
+  display: flex; justify-content: space-around; align-items: center;
+  border-top: 1px solid var(--c-border); background: var(--c-surface);
+  height: 58px; padding: 0 4px;
+}
+.navItem { display: grid; justify-items: center; gap: 2px; font-size: 10.5px; color: var(--c-text-muted); position: relative; min-width: 52px; }
+.navItem svg { width: 22px; height: 22px; }
+.navOn { color: var(--c-primary); font-weight: 700; }
+.navBadge { position: absolute; top: -6px; right: 6px; }
+.fabSlot { margin-top: -26px; }
+
+.kitGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-4); }
+.row { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.picker { display: grid; gap: var(--space-2); max-width: 360px; }

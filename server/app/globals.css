@@ -3,54 +3,8 @@
    A small "Next.js integration" block at the end adapts a few patterns
    (link-as-card, nav links) to React Server Components. */
 
-:root {
-  --bg: #f3f2ec;
-  --surface: #ffffff;
-  --surface-2: #ecebe3;
-  --text: #1c221e;
-  --muted: #6b7269;
-  --border: #e2e0d6;
-  --brand: #2f6f4f;
-  --brand-2: #3f855f;
-  --brand-ink: #ffffff;
-  --brand-soft: #e7f1ea;
-  --accent: #b8860b;
-  --overdue: #c0392b;
-  --overdue-bg: #fbeae7;
-  --today: #b8860b;
-  --today-bg: #fbf3df;
-  --upcoming: #2f6f4f;
-  --upcoming-bg: #e7f1ea;
-  --radius: 16px;
-  --radius-sm: 11px;
-  --shadow: 0 1px 2px rgba(30, 40, 30, .06), 0 6px 18px rgba(30, 40, 30, .05);
-  --shadow-lg: 0 6px 26px rgba(30, 40, 30, .12);
-  --nav-h: 64px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #12160f;
-    --surface: #1c211c;
-    --surface-2: #262c25;
-    --text: #e8ebe6;
-    --muted: #9aa39a;
-    --border: #303a30;
-    --brand: #4c9a72;
-    --brand-2: #5aad82;
-    --brand-ink: #ffffff;
-    --brand-soft: #1f2f26;
-    --accent: #e0b24a;
-    --overdue: #e57368;
-    --overdue-bg: #3a2320;
-    --today: #e0b24a;
-    --today-bg: #352d19;
-    --upcoming: #66b98d;
-    --upcoming-bg: #1f2f26;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .35);
-    --shadow-lg: 0 8px 28px rgba(0, 0, 0, .5);
-  }
-}
+/* Colors, radii and shadows come from app/tokens.css (the legacy names
+   used below are bridged there to the chosen brand). */
 
 * { box-sizing: border-box; }
 
@@ -59,7 +13,7 @@ html, body {
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans);
   font-size: 16px;
   line-height: 1.4;
   -webkit-text-size-adjust: 100%;
@@ -399,7 +353,7 @@ button { font-family: inherit; }
   width: 46px; height: 46px; flex: 0 0 46px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--brand), var(--brand-2));
-  color: #fff; font-weight: 800; font-size: 20px;
+  color: var(--brand-ink); font-weight: 800; font-size: 20px;
   display: flex; align-items: center; justify-content: center;
   text-transform: uppercase;
 }
