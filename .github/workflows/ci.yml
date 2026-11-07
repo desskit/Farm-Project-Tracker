@@ -1,0 +1,63 @@
+name: CI
+
+# Gate in front of production. The server's nightly auto-update
+# (server/scripts/auto-update.sh) deploys the `deploy` branch, and the only
+# thing that ever moves `deploy` is the `promote` job below — which runs only
+# after typecheck, lint, tests and a production build have all passed on main.
+# A commit that fails any of them simply never reaches the farm.
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+  workflow_dispatch:
+
+# `contents: write` is only needed by `promote`, to push the deploy branch.
+permissions:
+  contents: write
+
+# A newer push supersedes an older one, so an older commit can never be
+# promoted after a newer one has been.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+      # Date logic depends on the process timezone; pin it so results don't
+      # depend on the runner.
+      TZ: America/Chicago
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  promote:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # A plain (non-force) push: it only succeeds as a fast-forward, so
+      # `deploy` can never be rewritten or moved backwards.
+      - name: Fast-forward deploy to this commit
+        run: git push origin "${GITHUB_SHA}:refs/heads/deploy"

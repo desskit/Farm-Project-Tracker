@@ -10,7 +10,11 @@ services:
       UPLOAD_DIR: /data/uploads
       BACKUP_DIR: /data/backups
       BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-7}
-      TZ: ${TZ:-UTC}
+      # Required: "today", due dates and every scheduled job use the farm's
+      # local date. Compose refuses to start without it rather than quietly
+      # running on UTC (set ALLOW_UTC=1 if UTC really is intended).
+      TZ: ${TZ:?Set TZ in .env to the farm timezone, e.g. TZ=America/Chicago}
+      ALLOW_UTC: ${ALLOW_UTC:-}
       PUBLIC_URL: ${PUBLIC_URL}
       SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Admin}
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL}

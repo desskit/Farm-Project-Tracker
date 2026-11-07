@@ -1,24 +1,51 @@
 # Automatic daily updates
 
-`auto-update.sh` pulls the tracked branch, rebuilds, and restarts the stack —
-but only when something changed, and only if the new code builds. It runs on
-the **Docker host**, not inside the container.
+`auto-update.sh` pulls the `deploy` branch, rebuilds, and restarts the stack —
+but only when something changed, and only if the new code passes every check
+below. It runs on the **Docker host**, not inside the container.
+
+## How code reaches production
+
+1. Code is pushed to `main`.
+2. GitHub Actions (`.github/workflows/ci.yml`) runs typecheck, lint, tests and
+   a production build.
+3. **Only if all pass**, CI fast-forwards the `deploy` branch to that commit.
+4. That night, this script deploys `deploy`.
+
+A commit that fails CI never reaches the farm. The script refuses to run on
+any branch other than `deploy` (override with `DEPLOY_BRANCH`).
+
+### One-time switch
+
+The server's checkout must follow `deploy`. After CI has passed on `main` at
+least once (so the branch exists):
+
+```bash
+cd ~/Farm-Project-Tracker
+git fetch origin
+git checkout deploy
+```
 
 ## What it does, in order
 
 1. Takes a lock, so a slow build can't overlap the next scheduled run.
 2. Refuses to run if the repo has uncommitted changes (your work is never
-   clobbered).
+   clobbered), or if the checkout isn't on `deploy`.
 3. Fetches. **If nothing changed it stops here** — no rebuild, no restart, no
    downtime on a quiet day.
 4. Fast-forwards. If history diverged it stops rather than guessing at a merge.
 5. **Builds before touching the running container.** A commit that doesn't
    compile leaves the farm on the last good version.
-6. Starts the new version and waits for Docker's healthcheck (which hits
-   `/api/health`, so a healthy verdict also means the boot-time migrations
-   applied without throwing).
-7. If it never goes healthy, **rolls back** to the previous commit and rebuilds.
-8. Prunes old images, so daily rebuilds don't fill the disk.
+6. **Pre-flight on real data.** Boots the new image in a throwaway container
+   that copies the live database, applies the new migrations *to the copy*,
+   checks it, deletes it and exits. If that fails — or the new version refuses
+   to boot, e.g. because `TZ` isn't set — production is left alone.
+7. Starts the new version. On boot it snapshots the database before applying
+   any migrations, then waits for Docker's healthcheck.
+8. If it never goes healthy, **rolls back**: rebuilds the previous commit and,
+   if the new version had already migrated the database, restores that
+   snapshot too — so old code never ends up on a newer database layout.
+9. Prunes old images, so daily rebuilds don't fill the disk.
 
 Everything lands in `auto-update.log` next to the repo.
 
@@ -80,11 +107,9 @@ DEPLOY_ALERT_CMD=/home/YOUR_USER/notify.sh
 
 ## Worth knowing
 
-The branch it deploys is whatever the repo is checked out on. Confirm with
-`git -C ~/Farm-Project-Tracker branch --show-current` — anything pushed there
-goes live unattended that night.
-
-Rollback covers a broken build or a container that won't come up. It does
-**not** undo a migration that applied successfully but was wrong — migrations
-are forward-only. That's what the nightly backup is for, which is why this is
-scheduled to run shortly after one.
+Rollback covers a broken build, a migration that fails on real data (caught
+by the pre-flight), and a version that won't come up healthy (database and
+code both restored). It does **not** catch a migration that applies cleanly
+but does the wrong thing to the data. The pre-migration snapshots
+(`/data/backups/pre-migrate-*.db`, the last 5 kept) and the nightly backups
+are the way back from that.

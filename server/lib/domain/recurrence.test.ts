@@ -52,6 +52,6 @@ describe('describeSchedule', () => {
     expect(describeSchedule({ type: 'everyNDays', n: 2 })).toBe('Every 2 days');
     expect(describeSchedule({ type: 'weekly', weekdays: [1, 4] })).toBe('Weekly · Mon, Thu');
     expect(describeSchedule({ type: 'monthly', day: 3 })).toBe('Monthly · day 3');
-    expect(describeSchedule({ type: 'daily', season: { start: '05-01', end: '09-30' } })).toBe('Every day (seasonal)');
+    expect(describeSchedule({ type: 'daily', season: { start: '05-01', end: '09-30' } })).toBe('Every day · May 1 – Sep 30');
   });
 });
