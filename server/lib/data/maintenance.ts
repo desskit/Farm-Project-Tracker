@@ -204,7 +204,19 @@ export async function logService(
   if (item.requirePhoto && !data.photoId) throw new DataError('This item requires a photo of the completed work.', 400);
   const date = data.date || todayISO();
   const reading = data.reading == null ? null : Number(data.reading);
-  await db.insert(maintenanceLogs).values({
+  const asset = await assetById(item.assetId);
+  const patch: Partial<typeof maintenanceItems.$inferInsert> = { lastDoneDate: date, sentBack: null };
+  if (item.intervalType === 'calendar') {
+    patch.nextDueDate = item.intervalUnit === 'days' ? addDays(date, item.intervalValue) : addMonths(date, item.intervalValue);
+  } else {
+    const lastDoneReading = reading != null ? reading : item.lastDoneReading ?? 0;
+    patch.lastDoneReading = lastDoneReading;
+    patch.dueAtReading = lastDoneReading + item.intervalValue;
+  }
+  // The log, the meter reading it carries, and the new due point are one
+  // change — all or nothing, so a service can't be recorded without moving
+  // the item's next due date (or vice versa).
+  const logInsert = db.insert(maintenanceLogs).values({
     id: uid('ml'),
     itemId,
     userId: user.id,
@@ -214,19 +226,16 @@ export async function logService(
     cost: data.cost ? Number(data.cost) : 0,
     photoId: data.photoId || null,
   });
-  const asset = await assetById(item.assetId);
+  const itemUpdate = db.update(maintenanceItems).set(patch).where(eq(maintenanceItems.id, itemId));
   if (reading != null && asset?.meterUnit) {
-    await db.insert(meterReadings).values({ id: uid('mr'), assetId: item.assetId, reading, userId: user.id, date });
-  }
-  const patch: Partial<typeof maintenanceItems.$inferInsert> = { lastDoneDate: date, sentBack: null };
-  if (item.intervalType === 'calendar') {
-    patch.nextDueDate = item.intervalUnit === 'days' ? addDays(date, item.intervalValue) : addMonths(date, item.intervalValue);
+    await db.batch([
+      logInsert,
+      db.insert(meterReadings).values({ id: uid('mr'), assetId: item.assetId, reading, userId: user.id, date }),
+      itemUpdate,
+    ]);
   } else {
-    const lastDoneReading = reading != null ? reading : item.lastDoneReading ?? 0;
-    patch.lastDoneReading = lastDoneReading;
-    patch.dueAtReading = lastDoneReading + item.intervalValue;
+    await db.batch([logInsert, itemUpdate]);
   }
-  await db.update(maintenanceItems).set(patch).where(eq(maintenanceItems.id, itemId));
   await stopTimersFor('maintenance', itemId); // finishing the service stops any running clock
   await logActivity(user.id, `logged "${item.name}"${asset ? ` on ${asset.name}` : ''}`);
 }

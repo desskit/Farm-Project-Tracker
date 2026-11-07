@@ -152,24 +152,32 @@ export async function completeChore(
     throw new DataError('This chore requires a photo to complete.', 400);
   }
   const today = todayISO();
-  await db.insert(choreCompletions).values({
-    id: uid('cc'),
-    choreId: id,
-    completedBy: user.id,
-    date: today,
-    notes: notes || '',
-    photoId: photoId || null,
-  });
-  if (chore.schedule.type === 'once') {
-    // One-time chores don't roll forward — mark them done and drop from lists.
-    await db.update(chores).set({ done: true, sentBack: null }).where(eq(chores.id, id));
-  } else {
-    const nextDue =
-      chore.catchUp === 'mustCatchUp'
-        ? nextOccurrenceAfter(chore.schedule, chore.nextDue)
-        : nextOccurrenceAfter(chore.schedule, today);
-    await db.update(chores).set({ nextDue, sentBack: null }).where(eq(chores.id, id));
-  }
+  // One-time chores don't roll forward — they're marked done and drop off
+  // lists. Recurring ones move to their next occurrence.
+  const advance =
+    chore.schedule.type === 'once'
+      ? { done: true, sentBack: null }
+      : {
+          nextDue:
+            chore.catchUp === 'mustCatchUp'
+              ? nextOccurrenceAfter(chore.schedule, chore.nextDue)
+              : nextOccurrenceAfter(chore.schedule, today),
+          sentBack: null,
+        };
+  // Recording the completion and moving the due date are one change: done
+  // separately, a failure in between leaves a chore that's logged as done
+  // but still shows as due (and gets done twice).
+  await db.batch([
+    db.insert(choreCompletions).values({
+      id: uid('cc'),
+      choreId: id,
+      completedBy: user.id,
+      date: today,
+      notes: notes || '',
+      photoId: photoId || null,
+    }),
+    db.update(chores).set(advance).where(eq(chores.id, id)),
+  ]);
   await stopTimersFor('chore', id); // completing the work stops any running clock
   await logActivity(user.id, `completed chore "${chore.name}"`);
 }

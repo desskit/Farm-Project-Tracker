@@ -15,6 +15,8 @@ export default defineConfig({
     // Date logic runs on the process timezone; pin it so results never
     // depend on the machine running the tests.
     env: { TZ: 'America/Chicago' },
+    // Points DATABASE_URL etc. at a per-file temp dir before any app import.
+    setupFiles: ['test/setup-env.ts'],
     // Each data-layer test file gets its own temp database (see
     // test/db.ts), and the db module is a per-process singleton.
     pool: 'forks',

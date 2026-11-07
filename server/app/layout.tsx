@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { getSessionUser } from '@/lib/auth/session';
-import { getCounts } from '@/lib/data/dashboard';
+import { myOverdueCount } from '@/lib/data/dashboard';
 import { TopBar } from './_components/top-bar';
 import { BottomNav } from './_components/bottom-nav';
 import { RealtimeSync } from './_components/realtime-sync';
@@ -25,7 +25,7 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
-  const counts = user ? await getCounts(user) : null;
+  const overdue = user ? await myOverdueCount(user) : 0;
   const timers = user ? await activeTimersForUser(user.id) : [];
 
   return (
@@ -37,7 +37,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {user && timers.length > 0 && <TimersStrip timers={timers} />}
         {user && <OutboxBar />}
         {children}
-        {user && <BottomNav overdue={counts?.overdue ?? 0} />}
+        {user && <BottomNav overdue={overdue} />}
       </body>
     </html>
   );

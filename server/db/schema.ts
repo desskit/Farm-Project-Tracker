@@ -12,7 +12,7 @@
  *  - JSON-shaped fields (schedule, steps, sentBack) use text with { mode: 'json' }.
  */
 import { sql } from 'drizzle-orm';
-import { sqliteTable, text, integer, real, primaryKey } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export type Role = 'admin' | 'manager' | 'worker';
 
@@ -49,7 +49,9 @@ export const sessions = sqliteTable('sessions', {
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: integer('created_at').notNull().default(now),
   expiresAt: integer('expires_at').notNull(),
-});
+}, (t) => ({
+  userIdx: index('sessions_user_idx').on(t.userId),
+}));
 
 export const invites = sqliteTable('invites', {
   token: text('token').primaryKey(),
@@ -114,7 +116,9 @@ export const chores = sqliteTable('chores', {
   sentBack: text('sent_back', { mode: 'json' }).$type<SentBack>(),
   // One-time ('once') chores are marked done on completion instead of rolling to a next date.
   done: integer('done', { mode: 'boolean' }).notNull().default(false),
-});
+}, (t) => ({
+  nextDueIdx: index('chores_next_due_idx').on(t.done, t.nextDue),
+}));
 
 export const choreCompletions = sqliteTable('chore_completions', {
   id: text('id').primaryKey(),
@@ -123,7 +127,10 @@ export const choreCompletions = sqliteTable('chore_completions', {
   date: text('date').notNull(),
   notes: text('notes').notNull().default(''),
   photoId: text('photo_id').references(() => attachments.id, { onDelete: 'set null' }),
-});
+}, (t) => ({
+  choreIdx: index('chore_completions_chore_idx').on(t.choreId, t.date),
+  byIdx: index('chore_completions_by_idx').on(t.completedBy, t.date),
+}));
 
 /* ---------------- assets & maintenance ---------------- */
 export const assets = sqliteTable('assets', {
@@ -145,7 +152,9 @@ export const meterReadings = sqliteTable('meter_readings', {
   reading: real('reading').notNull(),
   userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
   date: text('date').notNull(),
-});
+}, (t) => ({
+  assetIdx: index('meter_readings_asset_idx').on(t.assetId, t.reading),
+}));
 
 export const maintenanceItems = sqliteTable('maintenance_items', {
   id: text('id').primaryKey(),
@@ -160,7 +169,9 @@ export const maintenanceItems = sqliteTable('maintenance_items', {
   nextDueDate: text('next_due_date'),
   requirePhoto: integer('require_photo', { mode: 'boolean' }).notNull().default(false),
   sentBack: text('sent_back', { mode: 'json' }).$type<SentBack>(),
-});
+}, (t) => ({
+  assetIdx: index('maintenance_items_asset_idx').on(t.assetId),
+}));
 
 export const maintenanceLogs = sqliteTable('maintenance_logs', {
   id: text('id').primaryKey(),
@@ -171,7 +182,9 @@ export const maintenanceLogs = sqliteTable('maintenance_logs', {
   notes: text('notes').notNull().default(''),
   cost: real('cost').notNull().default(0),
   photoId: text('photo_id').references(() => attachments.id, { onDelete: 'set null' }),
-});
+}, (t) => ({
+  itemIdx: index('maintenance_logs_item_idx').on(t.itemId, t.date),
+}));
 
 /**
  * Who a chore is assigned to. A chore can have several people on it, so
@@ -184,7 +197,11 @@ export const choreAssignees = sqliteTable(
     choreId: text('chore_id').notNull().references(() => chores.id, { onDelete: 'cascade' }),
     userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   },
-  (t) => ({ pk: primaryKey({ columns: [t.choreId, t.userId] }) }),
+  (t) => ({
+    pk: primaryKey({ columns: [t.choreId, t.userId] }),
+    // "What's assigned to me" looks up by person, not by chore.
+    userIdx: index('chore_assignees_user_idx').on(t.userId),
+  }),
 );
 
 /**
@@ -202,7 +219,9 @@ export const assetDocs = sqliteTable('asset_docs', {
   uploadedBy: text('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
   date: text('date').notNull(),
   ts: integer('ts').notNull().default(now),
-});
+}, (t) => ({
+  assetIdx: index('asset_docs_asset_idx').on(t.assetId),
+}));
 
 /* ---------------- projects & tasks ---------------- */
 export const projects = sqliteTable('projects', {
@@ -231,7 +250,9 @@ export const projectExpenses = sqliteTable('project_expenses', {
   userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
   photoId: text('photo_id').references(() => attachments.id, { onDelete: 'set null' }),
   ts: integer('ts').notNull().default(now),
-});
+}, (t) => ({
+  projectIdx: index('project_expenses_project_idx').on(t.projectId),
+}));
 
 export const projectTasks = sqliteTable('project_tasks', {
   id: text('id').primaryKey(),
@@ -249,7 +270,9 @@ export const projectTasks = sqliteTable('project_tasks', {
   requirePhoto: integer('require_photo', { mode: 'boolean' }).notNull().default(false),
   open: integer('open', { mode: 'boolean' }).notNull().default(false),
   sentBack: text('sent_back', { mode: 'json' }).$type<SentBack>(),
-});
+}, (t) => ({
+  projectIdx: index('project_tasks_project_idx').on(t.projectId, t.sort),
+}));
 
 /** Who a project task is assigned to — same shape as chore_assignees. */
 export const taskAssignees = sqliteTable(
@@ -258,7 +281,10 @@ export const taskAssignees = sqliteTable(
     taskId: text('task_id').notNull().references(() => projectTasks.id, { onDelete: 'cascade' }),
     userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   },
-  (t) => ({ pk: primaryKey({ columns: [t.taskId, t.userId] }) }),
+  (t) => ({
+    pk: primaryKey({ columns: [t.taskId, t.userId] }),
+    userIdx: index('task_assignees_user_idx').on(t.userId),
+  }),
 );
 
 /* ---------------- inventory ---------------- */
@@ -281,7 +307,9 @@ export const inventoryLog = sqliteTable('inventory_log', {
   delta: real('delta').notNull(),
   reason: text('reason').notNull().default(''),
   date: text('date').notNull(),
-});
+}, (t) => ({
+  itemIdx: index('inventory_log_item_idx').on(t.itemId, t.date),
+}));
 
 /* ---------------- time tracking ---------------- */
 export const timeEntries = sqliteTable('time_entries', {
@@ -292,7 +320,10 @@ export const timeEntries = sqliteTable('time_entries', {
   start: integer('start').notNull(),
   end: integer('end'),
   seconds: integer('seconds').notNull().default(0),
-});
+}, (t) => ({
+  userIdx: index('time_entries_user_idx').on(t.userId, t.end),
+  refIdx: index('time_entries_ref_idx').on(t.kind, t.refId),
+}));
 
 /* ---------------- notes ---------------- */
 export const notes = sqliteTable('notes', {
@@ -304,7 +335,9 @@ export const notes = sqliteTable('notes', {
   ts: integer('ts').notNull().default(now),
   body: text('body').notNull().default(''),
   photoId: text('photo_id').references(() => attachments.id, { onDelete: 'set null' }),
-});
+}, (t) => ({
+  parentIdx: index('notes_parent_idx').on(t.parentType, t.parentId),
+}));
 
 /* ---------------- rent ---------------- */
 export const rentAssignments = sqliteTable('rent_assignments', {
@@ -333,7 +366,10 @@ export const rentCharges = sqliteTable('rent_charges', {
    */
   reminderStage: text('reminder_stage').$type<'upcoming' | 'due' | 'overdue'>(),
   reminderSentOn: text('reminder_sent_on'),
-});
+}, (t) => ({
+  userMonthUnique: uniqueIndex('rent_charges_user_month_unique').on(t.userId, t.month),
+  monthIdx: index('rent_charges_month_idx').on(t.month),
+}));
 
 /**
  * Rental paperwork filed against a renter — the lease and everything that
@@ -355,7 +391,10 @@ export const rentDocs = sqliteTable('rent_docs', {
   uploadedBy: text('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
   date: text('date').notNull(),
   ts: integer('ts').notNull().default(now),
-});
+}, (t) => ({
+  userIdx: index('rent_docs_user_idx').on(t.userId),
+  attachmentIdx: index('rent_docs_attachment_idx').on(t.attachmentId),
+}));
 
 /* ---------------- notifications & misc ---------------- */
 export const notificationPrefs = sqliteTable('notification_prefs', {
@@ -377,14 +416,18 @@ export const pushSubscriptions = sqliteTable('push_subscriptions', {
   endpoint: text('endpoint').notNull().unique(),
   keys: text('keys', { mode: 'json' }).$type<{ p256dh: string; auth: string }>().notNull(),
   createdAt: integer('created_at').notNull().default(now),
-});
+}, (t) => ({
+  userIdx: index('push_subscriptions_user_idx').on(t.userId),
+}));
 
 export const activity = sqliteTable('activity', {
   id: text('id').primaryKey(),
   ts: integer('ts').notNull().default(now),
   userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
   text: text('text').notNull(),
-});
+}, (t) => ({
+  tsIdx: index('activity_ts_idx').on(t.ts),
+}));
 
 // Singleton key/value settings (e.g. weather cache). One row per key.
 export const settings = sqliteTable('settings', {

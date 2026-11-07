@@ -9,7 +9,7 @@
  */
 import path from 'node:path';
 import { migrate } from 'drizzle-orm/libsql/migrator';
-import { db, client } from '@/db';
+import { db, client, configureConnection } from '@/db';
 import { users, notificationPrefs } from '@/db/schema';
 import { hashPassword } from '@/lib/auth/password';
 import { uid } from '@/lib/ids';
@@ -50,6 +50,7 @@ if (process.env.MIGRATION_PREFLIGHT === '1') {
   }
 }
 
+await configureConnection();
 const pending = await pendingMigrations(client, migrationsFolder);
 if (pending.length) {
   const hasData = (

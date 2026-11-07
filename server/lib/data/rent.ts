@@ -93,7 +93,11 @@ export async function ensureRentCharges(): Promise<void> {
         dueDate: `${mk}-${pad2(a.dueDay)}`,
         status: 'unpaid' as const,
       })),
-    );
+    )
+      // The page and the nightly cron can both get here for the same month.
+      // The (user, month) unique index makes the loser of that race a no-op
+      // instead of a second bill.
+      .onConflictDoNothing();
   }
 }
 

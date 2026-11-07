@@ -11,7 +11,7 @@
  */
 import 'server-only';
 import { eq } from 'drizzle-orm';
-import { db, schema } from '@/db';
+import { db, schema, transaction } from '@/db';
 import type { SessionUser } from '@/lib/auth/session';
 import { logActivity } from './activity';
 import { DataError } from './errors';
@@ -41,7 +41,7 @@ export async function restoreBackup(admin: SessionUser, backup: Backup): Promise
 
   const counts: Record<string, number> = {};
 
-  await db.transaction(async (tx) => {
+  await transaction(async (tx) => {
     // Delete content, children before parents (safe whether or not FKs are on).
     for (const t of [
       schema.activity,

@@ -3,8 +3,19 @@
  * (store.js:925-992). Merges chores and maintenance into Overdue / Due Today /
  * Coming Up buckets. Project tasks and rent join as those resources land.
  */
-import { eq } from 'drizzle-orm';
-import { chores, users, assets, maintenanceItems, meterReadings, projects, projectTasks, rentCharges } from '@/db/schema';
+import { and, eq, isNotNull, lt, max, sql } from 'drizzle-orm';
+import {
+  chores,
+  choreAssignees,
+  users,
+  assets,
+  maintenanceItems,
+  meterReadings,
+  projects,
+  projectTasks,
+  taskAssignees,
+  rentCharges,
+} from '@/db/schema';
 import { db } from '@/db';
 import { bucketForDate, type Bucket } from '@/lib/domain/dashboard';
 import { describeSchedule } from '@/lib/domain/recurrence';
@@ -154,7 +165,55 @@ export async function getDashboard(currentUser: SessionUser, scope: 'mine' | 'al
   return buckets;
 }
 
-export async function getCounts(currentUser: SessionUser): Promise<{ overdue: number; today: number; upcoming: number }> {
-  const b = await getDashboard(currentUser, 'all');
-  return { overdue: b.overdue.length, today: b.today.length, upcoming: b.upcoming.length };
+/**
+ * The nav badge: how many of *my* items are overdue — exactly what the
+ * dashboard's "Mine" Overdue section lists, so the number and the list agree.
+ *
+ * This runs on every page render, so it counts in SQL against indexed
+ * columns instead of building the whole dashboard (which reads every chore,
+ * task and meter reading the farm has ever recorded).
+ */
+export async function myOverdueCount(currentUser: SessionUser): Promise<number> {
+  const today = todayISO();
+  const [[choreRow], [taskRow], items, latest, assetUnits, [rentRow]] = await Promise.all([
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(chores)
+      .innerJoin(choreAssignees, and(eq(choreAssignees.choreId, chores.id), eq(choreAssignees.userId, currentUser.id)))
+      .where(and(eq(chores.done, false), lt(chores.nextDue, today))),
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(projectTasks)
+      .innerJoin(taskAssignees, and(eq(taskAssignees.taskId, projectTasks.id), eq(taskAssignees.userId, currentUser.id)))
+      .where(and(eq(projectTasks.done, false), isNotNull(projectTasks.dueDate), lt(projectTasks.dueDate, today))),
+    // Upkeep is shared work and counts for everyone. The item list is small;
+    // only the latest reading per asset is needed, not the whole history.
+    db.select().from(maintenanceItems),
+    db
+      .select({ assetId: meterReadings.assetId, reading: max(meterReadings.reading) })
+      .from(meterReadings)
+      .groupBy(meterReadings.assetId),
+    db.select({ id: assets.id, meterUnit: assets.meterUnit }).from(assets),
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(rentCharges)
+      .where(
+        and(
+          eq(rentCharges.userId, currentUser.id),
+          eq(rentCharges.month, currentMonthKey()),
+          eq(rentCharges.status, 'unpaid'),
+          lt(rentCharges.dueDate, today),
+        ),
+      ),
+  ]);
+  const latestByAsset = new Map(latest.map((r) => [r.assetId, r.reading]));
+  const unitByAsset = new Map(assetUnits.map((a) => [a.id, a.meterUnit]));
+  const upkeep = items.filter(
+    (m) =>
+      maintenanceStatus(m, {
+        latestReading: latestByAsset.get(m.assetId) ?? null,
+        meterUnit: unitByAsset.get(m.assetId) ?? null,
+      }).bucket === 'overdue',
+  ).length;
+  return Number(choreRow.n) + Number(taskRow.n) + upkeep + Number(rentRow.n);
 }
