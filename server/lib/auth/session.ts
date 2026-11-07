@@ -10,6 +10,7 @@ import { db } from '@/db';
 import { sessions, users } from '@/db/schema';
 import type { Role } from '@/db/schema';
 import { SESSION_COOKIE } from './constants';
+import { hashToken } from './tokens';
 
 export { SESSION_COOKIE };
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
@@ -19,7 +20,8 @@ export type SessionUser = { id: string; name: string; email: string; role: Role 
 export async function createSession(userId: string): Promise<string> {
   const token = randomBytes(32).toString('hex');
   const expiresAt = Date.now() + SESSION_TTL_MS;
-  await db.insert(sessions).values({ id: token, userId, expiresAt });
+  // Only the digest is stored; the raw token lives in the cookie alone.
+  await db.insert(sessions).values({ id: hashToken(token), userId, expiresAt });
   cookies().set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -32,7 +34,7 @@ export async function createSession(userId: string): Promise<string> {
 
 export async function destroySession(): Promise<void> {
   const token = cookies().get(SESSION_COOKIE)?.value;
-  if (token) await db.delete(sessions).where(eq(sessions.id, token));
+  if (token) await db.delete(sessions).where(eq(sessions.id, hashToken(token)));
   cookies().delete(SESSION_COOKIE);
 }
 
@@ -46,7 +48,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     .innerJoin(users, eq(users.id, sessions.userId))
     // Deactivating someone takes effect on their very next request, even if
     // they already hold a valid session cookie.
-    .where(and(eq(sessions.id, token), gt(sessions.expiresAt, Date.now()), eq(users.active, true)))
+    .where(and(eq(sessions.id, hashToken(token)), gt(sessions.expiresAt, Date.now()), eq(users.active, true)))
     .limit(1);
   return rows[0] ?? null;
 }

@@ -56,8 +56,37 @@ function withSecurityHeaders(res: NextResponse): NextResponse {
   return res;
 }
 
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/**
+ * Cross-site request forgery guard for every state-changing request.
+ *
+ * The session cookie is SameSite=Lax, which already stops most cross-site
+ * POSTs; this is the second lock. Browsers label where a request came from —
+ * `Sec-Fetch-Site` on modern ones, `Origin` on all of them for a POST — so a
+ * write that a browser says came from another site is refused. Requests with
+ * neither header (curl, scripts) aren't browser-driven forgery and pass
+ * through to the normal auth checks.
+ */
+function isCrossSiteWrite(req: NextRequest): boolean {
+  if (SAFE_METHODS.has(req.method)) return false;
+  const site = req.headers.get('sec-fetch-site');
+  if (site && site !== 'same-origin' && site !== 'none') return true;
+  const origin = req.headers.get('origin');
+  if (!origin) return false;
+  try {
+    return new URL(origin).host !== req.headers.get('host');
+  } catch {
+    return true; // "null" or malformed origins are never ours
+  }
+}
+
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  if (isCrossSiteWrite(req)) {
+    return withSecurityHeaders(NextResponse.json({ error: 'Cross-site request refused.' }, { status: 403 }));
+  }
   const isPublic = PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   if (!isPublic && !req.cookies.has(SESSION_COOKIE)) {

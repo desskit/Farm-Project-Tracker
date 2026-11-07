@@ -15,6 +15,9 @@ services:
       # running on UTC (set ALLOW_UTC=1 if UTC really is intended).
       TZ: ${TZ:?Set TZ in .env to the farm timezone, e.g. TZ=America/Chicago}
       ALLOW_UTC: ${ALLOW_UTC:-}
+      # The app is only reachable through Caddy, so its X-Forwarded-For is
+      # trusted for per-IP login throttling. Set 0 if port 3000 is ever exposed.
+      TRUST_PROXY: ${TRUST_PROXY:-1}
       PUBLIC_URL: ${PUBLIC_URL}
       SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Admin}
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL}

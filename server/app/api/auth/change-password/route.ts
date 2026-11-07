@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import { db } from '@/db';
 import { users, sessions } from '@/db/schema';
 import { requireUser, SESSION_COOKIE } from '@/lib/auth/session';
+import { hashToken } from '@/lib/auth/tokens';
 import { verifyPassword, hashPassword } from '@/lib/auth/password';
 import { logActivity } from '@/lib/data/activity';
 import { errorResponse } from '@/lib/api/errors';
@@ -31,7 +32,7 @@ export async function POST(req: Request) {
 
     // Sign this account out everywhere else; keep the current device signed in.
     const token = cookies().get(SESSION_COOKIE)?.value;
-    if (token) await db.delete(sessions).where(and(eq(sessions.userId, user.id), ne(sessions.id, token)));
+    if (token) await db.delete(sessions).where(and(eq(sessions.userId, user.id), ne(sessions.id, hashToken(token))));
 
     await logActivity(user.id, 'changed their password');
     return NextResponse.json({ ok: true });

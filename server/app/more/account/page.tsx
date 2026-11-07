@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
 import { ChangePasswordForm } from './change-password-form';
+import { LogoutButton } from '@/app/_components/logout-button';
 
 export default async function AccountPage() {
   const user = await getSessionUser();
@@ -23,9 +24,7 @@ export default async function AccountPage() {
             {user.role} · {user.email}
           </p>
         </div>
-        <a href="/api/auth/logout" className="btn small ghost">
-          Log out
-        </a>
+        <LogoutButton className="btn small ghost" />
       </div>
 
       <div className="section-title">Change password</div>

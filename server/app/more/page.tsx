@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
 import { lowStockItems } from '@/lib/data/inventory';
+import { LogoutButton } from '@/app/_components/logout-button';
 
 type Tile = { href: string; icon: string; label: string; sub: string; badge?: number; warn?: boolean };
 
@@ -47,9 +48,7 @@ export default async function MorePage() {
           <p className="who-name">{user.name}</p>
           <p className="who-role">{user.role}</p>
         </div>
-        <a href="/api/auth/logout" className="btn small ghost">
-          Log out
-        </a>
+        <LogoutButton className="btn small ghost" />
       </div>
 
       <div className="section-title">Farm</div>

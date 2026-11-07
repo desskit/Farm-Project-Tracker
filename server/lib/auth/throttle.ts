@@ -66,7 +66,15 @@ export async function clearThrottle(keys: string[]): Promise<void> {
 
 /** Extracts the client IP from proxy headers (Caddy sets X-Forwarded-For). */
 export function clientIp(req: Request): string {
+  // Forwarded headers are only believable when our own reverse proxy (Caddy)
+  // sets them; exposed directly, anyone could pick a fresh "IP" per request
+  // and walk around the login throttle. Take the last hop — the one our proxy
+  // appended — not the first, which the client controls.
+  if (process.env.TRUST_PROXY !== '1') return 'direct';
   const xff = req.headers.get('x-forwarded-for');
-  if (xff) return xff.split(',')[0].trim();
+  if (xff) {
+    const hops = xff.split(',').map((h) => h.trim()).filter(Boolean);
+    if (hops.length) return hops[hops.length - 1];
+  }
   return req.headers.get('x-real-ip')?.trim() || 'unknown';
 }

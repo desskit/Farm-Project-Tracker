@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { SessionUser } from '@/lib/auth/session';
+import { LogoutButton } from '@/app/_components/logout-button';
 
 export function TopBar({ user }: { user: SessionUser }) {
   return (
@@ -14,9 +15,7 @@ export function TopBar({ user }: { user: SessionUser }) {
             🔍
           </Link>
           <span className="role-badge">{user.role}</span>
-          <a href="/api/auth/logout" className="topbar-link">
-            Log out
-          </a>
+          <LogoutButton className="topbar-link" />
         </div>
       </div>
     </header>

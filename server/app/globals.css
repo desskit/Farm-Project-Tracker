@@ -101,6 +101,7 @@ p { margin: 0 0 .6em; }
   white-space: nowrap;
 }
 .topbar-link { color: rgba(255,255,255,.92); text-decoration: none; font-size: 13px; }
+button.topbar-link { background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; }
 
 /* ---------- Layout ---------- */
 .view {

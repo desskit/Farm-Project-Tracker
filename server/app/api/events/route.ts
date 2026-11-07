@@ -7,7 +7,13 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
-  await requireUser();
+  try {
+    await requireUser();
+  } catch {
+    // A plain 401 (not a thrown error page) so EventSource stops cleanly and
+    // the client's auth handling takes over.
+    return new Response('Unauthorized', { status: 401 });
+  }
 
   const encoder = new TextEncoder();
   let unsubscribe = () => {};

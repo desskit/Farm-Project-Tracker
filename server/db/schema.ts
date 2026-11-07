@@ -45,7 +45,7 @@ export const users = sqliteTable('users', {
 });
 
 export const sessions = sqliteTable('sessions', {
-  id: text('id').primaryKey(), // opaque session token
+  id: text('id').primaryKey(), // SHA-256 of the session cookie value (lib/auth/tokens.ts)
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: integer('created_at').notNull().default(now),
   expiresAt: integer('expires_at').notNull(),
@@ -54,7 +54,7 @@ export const sessions = sqliteTable('sessions', {
 }));
 
 export const invites = sqliteTable('invites', {
-  token: text('token').primaryKey(),
+  token: text('token').primaryKey(), // SHA-256 of the link token; the raw token is never stored
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   expiresAt: integer('expires_at').notNull(),
   usedAt: integer('used_at'),
