@@ -14,7 +14,11 @@ export type TimeReport = { totalSeconds: number; byPerson: PersonTotal[]; byItem
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export async function timeReport(fromISO: string | null, toISO: string): Promise<TimeReport> {
+/**
+ * `onlyUserId` restricts the report to one person's own entries — what a
+ * worker is allowed to see. Managers pass nothing and get the whole crew.
+ */
+export async function timeReport(fromISO: string | null, toISO: string, onlyUserId?: string): Promise<TimeReport> {
   const fromMs = fromISO ? parseISO(fromISO).getTime() : 0;
   const toMs = parseISO(toISO).getTime() + DAY_MS; // inclusive of the whole end day
 
@@ -39,6 +43,7 @@ export async function timeReport(fromISO: string | null, toISO: string): Promise
 
   for (const e of entries) {
     if (e.end == null) continue; // still running
+    if (onlyUserId && e.userId !== onlyUserId) continue;
     if (e.start < fromMs || e.start >= toMs) continue;
     const secs = e.seconds || 0;
     totalSeconds += secs;

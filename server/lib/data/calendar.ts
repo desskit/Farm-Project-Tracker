@@ -8,11 +8,14 @@ import 'server-only';
 import { db } from '@/db';
 import { chores, maintenanceItems, projectTasks, rentCharges, users } from '@/db/schema';
 import { nextOccurrenceAfter } from '@/lib/domain/recurrence';
+import type { SessionUser } from '@/lib/auth/session';
 
 export type CalendarKind = 'chore' | 'maintenance' | 'task' | 'rent';
 export type CalendarItem = { date: string; kind: CalendarKind; id: string; title: string; href: string };
 
-export async function calendarItems(fromISO: string, toISO: string): Promise<CalendarItem[]> {
+export async function calendarItems(viewer: SessionUser, fromISO: string, toISO: string): Promise<CalendarItem[]> {
+  // Rent is private: managers see every charge, everyone else only their own.
+  const seesAllRent = viewer.role === 'manager' || viewer.role === 'admin';
   const within = (d: string) => d >= fromISO && d <= toISO;
   const out: CalendarItem[] = [];
 
@@ -59,8 +62,10 @@ export async function calendarItems(fromISO: string, toISO: string): Promise<Cal
   }
 
   for (const c of rentRows) {
+    if (c.userId !== viewer.id && !seesAllRent) continue;
     if (c.status !== 'verified' && c.dueDate && within(c.dueDate)) {
-      out.push({ date: c.dueDate, kind: 'rent', id: c.id, title: `Rent · ${nameById.get(c.userId) ?? 'someone'}`, href: '/more/rent' });
+      const title = c.userId === viewer.id ? 'Your rent' : `Rent · ${nameById.get(c.userId) ?? 'someone'}`;
+      out.push({ date: c.dueDate, kind: 'rent', id: c.id, title, href: '/more/rent' });
     }
   }
 

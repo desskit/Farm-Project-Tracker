@@ -21,7 +21,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: { m
   const mk = isMonthKey(searchParams.m) ? searchParams.m : currentMonthKey();
   const from = `${mk}-01`;
   const to = lastDayOfMonth(mk);
-  const items = await calendarItems(from, to);
+  const items = await calendarItems(user, from, to);
 
   const byDate: Record<string, CalendarItem[]> = {};
   for (const it of items) (byDate[it.date] ??= []).push(it);

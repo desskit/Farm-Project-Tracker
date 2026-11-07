@@ -123,10 +123,14 @@ export async function getDashboard(currentUser: SessionUser, scope: 'mine' | 'al
     });
   }
 
+  // Someone else's rent is private: only managers and admins may see it, in
+  // either scope. Everyone else only ever sees their own charge.
+  const seesAllRent = currentUser.role === 'manager' || currentUser.role === 'admin';
   for (const c of monthCharges) {
     if (c.status === 'verified') continue;
+    if (c.userId !== currentUser.id && !seesAllRent) continue;
     // "mine" shows the renter's own still-unpaid charge; "all" shows every
-    // non-verified charge (matches the prototype's dashboard filter).
+    // non-verified charge the viewer is allowed to see.
     if (scope === 'mine' && (c.userId !== currentUser.id || c.status === 'marked')) continue;
     const b = bucketForDate(c.dueDate);
     if (b === 'later') continue;

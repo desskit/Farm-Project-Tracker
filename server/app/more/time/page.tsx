@@ -20,7 +20,9 @@ export default async function TimeReportPage({ searchParams }: { searchParams: {
   const def = PERIODS.find((p) => p.key === period)!;
   const today = todayISO();
   const from = def.days == null ? null : addDays(today, -def.days);
-  const report = await timeReport(from, today);
+  // Other people's hours are a manager's business; everyone else sees their own.
+  const isManager = user.role === 'manager' || user.role === 'admin';
+  const report = await timeReport(from, today, isManager ? undefined : user.id);
 
   return (
     <main className="view">
@@ -28,7 +30,7 @@ export default async function TimeReportPage({ searchParams }: { searchParams: {
         <Link href="/more" className="btn small ghost back-btn">
           ‹ More
         </Link>
-        <h1>Time report</h1>
+        <h1>{isManager ? 'Time report' : 'My hours'}</h1>
       </div>
 
       <div className="segmented">
@@ -53,15 +55,19 @@ export default async function TimeReportPage({ searchParams }: { searchParams: {
         <div className="empty">No time logged in this period. Start a timer on a chore, task, or upkeep item.</div>
       ) : (
         <>
-          <div className="section-title">By person</div>
-          <div className="card">
-            {report.byPerson.map((p) => (
-              <div className="hist-row" key={p.userId}>
-                <span>{p.name}</span>
-                <strong>{fmtDur(p.seconds)}</strong>
+          {isManager && (
+            <>
+              <div className="section-title">By person</div>
+              <div className="card">
+                {report.byPerson.map((p) => (
+                  <div className="hist-row" key={p.userId}>
+                    <span>{p.name}</span>
+                    <strong>{fmtDur(p.seconds)}</strong>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
 
           <div className="section-title">By item</div>
           <div className="card">

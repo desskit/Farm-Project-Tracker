@@ -15,10 +15,10 @@ export default async function MorePage() {
     { href: '/more/assets', icon: '🚜', label: 'Assets', sub: 'Equipment & documents' },
     { href: '/more/supplies', icon: '📦', label: 'Supplies', sub: 'Feed, fuel & parts', badge: low || undefined, warn: low > 0 },
     { href: '/more/leaderboard', icon: '🏆', label: 'Leaderboard', sub: 'Points & streaks' },
-    { href: '/more/time', icon: '⏱', label: 'Time report', sub: 'Hours logged' },
-    { href: '/more/spend', icon: '💸', label: 'Spending', sub: 'Upkeep costs' },
+    { href: '/more/time', icon: '⏱', label: isManager ? 'Time report' : 'My hours', sub: isManager ? 'Hours logged' : 'Time you logged' },
     { href: '/more/rent', icon: '💵', label: 'Rent', sub: isManager ? 'Collect & verify' : 'Your charges' },
   ];
+  if (isManager) farm.push({ href: '/more/spend', icon: '💸', label: 'Spending', sub: 'Farm costs' });
   if (isManager) farm.push({ href: '/more/team', icon: '👥', label: 'Team', sub: 'Farm-wide status' });
 
   const settings: Tile[] = [

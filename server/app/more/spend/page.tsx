@@ -15,6 +15,20 @@ const money = (n: number) => `$${n.toFixed(2)}`;
 export default async function SpendPage({ searchParams }: { searchParams: { period?: string } }) {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
+  // Spending is farm finance — managers and admins only.
+  if (user.role !== 'manager' && user.role !== 'admin') {
+    return (
+      <main className="view">
+        <div className="sub-head">
+          <Link href="/more" className="btn small ghost back-btn">
+            ‹ More
+          </Link>
+          <h1>Spending</h1>
+        </div>
+        <div className="empty">Only managers and admins can see farm spending.</div>
+      </main>
+    );
+  }
 
   const period = (PERIODS.find((p) => p.key === searchParams.period)?.key ?? 'year') as Period;
   const def = PERIODS.find((p) => p.key === period)!;
