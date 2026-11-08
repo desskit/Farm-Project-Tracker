@@ -1,5 +1,6 @@
 'use client';
 import type { PersonRow } from '@/lib/data/users';
+import { canBeAssigned } from '@/lib/domain/permissions';
 
 /**
  * Picks the people on a chore or task. A multi-select `<select>` is close to
@@ -20,7 +21,9 @@ export function AssigneePicker({
   onChange: (ids: string[]) => void;
   label?: string;
 }) {
-  const shown = people.filter((p) => p.active || value.includes(p.id));
+  // Only people who can do farm work (never renters); deactivated people only
+  // if they're already on it.
+  const shown = people.filter((p) => (p.active && canBeAssigned(p.role)) || value.includes(p.id));
 
   function toggle(id: string) {
     onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);

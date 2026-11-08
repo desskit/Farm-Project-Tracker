@@ -8,6 +8,7 @@ import { users, chores, projectTasks } from '@/db/schema';
 import { bucketForDate } from '@/lib/domain/dashboard';
 import type { Role } from '@/db/schema';
 import { choreAssigneeIdsFor, taskAssigneeIdsFor } from './assignees';
+import { onTeam } from '@/lib/domain/permissions';
 
 export type Workload = {
   userId: string;
@@ -45,7 +46,8 @@ export async function teamOverview(): Promise<TeamOverview> {
     else if (b === 'upcoming') tiles.upcoming++;
   }
 
-  const people: Workload[] = allUsers.map((u) => {
+  // Renters and guests aren't part of the team overview.
+  const people: Workload[] = allUsers.filter((u) => onTeam(u.role)).map((u) => {
     const w: Workload = {
       userId: u.id,
       name: u.name,

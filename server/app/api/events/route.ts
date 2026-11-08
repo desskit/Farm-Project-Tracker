@@ -1,5 +1,6 @@
 import { requireUser } from '@/lib/auth/session';
-import { subscribe, type ChangeEvent } from '@/lib/realtime/bus';
+import { CHANGE_AUDIENCE, subscribe, type ChangeEvent } from '@/lib/realtime/bus';
+import { can } from '@/lib/domain/permissions';
 
 // Long-lived SSE stream — must run on the Node runtime and never be cached or
 // statically rendered.
@@ -7,8 +8,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
+  let viewer;
   try {
-    await requireUser();
+    viewer = await requireUser();
   } catch {
     // A plain 401 (not a thrown error page) so EventSource stops cleanly and
     // the client's auth handling takes over.
@@ -47,6 +49,9 @@ export async function GET(req: Request) {
       send(': connected\n\n');
 
       unsubscribe = subscribe((e: ChangeEvent) => {
+        // Only tell this device about changes its person may see.
+        const need = CHANGE_AUDIENCE[e.resource];
+        if (need && !can(viewer, need)) return;
         send(`event: change\ndata: ${JSON.stringify(e)}\n\n`);
       });
 

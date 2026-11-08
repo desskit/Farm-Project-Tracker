@@ -9,6 +9,7 @@
  */
 import 'server-only';
 import { EventEmitter } from 'node:events';
+import type { Cap } from '@/lib/domain/permissions';
 
 export type ChangeEvent = { type: 'change'; resource: string; ts: number };
 
@@ -25,6 +26,24 @@ export function publishChange(resource = 'all'): void {
     /* a broken listener must never break the mutation that triggered it */
   }
 }
+
+/**
+ * Which capability a device needs to be told about a kind of change. Rent and
+ * anything not listed go to everyone signed in (the page refetches, and the
+ * data layer decides what each person actually gets back).
+ */
+export const CHANGE_AUDIENCE: Record<string, Cap> = {
+  chore: 'farm.view',
+  task: 'farm.view',
+  project: 'farm.view',
+  asset: 'farm.view',
+  maintenance: 'farm.view',
+  inventory: 'farm.view',
+  note: 'farm.view',
+  timer: 'farm.view',
+  activity: 'farm.view',
+  all: 'farm.view',
+};
 
 /** Subscribe to change events; returns an unsubscribe function. */
 export function subscribe(fn: (e: ChangeEvent) => void): () => void {

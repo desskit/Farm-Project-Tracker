@@ -8,6 +8,7 @@ import { db } from '@/db';
 import { users, choreCompletions, projectTasks, maintenanceLogs } from '@/db/schema';
 import { todayISO, addDays, currentMonthKey } from '@/lib/domain/dates';
 import type { Role } from '@/db/schema';
+import { onTeam } from '@/lib/domain/permissions';
 
 const PTS = { chore: 2, task: 5, service: 4, chorePhoto: 1, taskPhoto: 2, servicePhoto: 2 };
 
@@ -37,7 +38,8 @@ export async function leaderboard(win: 'month' | 'all'): Promise<LeaderRow[]> {
     db.select().from(projectTasks),
     db.select().from(maintenanceLogs),
   ]);
-  const userIds = new Set(allUsers.map((u) => u.id));
+  // Renters and guests aren't on the board.
+  const userIds = new Set(allUsers.filter((u) => onTeam(u.role)).map((u) => u.id));
 
   type Stat = { points: number; chores: number; tasks: number; services: number; verified: number };
   const stats = new Map<string, Stat>();
@@ -49,7 +51,7 @@ export async function leaderboard(win: 'month' | 'all'): Promise<LeaderRow[]> {
     }
     return s;
   };
-  allUsers.forEach((u) => ensure(u.id));
+  allUsers.filter((u) => userIds.has(u.id)).forEach((u) => ensure(u.id));
 
   // Streaks: days a user completed at least one chore, counting back from today.
   const choreDaysByUser = new Map<string, Set<string>>();

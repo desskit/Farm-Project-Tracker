@@ -144,5 +144,17 @@ export function can(subject: Subject | null | undefined, cap: Cap): boolean {
   return caps.includes(cap);
 }
 
+/**
+ * Part of the farm team: can be assigned work and shows on the leaderboard
+ * and team page. Renters never are; guests can be assigned work but aren't
+ * counted as team.
+ */
+export function canBeAssigned(role: Role): boolean {
+  return can({ role }, 'work.do');
+}
+export function onTeam(role: Role): boolean {
+  return can({ role }, 'work.claim');
+}
+
 /** Roles an admin can hand out today. Renter and guest wait for their screens. */
 export const ASSIGNABLE_ROLES: Role[] = ['admin', 'manager', 'family', 'worker'];

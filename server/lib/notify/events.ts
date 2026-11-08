@@ -10,7 +10,7 @@
  *    fire-and-forget from the data layer's point of view.
  */
 import 'server-only';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, or } from 'drizzle-orm';
 import { db } from '@/db';
 import { users, notificationPrefs } from '@/db/schema';
 import { sendPushToUser, pushConfigured } from './push';
@@ -27,7 +27,13 @@ export async function eventPushRecipients(userIds: string[], exceptUserId: strin
   const active = await db
     .select({ id: users.id })
     .from(users)
-    .where(and(inArray(users.id, unique), eq(users.active, true)));
+    .where(
+      and(
+        inArray(users.id, unique),
+        eq(users.active, true),
+        or(isNull(users.accessExpiresAt), gt(users.accessExpiresAt, Date.now())),
+      ),
+    );
   const activeIds = active.map((u) => u.id);
   if (!activeIds.length) return [];
 
