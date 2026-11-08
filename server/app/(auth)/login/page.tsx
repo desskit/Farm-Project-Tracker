@@ -1,7 +1,9 @@
 'use client';
 import { Suspense, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
+import { Banner, Button, Field, Input } from '@/components/ui';
+import { AuthShell } from '../auth-shell';
+import s from '../auth.module.css';
 
 export default function LoginPage() {
   return (
@@ -40,30 +42,19 @@ function LoginForm() {
   }
 
   return (
-    <main className="auth-wrap">
-      <p className="auth-brand">🌾 Farm Project Tracker</p>
-      <p className="subtle">Sign in to your farm.</p>
-      <div className="card" style={{ marginTop: 20 }}>
-        <form onSubmit={onSubmit}>
-          <div className="field">
-            <label>Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
-          </div>
-          <div className="field">
-            <label>Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          </div>
-          {error && <p className="error-text">{error}</p>}
-          <button type="submit" disabled={loading} className="btn primary block">
-            {loading ? 'Signing in…' : 'Log in'}
-          </button>
-        </form>
-      </div>
-      <p className="subtle" style={{ marginTop: 14, textAlign: 'center' }}>
-        <Link href="/forgot" className="chip-link">
-          Forgot your password?
-        </Link>
-      </p>
-    </main>
+    <AuthShell title="Sign in" lede="Welcome back." footer={{ href: '/forgot', label: 'Forgot your password?' }}>
+      <form onSubmit={onSubmit} className={s.form}>
+        <Field label="Email" htmlFor="login-email">
+          <Input id="login-email" type="email" autoComplete="username" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+        </Field>
+        <Field label="Password" htmlFor="login-password">
+          <Input id="login-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        </Field>
+        {error && <Banner tone="danger">{error}</Banner>}
+        <Button type="submit" block loading={loading}>
+          {loading ? 'Signing in…' : 'Sign in'}
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

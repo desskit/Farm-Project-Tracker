@@ -1,0 +1,18 @@
+.wrap {
+  min-height: 100dvh; display: grid; align-content: center; justify-items: center; gap: var(--space-5);
+  padding: calc(var(--space-8) + env(safe-area-inset-top)) var(--gutter) var(--space-8);
+  background: linear-gradient(180deg, var(--c-primary-soft), var(--c-bg) 45%);
+}
+.brand { display: flex; align-items: center; gap: var(--space-2); font-weight: 800; font-size: var(--text-lg); color: var(--c-primary); }
+.mark { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-md); background: var(--c-primary); color: var(--c-on-primary); }
+.mark svg { width: 22px; height: 22px; }
+.card {
+  width: min(420px, 100%); display: grid; gap: var(--space-4);
+  padding: var(--space-6) var(--space-5); background: var(--c-surface);
+  border: 1px solid var(--c-border); border-radius: var(--r-xl); box-shadow: var(--shadow-2);
+}
+.title { margin: 0; font-size: var(--text-xl); }
+.lede { margin: -8px 0 0; color: var(--c-text-muted); }
+.footer { margin: 0; font-size: var(--text-sm); }
+.footer a { color: var(--c-primary); font-weight: 600; text-decoration: none; }
+.form { display: grid; gap: var(--space-4); }

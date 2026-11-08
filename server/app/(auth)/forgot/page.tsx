@@ -1,6 +1,8 @@
 'use client';
 import { useState, type FormEvent } from 'react';
-import Link from 'next/link';
+import { Banner, Button, Field, Input } from '@/components/ui';
+import { AuthShell } from '../auth-shell';
+import s from '../auth.module.css';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -27,38 +29,27 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="auth-wrap">
-      <p className="auth-brand">🌾 Farm Project Tracker</p>
-      <p className="subtle">Reset your password.</p>
-      <div className="card" style={{ marginTop: 20 }}>
-        {sent ? (
-          <>
-            <p style={{ marginTop: 0 }}>
-              If <strong>{email}</strong> is registered, a reset link is on its way. The link expires in 7 days.
-            </p>
-            <p className="subtle">Not seeing it? Check spam, or ask a farm admin to re-invite you.</p>
-          </>
-        ) : (
-          <form onSubmit={onSubmit}>
-            <p className="subtle" style={{ marginTop: 0 }}>
-              Enter your email and we&apos;ll send a link to set a new password.
-            </p>
-            <div className="field">
-              <label>Email</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
-            </div>
-            {error && <p className="error-text">{error}</p>}
-            <button type="submit" disabled={loading} className="btn primary block">
-              {loading ? 'Sending…' : 'Send reset link'}
-            </button>
-          </form>
-        )}
-      </div>
-      <p className="subtle" style={{ marginTop: 14, textAlign: 'center' }}>
-        <Link href="/login" className="chip-link">
-          ‹ Back to sign in
-        </Link>
-      </p>
-    </main>
+    <AuthShell
+      title="Reset your password"
+      lede={sent ? undefined : 'Enter your email and we’ll send a link to set a new one.'}
+      footer={{ href: '/login', label: '‹ Back to sign in' }}
+    >
+      {sent ? (
+        <Banner tone="ok" title="Check your email">
+          If {email} has an account, a reset link is on its way (it works for 7 days). Not seeing it? Check spam, or ask a
+          farm admin to re-invite you.
+        </Banner>
+      ) : (
+        <form onSubmit={onSubmit} className={s.form}>
+          <Field label="Email" htmlFor="forgot-email">
+            <Input id="forgot-email" type="email" autoComplete="username" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+          </Field>
+          {error && <Banner tone="danger">{error}</Banner>}
+          <Button type="submit" block loading={loading}>
+            Send reset link
+          </Button>
+        </form>
+      )}
+    </AuthShell>
   );
 }
