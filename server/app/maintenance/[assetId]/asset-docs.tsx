@@ -7,6 +7,7 @@ import type { AssetDocRow } from '@/lib/data/asset-docs';
 import { DOC_TYPE_LABELS } from '@/lib/domain/asset-doc-types';
 import type { AssetDocType } from '@/db/schema';
 import type { SessionUser } from '@/lib/auth/session';
+import { can } from '@/lib/domain/permissions';
 
 const DOC_ICON: Record<AssetDocType, string> = {
   receipt: '🧾',
@@ -26,7 +27,7 @@ export function AssetDocs({
   currentUser: SessionUser;
 }) {
   const router = useRouter();
-  const isManager = currentUser.role === 'manager' || currentUser.role === 'admin';
+  const isManager = can(currentUser, 'work.manage');
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState('');
   const [docType, setDocType] = useState<AssetDocType>('receipt');

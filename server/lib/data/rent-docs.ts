@@ -19,6 +19,7 @@ import { deleteAttachment } from './attachments';
 import { logActivity } from './activity';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
+import { can } from '@/lib/domain/permissions';
 
 export { RENT_DOC_LABELS } from '@/lib/domain/rent-doc-types';
 
@@ -34,13 +35,10 @@ export type RentDocRow = {
   ts: number;
 };
 
-function isManager(user: SessionUser): boolean {
-  return user.role === 'manager' || user.role === 'admin';
-}
 
 /** The renter themselves, or a manager. */
 function canAccess(user: SessionUser, renterId: string): boolean {
-  return user.id === renterId || isManager(user);
+  return user.id === renterId || can(user, 'finance.view');
 }
 
 /** Throws unless `user` may see or add paperwork for `renterId`. */

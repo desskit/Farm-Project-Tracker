@@ -14,7 +14,8 @@
 import { sql } from 'drizzle-orm';
 import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
-export type Role = 'admin' | 'manager' | 'worker';
+import type { Role } from '../lib/domain/permissions';
+export type { Role };
 
 export type Schedule = {
   // 'once' is a one-time chore that does not repeat — it's marked done on completion.
@@ -42,7 +43,25 @@ export const users = sqliteTable('users', {
   // away their rent charges and logged time.
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
   deactivatedAt: integer('deactivated_at'),
+  // Guests (and anyone else given a time limit) stop being able to sign in
+  // after this moment (epoch ms). Null = no end date.
+  accessExpiresAt: integer('access_expires_at'),
 });
+
+/**
+ * Per-person switches on top of the role's defaults (lib/domain/permissions.ts).
+ * Only capabilities the role marks as toggleable are honoured; anything else
+ * stored here is ignored, so a role change can't leave a stray grant behind.
+ */
+export const userCaps = sqliteTable('user_caps', {
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  cap: text('cap').notNull(),
+  allow: integer('allow', { mode: 'boolean' }).notNull(),
+  setBy: text('set_by').references(() => users.id, { onDelete: 'set null' }),
+  setAt: integer('set_at').notNull().default(now),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.userId, t.cap] }),
+}));
 
 export const sessions = sqliteTable('sessions', {
   id: text('id').primaryKey(), // SHA-256 of the session cookie value (lib/auth/tokens.ts)

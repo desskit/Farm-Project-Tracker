@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/auth/session';
 import { getDashboard, type DashboardItem } from '@/lib/data/dashboard';
 import { CompleteChoreButton } from './_components/complete-chore-button';
 import { WeatherWidget } from './_components/weather-widget';
+import { ROLE_LABEL } from '@/lib/domain/permissions';
 
 export default async function HomePage({ searchParams }: { searchParams: { scope?: string } }) {
   const user = await getSessionUser();
@@ -30,7 +31,7 @@ export default async function HomePage({ searchParams }: { searchParams: { scope
         <div>
           <h1>Today</h1>
           <p className="subtle">
-            {user.name} · {user.role}
+            {user.name} · {ROLE_LABEL[user.role]}
           </p>
         </div>
         <div className="segmented">

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { getSessionUser } from '@/lib/auth/session';
 import { currentBrand, currentThemePref } from '@/lib/data/brand';
 import { Gallery } from './gallery';
+import { can } from '@/lib/domain/permissions';
 
 export const metadata = { title: 'Design gallery · Farm Project Tracker' };
 
@@ -11,6 +12,6 @@ export const metadata = { title: 'Design gallery · Farm Project Tracker' };
  */
 export default async function DevUiPage() {
   const user = await getSessionUser();
-  if (user?.role !== 'admin') notFound();
+  if (!can(user, 'system.admin')) notFound();
   return <Gallery current={await currentBrand()} theme={currentThemePref()} />;
 }

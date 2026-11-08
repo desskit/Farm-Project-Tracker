@@ -7,6 +7,7 @@ import { bucketForDate } from '@/lib/domain/dashboard';
 import { todayISO } from '@/lib/domain/dates';
 import { assigneeLabel } from '@/app/_components/assignee-picker';
 import { AddChoreCard } from './add-chore-card';
+import { can } from '@/lib/domain/permissions';
 
 export default async function ChoresPage() {
   const user = await getSessionUser();
@@ -15,7 +16,7 @@ export default async function ChoresPage() {
   const [chores, people] = await Promise.all([listChores(), listUsers()]);
   const today = todayISO();
   const nameById = new Map(people.map((p) => [p.id, p.name]));
-  const isManager = user.role === 'manager' || user.role === 'admin';
+  const isManager = can(user, 'work.manage');
 
   return (
     <main className="view">

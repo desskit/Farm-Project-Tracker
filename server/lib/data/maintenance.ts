@@ -14,15 +14,13 @@ import { logActivity } from './activity';
 import { stopTimersFor } from './timers';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
+import { can } from '@/lib/domain/permissions';
 
 export type AssetRow = typeof assets.$inferSelect;
 export type ReadingRow = typeof meterReadings.$inferSelect;
 export type MaintItemRow = typeof maintenanceItems.$inferSelect;
 export type MaintLogRow = typeof maintenanceLogs.$inferSelect;
 
-function isManager(u: SessionUser): boolean {
-  return u.role === 'manager' || u.role === 'admin';
-}
 
 /* ---------------- assets ---------------- */
 export async function listAssets(): Promise<AssetRow[]> {
@@ -33,7 +31,7 @@ export async function assetById(id: string): Promise<AssetRow | null> {
   return rows[0] ?? null;
 }
 export async function addAsset(user: SessionUser, data: { name: string; category?: string; meterUnit?: string | null; notes?: string }): Promise<AssetRow> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can add assets.', 403);
+  if (!can(user, 'work.manage')) throw new DataError('Only managers and admins can add assets.', 403);
   const id = uid('a');
   await db.insert(assets).values({
     id,
@@ -58,7 +56,7 @@ export async function updateAsset(
     purchaseCost?: number | null;
   },
 ): Promise<AssetRow> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can edit assets.', 403);
+  if (!can(user, 'work.manage')) throw new DataError('Only managers and admins can edit assets.', 403);
   const a = await assetById(id);
   if (!a) throw new DataError('No such asset.', 404);
   const patch: Partial<typeof assets.$inferInsert> = { notes: data.notes || '' };
@@ -73,7 +71,7 @@ export async function updateAsset(
   return (await assetById(id))!;
 }
 export async function deleteAsset(user: SessionUser, id: string): Promise<void> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can delete assets.', 403);
+  if (!can(user, 'work.manage')) throw new DataError('Only managers and admins can delete assets.', 403);
   await db.delete(assets).where(eq(assets.id, id)); // items/logs/readings cascade via FK
   publishChange('asset');
 }
@@ -120,7 +118,7 @@ export type MaintInput = {
 };
 
 export async function addMaintenance(user: SessionUser, data: MaintInput): Promise<MaintItemRow> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can add maintenance items.', 403);
+  if (!can(user, 'work.manage')) throw new DataError('Only managers and admins can add maintenance items.', 403);
   const today = todayISO();
   const id = uid('m');
   const unit = data.intervalUnit || 'months';
@@ -152,7 +150,7 @@ export async function updateMaintenance(
   id: string,
   data: { name?: string; intervalValue?: number; intervalUnit?: 'months' | 'days'; requirePhoto?: boolean },
 ): Promise<MaintItemRow> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can edit maintenance items.', 403);
+  if (!can(user, 'work.manage')) throw new DataError('Only managers and admins can edit maintenance items.', 403);
   const item = await maintenanceById(id);
   if (!item) throw new DataError('No such item.', 404);
   const patch: Partial<typeof maintenanceItems.$inferInsert> = { requirePhoto: !!data.requirePhoto };
@@ -173,7 +171,7 @@ export async function updateMaintenance(
 }
 
 export async function deleteMaintenance(user: SessionUser, id: string): Promise<void> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can delete maintenance items.', 403);
+  if (!can(user, 'work.manage')) throw new DataError('Only managers and admins can delete maintenance items.', 403);
   await db.delete(maintenanceItems).where(eq(maintenanceItems.id, id)); // logs cascade
   publishChange('maintenance');
 }
@@ -241,7 +239,7 @@ export async function logService(
 }
 
 export async function sendBackService(user: SessionUser, logId: string, reason?: string): Promise<void> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can send work back.', 403);
+  if (!can(user, 'work.manage')) throw new DataError('Only managers and admins can send work back.', 403);
   const rows = await db.select().from(maintenanceLogs).where(eq(maintenanceLogs.id, logId)).limit(1);
   const log = rows[0];
   if (!log) throw new DataError('No such service log.', 404);

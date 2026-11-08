@@ -27,6 +27,7 @@ import { stopTimersFor } from './timers';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
 import { pushAssigned, pushClaimed, pushSentBack } from '@/lib/notify/events';
+import { can } from '@/lib/domain/permissions';
 
 /**
  * A chore plus the people on it. `assignedTo` is still on the underlying table
@@ -35,9 +36,6 @@ import { pushAssigned, pushClaimed, pushSentBack } from '@/lib/notify/events';
 export type ChoreRow = typeof chores.$inferSelect & { assigneeIds: string[] };
 export type ChoreCompletionRow = typeof choreCompletions.$inferSelect;
 
-function isManager(user: SessionUser): boolean {
-  return user.role === 'manager' || user.role === 'admin';
-}
 
 export async function listChores(): Promise<ChoreRow[]> {
   const rows = await db.select().from(chores).where(eq(chores.done, false));
@@ -65,7 +63,7 @@ export type ChoreInput = {
 };
 
 export async function addChore(user: SessionUser, data: ChoreInput): Promise<ChoreRow> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can add chores.', 403);
+  if (!can(user, 'work.manage')) throw new DataError('Only managers and admins can add chores.', 403);
   const id = uid('c');
   await db.insert(chores).values({
     id,
@@ -84,7 +82,7 @@ export async function addChore(user: SessionUser, data: ChoreInput): Promise<Cho
 }
 
 export async function updateChore(user: SessionUser, id: string, data: Partial<ChoreInput>): Promise<ChoreRow> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can edit chores.', 403);
+  if (!can(user, 'work.manage')) throw new DataError('Only managers and admins can edit chores.', 403);
   const chore = await choreById(id);
   if (!chore) throw new DataError('No such chore.', 404);
 
@@ -110,7 +108,7 @@ export async function updateChore(user: SessionUser, id: string, data: Partial<C
 }
 
 export async function deleteChore(user: SessionUser, id: string): Promise<void> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can delete chores.', 403);
+  if (!can(user, 'work.manage')) throw new DataError('Only managers and admins can delete chores.', 403);
   await db.delete(chores).where(eq(chores.id, id)); // completions cascade via FK
   publishChange('chore');
 }
@@ -199,7 +197,7 @@ export async function releaseChore(user: SessionUser, id: string): Promise<void>
   if (chore.assigneeIds.includes(user.id)) {
     // Stepping off yourself — anyone else on the chore stays.
     await removeChoreAssignee(id, user.id);
-  } else if (isManager(user)) {
+  } else if (can(user, 'work.manage')) {
     // A manager clearing an open chore takes everyone off it.
     await setChoreAssignees(id, []);
   } else {
@@ -210,7 +208,7 @@ export async function releaseChore(user: SessionUser, id: string): Promise<void>
 
 /** Undoes a chore completion and flags the chore "sent back" for redo. */
 export async function sendBackChoreCompletion(user: SessionUser, completionId: string, reason?: string): Promise<void> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can send work back.', 403);
+  if (!can(user, 'work.manage')) throw new DataError('Only managers and admins can send work back.', 403);
   const rows = await db.select().from(choreCompletions).where(eq(choreCompletions.id, completionId)).limit(1);
   const comp = rows[0];
   if (!comp) throw new DataError('No such completion.', 404);

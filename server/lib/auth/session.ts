@@ -5,17 +5,32 @@
  */
 import { cookies } from 'next/headers';
 import { randomBytes } from 'node:crypto';
-import { and, eq, gt } from 'drizzle-orm';
+import { and, eq, gt, isNull, or } from 'drizzle-orm';
 import { db } from '@/db';
-import { sessions, users } from '@/db/schema';
+import { sessions, userCaps, users } from '@/db/schema';
 import type { Role } from '@/db/schema';
+import { can, resolveCaps, type Cap } from '@/lib/domain/permissions';
+import { requestCache } from '@/lib/request-cache';
 import { SESSION_COOKIE } from './constants';
 import { hashToken } from './tokens';
 
 export { SESSION_COOKIE };
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 
-export type SessionUser = { id: string; name: string; email: string; role: Role };
+/**
+ * The signed-in person. `caps` is what they may do (role defaults plus their
+ * switches); check it with `can(user, cap)` from lib/domain/permissions, never
+ * by comparing roles. It's an array so it can be passed to client components.
+ * It's optional only so tests and scripts can build a user by hand; then the
+ * role's defaults apply.
+ */
+export type SessionUser = { id: string; name: string; email: string; role: Role; caps?: Cap[] };
+
+/** Role defaults plus this person's switches. */
+export async function capsFor(userId: string, role: Role): Promise<Cap[]> {
+  const overrides = await db.select({ cap: userCaps.cap, allow: userCaps.allow }).from(userCaps).where(eq(userCaps.userId, userId));
+  return resolveCaps(role, overrides);
+}
 
 export async function createSession(userId: string): Promise<string> {
   const token = randomBytes(32).toString('hex');
@@ -38,20 +53,33 @@ export async function destroySession(): Promise<void> {
   cookies().delete(SESSION_COOKIE);
 }
 
-/** The signed-in user, or null. Validates the token against the DB + expiry. */
-export async function getSessionUser(): Promise<SessionUser | null> {
+/**
+ * The signed-in user, or null. Validates the token against the DB + expiry.
+ * Cached per request: the layout, the page and its components all ask.
+ */
+export const getSessionUser = requestCache(async (): Promise<SessionUser | null> => {
   const token = cookies().get(SESSION_COOKIE)?.value;
   if (!token) return null;
+  const now = Date.now();
   const rows = await db
     .select({ id: users.id, name: users.name, email: users.email, role: users.role })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
-    // Deactivating someone takes effect on their very next request, even if
-    // they already hold a valid session cookie.
-    .where(and(eq(sessions.id, hashToken(token)), gt(sessions.expiresAt, Date.now()), eq(users.active, true)))
+    // Deactivating someone, or their access end date passing, takes effect on
+    // their very next request, even if they already hold a valid cookie.
+    .where(
+      and(
+        eq(sessions.id, hashToken(token)),
+        gt(sessions.expiresAt, now),
+        eq(users.active, true),
+        or(isNull(users.accessExpiresAt), gt(users.accessExpiresAt, now)),
+      ),
+    )
     .limit(1);
-  return rows[0] ?? null;
-}
+  const u = rows[0];
+  if (!u) return null;
+  return { ...u, caps: await capsFor(u.id, u.role) };
+});
 
 /** Throwing guard for API routes / server actions. */
 export async function requireUser(): Promise<SessionUser> {
@@ -60,16 +88,15 @@ export async function requireUser(): Promise<SessionUser> {
   return user;
 }
 
-export async function requireManager(): Promise<SessionUser> {
+/** Signed in and allowed to do `cap`, or a 401/403. */
+export async function requireCap(cap: Cap, message = 'You don’t have access to that.'): Promise<SessionUser> {
   const user = await requireUser();
-  if (user.role !== 'manager' && user.role !== 'admin') throw new AuthError('Managers and admins only.', 403);
+  if (!can(user, cap)) throw new AuthError(message, 403);
   return user;
 }
 
 export async function requireAdmin(): Promise<SessionUser> {
-  const user = await requireUser();
-  if (user.role !== 'admin') throw new AuthError('Admins only.', 403);
-  return user;
+  return requireCap('system.admin', 'Admins only.');
 }
 
 export class AuthError extends Error {

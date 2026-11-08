@@ -6,6 +6,7 @@ import { preparePhoto } from '@/lib/client/photo';
 import { submitQueued } from '@/lib/client/outbox';
 import type { NoteRow, NoteParentType } from '@/lib/data/notes';
 import type { SessionUser } from '@/lib/auth/session';
+import { can } from '@/lib/domain/permissions';
 
 /**
  * Logbook for a project / task / asset. Anyone can add a note (with an optional
@@ -24,7 +25,7 @@ export function NotesSection({
   currentUser: SessionUser;
 }) {
   const router = useRouter();
-  const isManager = currentUser.role === 'manager' || currentUser.role === 'admin';
+  const isManager = can(currentUser, 'work.manage');
   const [body, setBody] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);

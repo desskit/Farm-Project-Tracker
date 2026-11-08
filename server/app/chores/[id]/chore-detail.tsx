@@ -11,6 +11,7 @@ import { preparePhoto } from '@/lib/client/photo';
 import { submitQueued } from '@/lib/client/outbox';
 import { TimerControl } from '@/app/_components/timer-control';
 import { ChoreForm, type ChorePayload } from '../chore-form';
+import { can } from '@/lib/domain/permissions';
 
 export function ChoreDetail({
   chore,
@@ -41,7 +42,7 @@ export function ChoreDetail({
   timerTotalSec: number;
 }) {
   const router = useRouter();
-  const isManager = currentUser.role === 'manager' || currentUser.role === 'admin';
+  const isManager = can(currentUser, 'work.manage');
   const nameById = new Map(people.map((p) => [p.id, p.name]));
   const [editing, setEditing] = useState(false);
   const [notes, setNotes] = useState('');

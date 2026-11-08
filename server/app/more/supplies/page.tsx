@@ -3,11 +3,12 @@ import { getSessionUser } from '@/lib/auth/session';
 import { listInventory, inventoryValue } from '@/lib/data/inventory';
 import type { InventoryRow } from '@/lib/data/inventory';
 import { AddSupplyCard } from './add-supply-card';
+import { can } from '@/lib/domain/permissions';
 
 export default async function SuppliesPage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
-  const isManager = user.role === 'manager' || user.role === 'admin';
+  const isManager = can(user, 'supplies.manage');
   const items = await listInventory();
   const low = items.filter((i) => i.qty <= i.reorderAt);
   const totalValue = inventoryValue(items);

@@ -14,6 +14,7 @@ import { NotesSection } from '@/app/_components/notes-section';
 import { AssigneePicker } from '@/app/_components/assignee-picker';
 import type { TimerState } from '@/lib/data/timers';
 import type { NoteRow } from '@/lib/data/notes';
+import { can } from '@/lib/domain/permissions';
 
 export function ProjectDetail({
   project,
@@ -33,7 +34,7 @@ export function ProjectDetail({
   aiEnabled: boolean;
 }) {
   const router = useRouter();
-  const canManage = currentUser.role === 'manager' || currentUser.role === 'admin';
+  const canManage = can(currentUser, 'work.manage');
   const nameById = new Map(people.map((p) => [p.id, p.name]));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);

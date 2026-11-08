@@ -12,13 +12,11 @@ import { logActivity } from './activity';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
 import { pushLowStock } from '@/lib/notify/events';
+import { can } from '@/lib/domain/permissions';
 
 export type InventoryRow = typeof inventory.$inferSelect;
 export type InventoryLogRow = typeof inventoryLog.$inferSelect;
 
-function isManager(u: SessionUser): boolean {
-  return u.role === 'manager' || u.role === 'admin';
-}
 
 export async function listInventory(): Promise<InventoryRow[]> {
   const rows = await db.select().from(inventory);
@@ -40,7 +38,7 @@ export function inventoryValue(items: InventoryRow[]): number {
 }
 
 export async function addInventoryItem(user: SessionUser, data: InventoryInput): Promise<InventoryRow> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can add inventory.', 403);
+  if (!can(user, 'supplies.manage')) throw new DataError('Only managers and admins can add inventory.', 403);
   const name = (data.name || '').trim();
   if (!name) throw new DataError('Name is required.', 400);
   const id = uid('inv');
@@ -59,7 +57,7 @@ export async function addInventoryItem(user: SessionUser, data: InventoryInput):
 }
 
 export async function updateInventoryItem(user: SessionUser, id: string, data: Partial<InventoryInput>): Promise<InventoryRow> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can edit inventory.', 403);
+  if (!can(user, 'supplies.manage')) throw new DataError('Only managers and admins can edit inventory.', 403);
   const it = await inventoryById(id);
   if (!it) throw new DataError('No such item.', 404);
   const patch: Partial<typeof inventory.$inferInsert> = { notes: data.notes || '' };
@@ -74,7 +72,7 @@ export async function updateInventoryItem(user: SessionUser, id: string, data: P
 }
 
 export async function deleteInventoryItem(user: SessionUser, id: string): Promise<void> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can delete inventory.', 403);
+  if (!can(user, 'supplies.manage')) throw new DataError('Only managers and admins can delete inventory.', 403);
   await db.delete(inventory).where(eq(inventory.id, id)); // log cascades via FK
   publishChange('inventory');
 }

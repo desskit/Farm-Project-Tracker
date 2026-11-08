@@ -5,11 +5,12 @@ import { BackupPanel } from './backup-panel';
 import { listBackups } from '@/lib/backup';
 import { UpdatePanel } from './update-panel';
 import { deployStatus } from '@/lib/deploy/control';
+import { can } from '@/lib/domain/permissions';
 
 export default async function DataPage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
-  const isAdmin = user.role === 'admin';
+  const isAdmin = can(user, 'system.admin');
   const backups = isAdmin ? await listBackups() : [];
   const update = isAdmin ? await deployStatus() : null;
   const keepDays = Math.max(1, Number(process.env.BACKUP_KEEP_DAYS) || 7);

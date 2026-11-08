@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
 import { teamOverview } from '@/lib/data/team';
+import { can, ROLE_LABEL } from '@/lib/domain/permissions';
 
 export default async function TeamPage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
-  const isManager = user.role === 'manager' || user.role === 'admin';
+  const isManager = can(user, 'team.view');
 
   if (!isManager) {
     return (
@@ -59,7 +60,7 @@ export default async function TeamPage() {
               <span className="who-avatar sm">{(w.name || '?').charAt(0)}</span>
               <div className="item-main">
                 <p className="item-title">{w.name}</p>
-                <p className="item-sub">{w.role}</p>
+                <p className="item-sub">{ROLE_LABEL[w.role]}</p>
                 <div className="item-badges">{chips.length ? chips : <span className="badge upcoming">All clear</span>}</div>
               </div>
             </div>

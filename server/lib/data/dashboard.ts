@@ -23,6 +23,7 @@ import { maintenanceStatus } from '@/lib/domain/maintenance';
 import { todayISO, currentMonthKey } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
 import { choreAssigneeIdsFor, taskAssigneeIdsFor } from './assignees';
+import { can } from '@/lib/domain/permissions';
 
 export type DashboardItem = {
   kind: 'chore' | 'maintenance' | 'task' | 'rent';
@@ -136,7 +137,7 @@ export async function getDashboard(currentUser: SessionUser, scope: 'mine' | 'al
 
   // Someone else's rent is private: only managers and admins may see it, in
   // either scope. Everyone else only ever sees their own charge.
-  const seesAllRent = currentUser.role === 'manager' || currentUser.role === 'admin';
+  const seesAllRent = can(currentUser, 'finance.view');
   for (const c of monthCharges) {
     if (c.status === 'verified') continue;
     if (c.userId !== currentUser.id && !seesAllRent) continue;

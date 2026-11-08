@@ -7,6 +7,7 @@ import { BRAND_SETTING_KEY, DEFAULT_BRAND, THEME_COOKIE, isBrandId, parseThemePr
 import type { SessionUser } from '@/lib/auth/session';
 import { logActivity } from './activity';
 import { DataError } from './errors';
+import { can } from '@/lib/domain/permissions';
 
 /** One settings read per request, shared by the layout and generateViewport. */
 export const currentBrand = requestCache(async (): Promise<BrandId> => {
@@ -23,7 +24,7 @@ export function currentThemePref(): ThemePref {
 }
 
 export async function setBrand(user: SessionUser, brand: unknown): Promise<BrandId> {
-  if (user.role !== 'admin') throw new DataError('Only an admin can change the brand.', 403);
+  if (!can(user, 'system.admin')) throw new DataError('Only an admin can change the brand.', 403);
   if (!isBrandId(brand)) throw new DataError('Unknown brand.', 400);
   await setSetting(BRAND_SETTING_KEY, brand);
   await logActivity(user.id, `switched the app brand to ${brand}`);

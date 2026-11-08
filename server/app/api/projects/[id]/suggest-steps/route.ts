@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireManager } from '@/lib/auth/session';
+import { requireCap } from '@/lib/auth/session';
 import { getProject } from '@/lib/data/projects';
 import { suggestSteps } from '@/lib/ai/suggest-steps';
 import { errorResponse } from '@/lib/api/errors';
@@ -9,7 +9,7 @@ import { errorResponse } from '@/lib/api/errors';
 // tasks itself.
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   try {
-    await requireManager();
+    await requireCap('ai.use');
     const project = await getProject(params.id);
     if (!project) return NextResponse.json({ error: 'No such project.' }, { status: 404 });
     const steps = await suggestSteps(project.name, project.description);

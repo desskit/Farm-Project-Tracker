@@ -25,6 +25,7 @@ import { todayISO, diffDays, fmtDate, monthLabel } from '@/lib/domain/dates';
 import { sendMail, emailConfigured } from './email';
 import { rentReminderEmail, rentOverdueDigestEmail } from './templates';
 import { sendPushToUser, pushConfigured } from './push';
+import { recipientsWith } from '@/lib/data/recipients';
 
 /** How many days ahead the first heads-up goes out. */
 const LEAD_DAYS = 3;
@@ -182,15 +183,11 @@ async function notifyManagers(
   const isDigestDay = new Date(`${today}T00:00:00`).getDay() === 1; // Monday
   if (!isDigestDay) return 0;
 
-  const managers = await db
-    .select({ id: users.id, name: users.name, email: users.email, role: users.role })
-    .from(users)
-    .where(eq(users.active, true));
+  const managers = await recipientsWith('finance.manage');
   const total = overdue.reduce((sum, o) => sum + o.amount, 0);
   let sent = 0;
 
   for (const m of managers) {
-    if (m.role !== 'manager' && m.role !== 'admin') continue;
     const prefs = await getPrefs(m.id);
     if (prefs.eventPush && ch.pushReady()) {
       await ch.sendPush(m.id, {

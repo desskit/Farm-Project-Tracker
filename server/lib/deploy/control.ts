@@ -16,6 +16,7 @@ import path from 'node:path';
 import type { SessionUser } from '@/lib/auth/session';
 import { logActivity } from '@/lib/data/activity';
 import { DataError } from '@/lib/data/errors';
+import { can } from '@/lib/domain/permissions';
 
 export type DeployState = 'idle' | 'requested' | 'running' | 'ok' | 'failed';
 
@@ -88,7 +89,7 @@ export async function deployStatus(nowMs = Date.now()): Promise<DeployStatus> {
 }
 
 export async function requestUpdate(user: SessionUser): Promise<DeployStatus> {
-  if (user.role !== 'admin') throw new DataError('Only an admin can update the server.', 403);
+  if (!can(user, 'system.admin')) throw new DataError('Only an admin can update the server.', 403);
   const dir = controlDir();
   const status = await deployStatus();
   if (!dir || !status.available) {

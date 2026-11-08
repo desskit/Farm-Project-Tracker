@@ -6,11 +6,12 @@ import { listUsers } from '@/lib/data/users';
 import { currentMonthKey, monthLabel } from '@/lib/domain/dates';
 import { RentView } from './rent-view';
 import { RentDocs } from './rent-docs';
+import { can } from '@/lib/domain/permissions';
 
 export default async function RentPage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
-  const isManager = user.role === 'manager' || user.role === 'admin';
+  const isManager = can(user, 'finance.view');
   const mk = currentMonthKey();
 
   const [allCharges, people] = await Promise.all([rentChargesForMonth(mk), listUsers()]);

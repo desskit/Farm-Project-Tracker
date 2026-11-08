@@ -9,13 +9,14 @@ import { db } from '@/db';
 import { chores, maintenanceItems, projectTasks, rentCharges, users } from '@/db/schema';
 import { nextOccurrenceAfter } from '@/lib/domain/recurrence';
 import type { SessionUser } from '@/lib/auth/session';
+import { can } from '@/lib/domain/permissions';
 
 export type CalendarKind = 'chore' | 'maintenance' | 'task' | 'rent';
 export type CalendarItem = { date: string; kind: CalendarKind; id: string; title: string; href: string };
 
 export async function calendarItems(viewer: SessionUser, fromISO: string, toISO: string): Promise<CalendarItem[]> {
   // Rent is private: managers see every charge, everyone else only their own.
-  const seesAllRent = viewer.role === 'manager' || viewer.role === 'admin';
+  const seesAllRent = can(viewer, 'finance.view');
   const within = (d: string) => d >= fromISO && d <= toISO;
   const out: CalendarItem[] = [];
 

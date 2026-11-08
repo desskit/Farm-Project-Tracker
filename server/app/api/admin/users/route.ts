@@ -5,11 +5,12 @@ import { listUsers, createUserWithInvite } from '@/lib/data/users';
 import { emailConfigured, sendMail } from '@/lib/notify/email';
 import { inviteEmail } from '@/lib/notify/templates';
 import { errorResponse } from '@/lib/api/errors';
+import { ASSIGNABLE_ROLES, type Role } from '@/lib/domain/permissions';
 
 const createSchema = z.object({
   name: z.string().trim().min(1),
   email: z.string().trim().email(),
-  role: z.enum(['admin', 'manager', 'worker']),
+  role: z.enum(ASSIGNABLE_ROLES as [Role, ...Role[]]),
 });
 
 export async function GET() {

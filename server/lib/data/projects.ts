@@ -23,6 +23,7 @@ import { stopTimersFor } from './timers';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
 import { pushAssigned, pushClaimed, pushSentBack } from '@/lib/notify/events';
+import { can } from '@/lib/domain/permissions';
 
 export type ProjectRow = typeof projects.$inferSelect;
 /**
@@ -33,11 +34,8 @@ export type TaskRow = typeof projectTasks.$inferSelect & { assigneeIds: string[]
 export { STATUS_LABELS };
 export type { ProjectStatus };
 
-function isManager(u: SessionUser): boolean {
-  return u.role === 'manager' || u.role === 'admin';
-}
 function canCreateProject(u: SessionUser): boolean {
-  return u.role === 'admin' || u.role === 'manager';
+  return can(u, 'work.manage');
 }
 
 /* ---------------- projects ---------------- */
@@ -138,7 +136,7 @@ export async function addTask(user: SessionUser, projectId: string, data: TaskIn
 }
 
 export async function updateTask(user: SessionUser, taskId: string, data: Partial<TaskInput>): Promise<TaskRow> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can edit tasks.', 403);
+  if (!can(user, 'work.manage')) throw new DataError('Only managers and admins can edit tasks.', 403);
   const t = await taskById(taskId);
   if (!t) throw new DataError('No such task.', 404);
   const patch: Partial<typeof projectTasks.$inferInsert> = {
@@ -161,7 +159,7 @@ export async function updateTask(user: SessionUser, taskId: string, data: Partia
 }
 
 export async function deleteTask(user: SessionUser, taskId: string): Promise<void> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can delete tasks.', 403);
+  if (!can(user, 'work.manage')) throw new DataError('Only managers and admins can delete tasks.', 403);
   await db.delete(projectTasks).where(eq(projectTasks.id, taskId));
   publishChange('task');
 }
@@ -207,7 +205,7 @@ export async function releaseTask(user: SessionUser, taskId: string): Promise<vo
   if (t.assigneeIds.includes(user.id)) {
     // Stepping off yourself — anyone else on the task stays.
     await removeTaskAssignee(taskId, user.id);
-  } else if (isManager(user)) {
+  } else if (can(user, 'work.manage')) {
     // A manager clearing an open task takes everyone off it.
     await setTaskAssignees(taskId, []);
   } else {
@@ -217,7 +215,7 @@ export async function releaseTask(user: SessionUser, taskId: string): Promise<vo
 }
 
 export async function sendBackTask(user: SessionUser, taskId: string, reason?: string): Promise<void> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can send work back.', 403);
+  if (!can(user, 'work.manage')) throw new DataError('Only managers and admins can send work back.', 403);
   const t = await taskById(taskId);
   if (!t) throw new DataError('No such task.', 404);
   if (!t.done) throw new DataError('That task is not completed.', 400);

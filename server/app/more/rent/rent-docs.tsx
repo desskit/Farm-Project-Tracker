@@ -7,6 +7,7 @@ import type { RentDocRow } from '@/lib/data/rent-docs';
 import { RENT_DOC_LABELS, RENT_DOC_TYPES } from '@/lib/domain/rent-doc-types';
 import type { RentDocType } from '@/db/schema';
 import type { SessionUser } from '@/lib/auth/session';
+import { can } from '@/lib/domain/permissions';
 
 const DOC_ICON: Record<RentDocType, string> = {
   lease: '📑',
@@ -38,7 +39,7 @@ export function RentDocs({
   showHeading: boolean;
 }) {
   const router = useRouter();
-  const isManager = currentUser.role === 'manager' || currentUser.role === 'admin';
+  const isManager = can(currentUser, 'finance.view');
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState('');
   const [docType, setDocType] = useState<RentDocType>('lease');

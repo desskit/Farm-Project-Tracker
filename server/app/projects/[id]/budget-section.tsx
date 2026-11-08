@@ -5,6 +5,7 @@ import { fmtDate } from '@/lib/domain/dates';
 import { uploadPhoto } from '@/lib/client/photo';
 import type { ExpenseRow, BudgetSummary } from '@/lib/data/project-expenses';
 import type { SessionUser } from '@/lib/auth/session';
+import { can } from '@/lib/domain/permissions';
 
 const money = (n: number) => `$${n.toFixed(2)}`;
 
@@ -24,7 +25,7 @@ export function BudgetSection({
   currentUser: SessionUser;
 }) {
   const router = useRouter();
-  const isManager = currentUser.role === 'manager' || currentUser.role === 'admin';
+  const isManager = can(currentUser, 'finance.manage');
   const [adding, setAdding] = useState(false);
   const [label, setLabel] = useState('');
   const [amount, setAmount] = useState('');

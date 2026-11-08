@@ -13,14 +13,12 @@ import type { SessionUser } from '@/lib/auth/session';
 import { logActivity } from './activity';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
+import { can } from '@/lib/domain/permissions';
 
 export type RentAssignmentRow = typeof rentAssignments.$inferSelect;
 export type RentChargeRow = typeof rentCharges.$inferSelect;
 export type RentSummary = { count: number; unpaid: number; marked: number; verified: number; due: number; collected: number };
 
-function isManager(u: SessionUser): boolean {
-  return u.role === 'manager' || u.role === 'admin';
-}
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
@@ -31,7 +29,7 @@ export async function rentAssignmentFor(userId: string): Promise<RentAssignmentR
 }
 
 export async function setRent(user: SessionUser, targetUserId: string, amount: number, dueDay: number): Promise<void> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can assign rent.', 403);
+  if (!can(user, 'finance.manage')) throw new DataError('Only managers and admins can assign rent.', 403);
   const amt = Number(amount);
   const day = Math.min(28, Math.max(1, Number(dueDay) || 1));
   if (!isFinite(amt) || amt <= 0) throw new DataError('Enter a valid monthly amount.', 400);
@@ -59,7 +57,7 @@ export async function setRent(user: SessionUser, targetUserId: string, amount: n
 }
 
 export async function stopRent(user: SessionUser, targetUserId: string): Promise<void> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can stop rent.', 403);
+  if (!can(user, 'finance.manage')) throw new DataError('Only managers and admins can stop rent.', 403);
   await db.update(rentAssignments).set({ active: false }).where(eq(rentAssignments.userId, targetUserId));
   const mk = currentMonthKey();
   const charges = await db.select().from(rentCharges).where(and(eq(rentCharges.userId, targetUserId), eq(rentCharges.month, mk)));
@@ -124,7 +122,7 @@ export async function rentHistoryFor(userId: string): Promise<RentChargeRow[]> {
 export async function markRentPaid(user: SessionUser, chargeId: string, note?: string): Promise<void> {
   const c = await rentChargeById(chargeId);
   if (!c) throw new DataError('No such charge.', 404);
-  if (c.userId !== user.id && !isManager(user)) throw new DataError('Only the renter or a manager can mark this paid.', 403);
+  if (c.userId !== user.id && !can(user, 'finance.manage')) throw new DataError('Only the renter or a manager can mark this paid.', 403);
   if (c.status === 'verified') throw new DataError('Already verified.', 400);
   await db
     .update(rentCharges)
@@ -142,7 +140,7 @@ export async function markRentPaid(user: SessionUser, chargeId: string, note?: s
 }
 
 export async function verifyRent(user: SessionUser, chargeId: string): Promise<void> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can verify rent.', 403);
+  if (!can(user, 'finance.manage')) throw new DataError('Only managers and admins can verify rent.', 403);
   const c = await rentChargeById(chargeId);
   if (!c) throw new DataError('No such charge.', 404);
   if (c.status === 'verified') throw new DataError('Already verified.', 400);
@@ -156,7 +154,7 @@ export async function verifyRent(user: SessionUser, chargeId: string): Promise<v
 }
 
 export async function reopenRent(user: SessionUser, chargeId: string): Promise<void> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can reopen a charge.', 403);
+  if (!can(user, 'finance.manage')) throw new DataError('Only managers and admins can reopen a charge.', 403);
   const c = await rentChargeById(chargeId);
   if (!c) throw new DataError('No such charge.', 404);
   await db

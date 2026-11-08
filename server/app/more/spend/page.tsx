@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
 import { spendReport } from '@/lib/data/spend';
 import { todayISO, addDays, monthLabel } from '@/lib/domain/dates';
+import { can } from '@/lib/domain/permissions';
 
 type Period = 'month' | 'year' | 'all';
 const PERIODS: { key: Period; label: string; days: number | null }[] = [
@@ -16,7 +17,7 @@ export default async function SpendPage({ searchParams }: { searchParams: { peri
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
   // Spending is farm finance — managers and admins only.
-  if (user.role !== 'manager' && user.role !== 'admin') {
+  if (!can(user, 'finance.view')) {
     return (
       <main className="view">
         <div className="sub-head">

@@ -2,11 +2,12 @@ import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
 import { listAssetsWithStatus } from '@/lib/data/maintenance';
 import { AddAssetCard } from './add-asset-card';
+import { can } from '@/lib/domain/permissions';
 
 export default async function MaintenancePage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
-  const isManager = user.role === 'manager' || user.role === 'admin';
+  const isManager = can(user, 'work.manage');
   const assets = await listAssetsWithStatus();
 
   return (

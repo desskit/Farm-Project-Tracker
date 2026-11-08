@@ -2,13 +2,14 @@ import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
 import { getWeather, dayFire, weatherEmoji } from '@/lib/data/weather';
 import { WeatherControls } from './weather-controls';
+import { can } from '@/lib/domain/permissions';
 
 const FIRE_RANK: Record<string, number> = { low: 0, mod: 1, high: 2, vhigh: 3, extreme: 4 };
 
 export default async function WeatherPage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
-  const isManager = user.role === 'manager' || user.role === 'admin';
+  const isManager = can(user, 'work.manage');
   const w = await getWeather();
 
   const days = (w.forecast ?? []).slice(0, 7);

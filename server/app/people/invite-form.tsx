@@ -1,6 +1,7 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { ASSIGNABLE_ROLES, ROLE_LABEL } from '@/lib/domain/permissions';
 
 export function InviteForm() {
   const router = useRouter();
@@ -51,9 +52,9 @@ export function InviteForm() {
         <div className="field">
           <label>Role</label>
           <select value={role} onChange={(e) => setRole(e.target.value)}>
-            <option value="worker">Worker</option>
-            <option value="manager">Manager</option>
-            <option value="admin">Admin</option>
+            {ASSIGNABLE_ROLES.map((r) => (
+              <option key={r} value={r}>{ROLE_LABEL[r]}</option>
+            ))}
           </select>
         </div>
         {error && <p className="error-text">{error}</p>}

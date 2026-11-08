@@ -4,11 +4,12 @@ import { listProjectsWithProgress, STATUS_LABELS } from '@/lib/data/projects';
 import { fmtDate } from '@/lib/domain/dates';
 import { spentByProject } from '@/lib/data/project-expenses';
 import { AddProjectCard } from './add-project-card';
+import { can } from '@/lib/domain/permissions';
 
 export default async function ProjectsPage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
-  const canCreate = user.role === 'manager' || user.role === 'admin';
+  const canCreate = can(user, 'work.manage');
   const projects = await listProjectsWithProgress();
   const spent = await spentByProject(projects.map((p) => p.id));
 

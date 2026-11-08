@@ -10,6 +10,7 @@ import { preparePhoto } from '@/lib/client/photo';
 import { submitQueued } from '@/lib/client/outbox';
 import { TimerControl } from '@/app/_components/timer-control';
 import type { TimerState } from '@/lib/data/timers';
+import { can } from '@/lib/domain/permissions';
 
 type ItemWithLogs = MaintWithStatus & { logs: MaintLogRow[]; costTotal: number };
 
@@ -33,7 +34,7 @@ export function AssetDetail({
   timers: Record<string, TimerState>;
 }) {
   const router = useRouter();
-  const isManager = currentUser.role === 'manager' || currentUser.role === 'admin';
+  const isManager = can(currentUser, 'work.manage');
   const nameById = new Map(people.map((p) => [p.id, p.name]));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);

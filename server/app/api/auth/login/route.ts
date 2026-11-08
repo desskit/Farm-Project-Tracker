@@ -53,6 +53,14 @@ export async function POST(req: Request) {
     );
   }
 
+  if (user.accessExpiresAt != null && user.accessExpiresAt <= Date.now()) {
+    await clearThrottle(keys);
+    return NextResponse.json(
+      { error: 'Your access to the farm app has ended. Ask a farm admin if you need it back.' },
+      { status: 403 },
+    );
+  }
+
   await clearThrottle(keys);
   await createSession(user.id);
   return NextResponse.json({ ok: true, user: { id: user.id, name: user.name, role: user.role } });

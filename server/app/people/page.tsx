@@ -3,12 +3,13 @@ import { getSessionUser } from '@/lib/auth/session';
 import { listUsers } from '@/lib/data/users';
 import { InviteForm } from './invite-form';
 import { PersonRow } from './person-row';
+import { can } from '@/lib/domain/permissions';
 
 export default async function PeoplePage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
 
-  if (user.role !== 'admin') {
+  if (!can(user, 'people.manage')) {
     return (
       <main className="view">
         <div className="sub-head">

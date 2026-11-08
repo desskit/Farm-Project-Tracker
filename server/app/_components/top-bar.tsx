@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { SessionUser } from '@/lib/auth/session';
 import { LogoutButton } from '@/app/_components/logout-button';
+import { ROLE_LABEL } from '@/lib/domain/permissions';
 
 export function TopBar({ user }: { user: SessionUser }) {
   return (
@@ -14,7 +15,7 @@ export function TopBar({ user }: { user: SessionUser }) {
           <Link href="/more/search" className="topbar-search" aria-label="Search" title="Search">
             🔍
           </Link>
-          <span className="role-badge">{user.role}</span>
+          <span className="role-badge">{ROLE_LABEL[user.role]}</span>
           <LogoutButton className="topbar-link" />
         </div>
       </div>

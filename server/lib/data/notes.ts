@@ -13,6 +13,7 @@ import type { SessionUser } from '@/lib/auth/session';
 import { logActivity } from './activity';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
+import { can } from '@/lib/domain/permissions';
 
 export type NoteParentType = 'project' | 'task' | 'asset';
 export type NoteRow = {
@@ -27,9 +28,6 @@ export type NoteRow = {
   photoId: string | null;
 };
 
-function isManager(user: SessionUser): boolean {
-  return user.role === 'manager' || user.role === 'admin';
-}
 
 export async function listNotes(parentType: NoteParentType, parentId: string): Promise<NoteRow[]> {
   const rows = await db
@@ -110,7 +108,7 @@ export async function deleteNote(user: SessionUser, id: string): Promise<void> {
   const rows = await db.select().from(notes).where(eq(notes.id, id)).limit(1);
   const note = rows[0];
   if (!note) throw new DataError('No such note.', 404);
-  if (note.userId !== user.id && !isManager(user)) {
+  if (note.userId !== user.id && !can(user, 'work.manage')) {
     throw new DataError('Only the author or a manager can delete this note.', 403);
   }
   await db.delete(notes).where(eq(notes.id, id));

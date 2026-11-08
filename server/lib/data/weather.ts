@@ -8,6 +8,7 @@ import { getSetting, setSetting } from './settings';
 import { fireDanger, weatherEmoji, type FireDanger } from '@/lib/domain/weather';
 import type { SessionUser } from '@/lib/auth/session';
 import { DataError } from './errors';
+import { can } from '@/lib/domain/permissions';
 
 export type ForecastDay = { dow: string; code: number; hi: number; lo: number; precip: number | null; rh: number | null; wind: number | null };
 export type WeatherSettings = { lat: number | null; lon: number | null; label: string; forecast: ForecastDay[] | null; fetchedAt: number | null };
@@ -15,16 +16,13 @@ export type WeatherSettings = { lat: number | null; lon: number | null; label: s
 const KEY = 'weather';
 const EMPTY: WeatherSettings = { lat: null, lon: null, label: '', forecast: null, fetchedAt: null };
 
-function isManager(u: SessionUser): boolean {
-  return u.role === 'manager' || u.role === 'admin';
-}
 
 export async function getWeather(): Promise<WeatherSettings> {
   return (await getSetting<WeatherSettings>(KEY)) ?? EMPTY;
 }
 
 export async function setWeatherLocation(user: SessionUser, lat: number, lon: number, label: string): Promise<void> {
-  if (!isManager(user)) throw new DataError('Only managers and admins can set the farm location.', 403);
+  if (!can(user, 'work.manage')) throw new DataError('Only managers and admins can set the farm location.', 403);
   const w = await getWeather();
   await setSetting(KEY, { ...w, lat, lon, label: label || '' });
 }

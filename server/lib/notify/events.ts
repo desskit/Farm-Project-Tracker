@@ -14,6 +14,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { users, notificationPrefs } from '@/db/schema';
 import { sendPushToUser, pushConfigured } from './push';
+import { recipientsWith } from '@/lib/data/recipients';
 
 /**
  * Who actually gets a given event push: everyone named who still exists, is
@@ -106,11 +107,7 @@ export async function pushClaimed(
 
 /** A supply crossed its reorder point — managers need to know to restock. */
 export async function pushLowStock(actorId: string, itemName: string, qty: number, unit: string): Promise<void> {
-  const managers = await db
-    .select({ id: users.id, role: users.role })
-    .from(users)
-    .where(eq(users.active, true));
-  const ids = managers.filter((m) => m.role === 'manager' || m.role === 'admin').map((m) => m.id);
+  const ids = (await recipientsWith('supplies.manage')).map((m) => m.id);
   await notify(ids, actorId, {
     title: 'Running low',
     body: `${itemName} is down to ${qty} ${unit}`,

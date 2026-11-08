@@ -7,6 +7,7 @@ import type { InventoryRow, InventoryLogRow } from '@/lib/data/inventory';
 import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
 import { fmtDate } from '@/lib/domain/dates';
+import { can } from '@/lib/domain/permissions';
 
 export function SupplyDetail({
   item,
@@ -20,7 +21,7 @@ export function SupplyDetail({
   currentUser: SessionUser;
 }) {
   const router = useRouter();
-  const isManager = currentUser.role === 'manager' || currentUser.role === 'admin';
+  const isManager = can(currentUser, 'supplies.manage');
   const nameById = new Map(people.map((p) => [p.id, p.name]));
   const [delta, setDelta] = useState('');
   const [reason, setReason] = useState('');

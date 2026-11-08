@@ -15,6 +15,7 @@ import { deleteAttachment } from './attachments';
 import { logActivity } from './activity';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
+import { can } from '@/lib/domain/permissions';
 
 export { DOC_TYPE_LABELS } from '@/lib/domain/asset-doc-types';
 
@@ -30,9 +31,6 @@ export type AssetDocRow = {
   ts: number;
 };
 
-function isManager(user: SessionUser): boolean {
-  return user.role === 'manager' || user.role === 'admin';
-}
 
 export async function listAssetDocs(assetId: string): Promise<AssetDocRow[]> {
   const rows = await db
@@ -92,7 +90,7 @@ export async function deleteAssetDoc(user: SessionUser, id: string): Promise<voi
   const rows = await db.select().from(assetDocs).where(eq(assetDocs.id, id)).limit(1);
   const doc = rows[0];
   if (!doc) throw new DataError('No such document.', 404);
-  if (doc.uploadedBy !== user.id && !isManager(user)) {
+  if (doc.uploadedBy !== user.id && !can(user, 'work.manage')) {
     throw new DataError('Only the uploader or a manager can delete this document.', 403);
   }
   await db.delete(assetDocs).where(eq(assetDocs.id, id));

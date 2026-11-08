@@ -32,3 +32,19 @@ describe('conventions', () => {
     ).toEqual([]);
   });
 });
+
+describe('permissions', () => {
+  // Access is decided by capabilities (lib/domain/permissions.ts), never by
+  // comparing role names in feature code. Allowed: the permissions module,
+  // the last-admin guard in users.ts, tests and seed data.
+  it('has no direct role comparisons outside the permission module', () => {
+    const allowed = [/lib\/domain\/permissions\.ts$/, /lib\/data\/users\.ts$/, /\.test\.ts$/, /db\/seed\.ts$/];
+    const offenders: string[] = [];
+    for (const f of ["lib", "app", "components", "db"].flatMap((d) => sourceFiles(path.join(ROOT, d)))) {
+      if (allowed.some((a) => a.test(f))) continue;
+      const src = readFileSync(f, 'utf8');
+      if (/\.role\s*[!=]==\s*'(admin|manager|family|worker|guest|renter)'/.test(src)) offenders.push(path.relative(ROOT, f));
+    }
+    expect(offenders).toEqual([]);
+  });
+});

@@ -3,8 +3,9 @@ import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth/session';
 import { updateUserRole, removeUser } from '@/lib/data/users';
 import { errorResponse } from '@/lib/api/errors';
+import { ASSIGNABLE_ROLES, type Role } from '@/lib/domain/permissions';
 
-const roleSchema = z.object({ role: z.enum(['admin', 'manager', 'worker']) });
+const roleSchema = z.object({ role: z.enum(ASSIGNABLE_ROLES as [Role, ...Role[]]) });
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {

@@ -30,3 +30,22 @@ describe('invite tokens', () => {
     expect(await acceptInvite(token, 'hash')).toBeNull();
   });
 });
+
+describe('access end date', () => {
+  it('stops people being offered as recipients once their access has ended', async () => {
+    const { recipientsWith } = await import('@/lib/data/recipients');
+    const g = await makeUser('family');
+    const before = (await recipientsWith('work.do')).map((r) => r.id);
+    expect(before).toContain(g.id);
+    await db.update(schema.users).set({ accessExpiresAt: Date.now() - 1000 }).where(eq(schema.users.id, g.id));
+    expect((await recipientsWith('work.do')).map((r) => r.id)).not.toContain(g.id);
+  });
+
+  it('honours per-person switches when picking recipients', async () => {
+    const { recipientsWith } = await import('@/lib/data/recipients');
+    const crew = await makeUser('worker');
+    expect((await recipientsWith('supplies.manage')).map((r) => r.id)).not.toContain(crew.id);
+    await db.insert(schema.userCaps).values({ userId: crew.id, cap: 'supplies.manage', allow: true });
+    expect((await recipientsWith('supplies.manage')).map((r) => r.id)).toContain(crew.id);
+  });
+});

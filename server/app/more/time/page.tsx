@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
 import { timeReport } from '@/lib/data/time-report';
 import { fmtDur, todayISO, addDays } from '@/lib/domain/dates';
+import { can } from '@/lib/domain/permissions';
 
 type Period = 'week' | 'month' | 'all';
 const PERIODS: { key: Period; label: string; days: number | null }[] = [
@@ -21,7 +22,7 @@ export default async function TimeReportPage({ searchParams }: { searchParams: {
   const today = todayISO();
   const from = def.days == null ? null : addDays(today, -def.days);
   // Other people's hours are a manager's business; everyone else sees their own.
-  const isManager = user.role === 'manager' || user.role === 'admin';
+  const isManager = can(user, 'team.view');
   const report = await timeReport(from, today, isManager ? undefined : user.id);
 
   return (

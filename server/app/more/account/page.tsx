@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
 import { ChangePasswordForm } from './change-password-form';
 import { LogoutButton } from '@/app/_components/logout-button';
+import { ROLE_LABEL } from '@/lib/domain/permissions';
 
 export default async function AccountPage() {
   const user = await getSessionUser();
@@ -21,7 +22,7 @@ export default async function AccountPage() {
         <div className="who-main">
           <p className="who-name">{user.name}</p>
           <p className="who-role">
-            {user.role} · {user.email}
+            {ROLE_LABEL[user.role]} · {user.email}
           </p>
         </div>
         <LogoutButton className="btn small ghost" />

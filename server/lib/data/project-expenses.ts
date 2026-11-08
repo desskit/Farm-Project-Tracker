@@ -18,6 +18,7 @@ import { deleteAttachment } from './attachments';
 import { logActivity } from './activity';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
+import { can } from '@/lib/domain/permissions';
 
 export type ExpenseRow = {
   id: string;
@@ -41,9 +42,6 @@ export type BudgetSummary = {
   over: boolean;
 };
 
-function isManager(user: SessionUser): boolean {
-  return user.role === 'manager' || user.role === 'admin';
-}
 
 export async function listExpenses(projectId: string): Promise<ExpenseRow[]> {
   const rows = await db
@@ -119,7 +117,7 @@ export async function deleteExpense(user: SessionUser, id: string): Promise<void
   const rows = await db.select().from(projectExpenses).where(eq(projectExpenses.id, id)).limit(1);
   const row = rows[0];
   if (!row) throw new DataError('No such expense.', 404);
-  if (row.userId !== user.id && !isManager(user)) {
+  if (row.userId !== user.id && !can(user, 'finance.manage')) {
     throw new DataError('Only whoever logged it or a manager can delete this.', 403);
   }
   await db.delete(projectExpenses).where(eq(projectExpenses.id, id));

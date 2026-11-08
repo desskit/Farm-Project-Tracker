@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { PersonRow as Person } from '@/lib/data/users';
+import { ASSIGNABLE_ROLES, ROLE_LABEL } from '@/lib/domain/permissions';
 
 /**
  * Admin controls for one person: change role, resend a pending invite, or
@@ -118,9 +119,9 @@ export function PersonRow({ person, isSelf }: { person: Person; isSelf: boolean 
           aria-label={`Role for ${person.name}`}
           style={{ maxWidth: 140 }}
         >
-          <option value="worker">Worker</option>
-          <option value="manager">Manager</option>
-          <option value="admin">Admin</option>
+          {(ASSIGNABLE_ROLES.includes(person.role) ? ASSIGNABLE_ROLES : [...ASSIGNABLE_ROLES, person.role]).map((r) => (
+            <option key={r} value={r}>{ROLE_LABEL[r]}</option>
+          ))}
         </select>
         {person.active && person.pending && (
           <button className="btn small ghost" disabled={busy !== null} onClick={onResend}>

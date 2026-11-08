@@ -4,6 +4,7 @@ import { getPrefs } from '@/lib/data/prefs';
 import { emailConfigured } from '@/lib/notify/email';
 import { pushConfigured } from '@/lib/notify/push';
 import { NotificationsView } from './notifications-view';
+import { can } from '@/lib/domain/permissions';
 
 export default async function NotificationsPage() {
   const user = await getSessionUser();
@@ -22,7 +23,7 @@ export default async function NotificationsPage() {
         prefs={prefs}
         emailReady={emailConfigured()}
         pushReady={pushConfigured()}
-        isAdmin={user.role === 'admin'}
+        isAdmin={can(user, 'system.admin')}
       />
     </main>
   );

@@ -2,31 +2,33 @@ import Link from 'next/link';
 import { getSessionUser } from '@/lib/auth/session';
 import { lowStockItems } from '@/lib/data/inventory';
 import { LogoutButton } from '@/app/_components/logout-button';
+import { can, ROLE_LABEL } from '@/lib/domain/permissions';
 
 type Tile = { href: string; icon: string; label: string; sub: string; badge?: number; warn?: boolean };
 
 export default async function MorePage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
-  const isManager = user.role === 'manager' || user.role === 'admin';
-  const isAdmin = user.role === 'admin';
+  const seesTeam = can(user, 'team.view');
+  const seesMoney = can(user, 'finance.view');
+  const managesPeople = can(user, 'people.manage');
   const low = (await lowStockItems()).length;
 
   const farm: Tile[] = [
     { href: '/more/assets', icon: '🚜', label: 'Assets', sub: 'Equipment & documents' },
     { href: '/more/supplies', icon: '📦', label: 'Supplies', sub: 'Feed, fuel & parts', badge: low || undefined, warn: low > 0 },
     { href: '/more/leaderboard', icon: '🏆', label: 'Leaderboard', sub: 'Points & streaks' },
-    { href: '/more/time', icon: '⏱', label: isManager ? 'Time report' : 'My hours', sub: isManager ? 'Hours logged' : 'Time you logged' },
-    { href: '/more/rent', icon: '💵', label: 'Rent', sub: isManager ? 'Collect & verify' : 'Your charges' },
+    { href: '/more/time', icon: '⏱', label: seesTeam ? 'Time report' : 'My hours', sub: seesTeam ? 'Hours logged' : 'Time you logged' },
+    { href: '/more/rent', icon: '💵', label: 'Rent', sub: seesMoney ? 'Collect & verify' : 'Your charges' },
   ];
-  if (isManager) farm.push({ href: '/more/spend', icon: '💸', label: 'Spending', sub: 'Farm costs' });
-  if (isManager) farm.push({ href: '/more/team', icon: '👥', label: 'Team', sub: 'Farm-wide status' });
+  if (seesMoney) farm.push({ href: '/more/spend', icon: '💸', label: 'Spending', sub: 'Farm costs' });
+  if (seesTeam) farm.push({ href: '/more/team', icon: '👥', label: 'Team', sub: 'Farm-wide status' });
 
   const settings: Tile[] = [
     { href: '/more/search', icon: '🔍', label: 'Search', sub: 'Find anything' },
     { href: '/more/calendar', icon: '📅', label: 'Calendar', sub: 'What’s due, by day' },
     { href: '/more/account', icon: '🔑', label: 'Account', sub: 'Password & sign-in' },
-    { href: '/people', icon: '🧑‍🌾', label: 'People', sub: isAdmin ? 'Manage the crew' : 'The crew' },
+    { href: '/people', icon: '🧑‍🌾', label: 'People', sub: managesPeople ? 'Manage the crew' : 'The crew' },
     { href: '/more/activity', icon: '🕙', label: 'Activity', sub: 'Recent history' },
     { href: '/more/notifications', icon: '🔔', label: 'Notifications', sub: 'Digests & push' },
     { href: '/more/weather', icon: '🌤️', label: 'Weather', sub: 'Forecast & fire' },
@@ -46,7 +48,7 @@ export default async function MorePage() {
         <span className="who-avatar">{(user.name || '?').charAt(0)}</span>
         <div className="who-main">
           <p className="who-name">{user.name}</p>
-          <p className="who-role">{user.role}</p>
+          <p className="who-role">{ROLE_LABEL[user.role]}</p>
         </div>
         <LogoutButton className="btn small ghost" />
       </div>

@@ -5,6 +5,7 @@ import type { RentChargeRow, RentAssignmentRow, RentSummary } from '@/lib/data/r
 import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
 import { fmtDate } from '@/lib/domain/dates';
+import { can } from '@/lib/domain/permissions';
 
 export function RentView({
   charges,
@@ -20,7 +21,8 @@ export function RentView({
   currentUser: SessionUser;
 }) {
   const router = useRouter();
-  const isManager = currentUser.role === 'manager' || currentUser.role === 'admin';
+  const isManager = can(currentUser, 'finance.view');
+  const managesRent = can(currentUser, 'finance.manage');
   const nameById = new Map(people.map((p) => [p.id, p.name]));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -104,17 +106,17 @@ export function RentView({
               </div>
             </div>
             <div className="row-actions" style={{ marginTop: 10, flexWrap: 'wrap' }}>
-              {c.status !== 'verified' && (c.userId === currentUser.id || isManager) && (
+              {c.status !== 'verified' && (c.userId === currentUser.id || managesRent) && (
                 <button className="btn small" disabled={busy === 'mark-' + c.id} onClick={() => onMarkPaid(c)}>
                   Mark paid
                 </button>
               )}
-              {isManager && c.status !== 'verified' && (
+              {managesRent && c.status !== 'verified' && (
                 <button className="btn small primary" disabled={busy === 'verify-' + c.id} onClick={() => act('verify-' + c.id, `/api/rent/${c.id}/verify`)}>
                   ✓ Verify received
                 </button>
               )}
-              {isManager && c.status !== 'unpaid' && (
+              {managesRent && c.status !== 'unpaid' && (
                 <button className="btn small ghost danger" disabled={busy === 'reopen-' + c.id} onClick={() => act('reopen-' + c.id, `/api/rent/${c.id}/reopen`)}>
                   Reopen
                 </button>
