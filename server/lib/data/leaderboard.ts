@@ -104,7 +104,7 @@ export async function leaderboard(win: 'month' | 'all'): Promise<LeaderRow[]> {
     return streak;
   }
 
-  const rows: LeaderRow[] = allUsers.map((u) => {
+  const rows: LeaderRow[] = allUsers.filter((u) => userIds.has(u.id)).map((u) => {
     const s = stats.get(u.id)!;
     return {
       userId: u.id,
