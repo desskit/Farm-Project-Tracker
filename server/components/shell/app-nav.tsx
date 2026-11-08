@@ -6,6 +6,7 @@ import { ChevronRight } from 'lucide-react';
 import { Dialog } from '@/components/ui';
 import { isActive, type NavItem, type quickActions } from '@/lib/domain/nav';
 import { ICONS } from './icons';
+import { SupplyQuickLog } from '@/components/patterns/supply-quick-log';
 import s from './shell.module.css';
 
 type Action = ReturnType<typeof quickActions>[number];
@@ -18,6 +19,11 @@ type Action = ReturnType<typeof quickActions>[number];
 export function AppNav({ items, actions, overdue }: { items: NavItem[]; actions: Action[]; overdue: number }) {
   const pathname = usePathname();
   const [sheet, setSheet] = useState(false);
+  const [mode, setMode] = useState<'menu' | 'supplies'>('menu');
+  const close = () => {
+    setSheet(false);
+    setMode('menu');
+  };
 
   return (
     <>
@@ -57,12 +63,29 @@ export function AppNav({ items, actions, overdue }: { items: NavItem[]; actions:
         })}
       </nav>
 
-      <Dialog sheet open={sheet} onClose={() => setSheet(false)} title="Quick log">
+      <Dialog sheet open={sheet} onClose={close} title={mode === 'supplies' ? 'Use supplies' : 'Quick log'}>
+        {mode === 'supplies' ? (
+          <SupplyQuickLog onDone={close} />
+        ) : (
         <div className={s.actions}>
           {actions.map((a) => {
             const Icon = ICONS[a.icon];
+            if (a.key === 'supplies') {
+              return (
+                <button key={a.key} type="button" className={s.action} onClick={() => setMode('supplies')}>
+                  <span className={s.actionIcon}>
+                    <Icon aria-hidden />
+                  </span>
+                  <span className={s.actionText}>
+                    <strong>{a.label}</strong>
+                    <span>{a.hint}</span>
+                  </span>
+                  <ChevronRight aria-hidden className={s.chev} />
+                </button>
+              );
+            }
             return (
-              <Link key={a.key} href={a.href} className={s.action} onClick={() => setSheet(false)}>
+              <Link key={a.key} href={a.href} className={s.action} onClick={close}>
                 <span className={s.actionIcon}>
                   <Icon aria-hidden />
                 </span>
@@ -75,6 +98,7 @@ export function AppNav({ items, actions, overdue }: { items: NavItem[]; actions:
             );
           })}
         </div>
+        )}
       </Dialog>
     </>
   );

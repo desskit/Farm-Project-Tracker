@@ -77,3 +77,31 @@ export function Dialog({
     </dialog>
   );
 }
+
+/** − value + with big touch targets; typing works too. */
+export function NumberStepper({
+  value, onChange, min = 0, step = 1, label, unit,
+}: { value: number; onChange: (v: number) => void; min?: number; step?: number; label: string; unit?: string }) {
+  const set = (v: number) => onChange(Math.max(min, Math.round(v * 1000) / 1000));
+  return (
+    <div className={s.stepper} role="group" aria-label={label}>
+      <button type="button" className={s.stepBtn} onClick={() => set(value - step)} disabled={value - step < min} aria-label={`Less ${label}`}>
+        −
+      </button>
+      <input
+        className={s.stepInput}
+        inputMode="decimal"
+        value={Number.isFinite(value) ? String(value) : ''}
+        onChange={(e) => {
+          const n = Number(e.target.value.replace(',', '.'));
+          if (Number.isFinite(n)) set(n);
+        }}
+        aria-label={label}
+      />
+      {unit && <span className={s.stepUnit}>{unit}</span>}
+      <button type="button" className={s.stepBtn} onClick={() => set(value + step)} aria-label={`More ${label}`}>
+        +
+      </button>
+    </div>
+  );
+}

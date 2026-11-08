@@ -2,3 +2,19 @@
 .err { font-size: var(--text-xs); color: var(--c-danger); max-width: 160px; text-align: right; }
 .queued { font-size: var(--text-xs); color: var(--c-ok); font-weight: 600; }
 .link { color: inherit; text-decoration: none; display: contents; }
+.back { display: inline-flex; align-items: center; gap: 4px; background: none; border: 0; padding: 0; min-height: var(--tap); color: var(--c-primary); font: 600 var(--text-sm) var(--font-sans); cursor: pointer; }
+.back svg { width: 18px; height: 18px; }
+.pickName { font-size: var(--text-lg); }
+.pickMeta { color: var(--c-text-muted); font-size: var(--text-sm); }
+.low { color: var(--c-warn); font-size: var(--text-sm); font-weight: 700; }
+.search { position: relative; display: block; }
+.search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--c-text-muted); pointer-events: none; }
+.search input { padding-left: 38px; }
+.pickList { display: grid; max-height: 50vh; overflow: auto; border: 1px solid var(--c-border); border-radius: var(--r-md); }
+.pickItem {
+  display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);
+  min-height: 52px; padding: 0 var(--space-3); background: var(--c-surface); color: var(--c-text);
+  border: 0; border-bottom: 1px solid var(--c-border); font: inherit; text-align: left; cursor: pointer;
+}
+.pickItem:last-child { border-bottom: 0; }
+.pickItem:hover { background: var(--c-surface-2); }

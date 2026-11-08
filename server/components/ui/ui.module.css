@@ -239,3 +239,18 @@ select.control {
 
 /* ---------- Stack helper ---------- */
 .stack { display: grid; gap: var(--space-3); }
+
+/* ---------- NumberStepper ---------- */
+.stepper { display: inline-flex; align-items: center; gap: var(--space-2); }
+.stepBtn {
+  width: var(--tap); height: var(--tap); border-radius: var(--r-md);
+  border: 1px solid var(--c-border-strong); background: var(--c-surface); color: var(--c-text);
+  font-size: 22px; font-weight: 700; cursor: pointer;
+}
+.stepBtn:disabled { opacity: .4; cursor: not-allowed; }
+.stepInput {
+  width: 72px; min-height: var(--tap); text-align: center;
+  border: 1px solid var(--c-border-strong); border-radius: var(--r-md);
+  background: var(--c-surface); color: var(--c-text); font: 700 var(--text-lg) var(--font-sans);
+}
+.stepUnit { color: var(--c-text-muted); font-size: var(--text-sm); }
