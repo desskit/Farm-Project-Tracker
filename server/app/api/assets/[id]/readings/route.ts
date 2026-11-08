@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth/session';
+import { requireCap } from '@/lib/auth/session';
 import { addReading } from '@/lib/data/maintenance';
 import { addReadingSchema } from '@/lib/api/maintenance-schemas';
 import { errorResponse } from '@/lib/api/errors';
@@ -7,7 +7,7 @@ import { idempotencyKey, withIdempotency } from '@/lib/api/idempotency';
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await requireUser();
+    const user = await requireCap('work.do');
     const parsed = addReadingSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: 'Enter a valid reading.' }, { status: 400 });
     return await withIdempotency(user.id, idempotencyKey(req), async () => {

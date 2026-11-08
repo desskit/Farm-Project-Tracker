@@ -9,6 +9,7 @@ import { listExpenses, budgetSummary } from '@/lib/data/project-expenses';
 import { ProjectDetail } from './project-detail';
 import { NotesSection } from '@/app/_components/notes-section';
 import { BudgetSection } from './budget-section';
+import { can } from '@/lib/domain/permissions';
 
 export default async function ProjectDetailPage({ params }: { params: { id: string } }) {
   const user = await getSessionUser();
@@ -21,7 +22,8 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
     projectTasksFor(params.id, user),
     listUsers(),
     listNotes('project', params.id),
-    listExpenses(params.id),
+    // Budgets and receipts are money: only people who can see finances get them.
+    can(user, 'finance.view') ? listExpenses(params.id) : Promise.resolve([]),
   ]);
   const summary = budgetSummary(
     project.budget,
@@ -43,7 +45,9 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
         taskNotes={taskNotes}
         aiEnabled={aiSuggestConfigured()}
       />
-      <BudgetSection projectId={project.id} expenses={expenses} summary={summary} currentUser={user} />
+      {can(user, 'finance.view') && (
+        <BudgetSection projectId={project.id} expenses={expenses} summary={summary} currentUser={user} />
+      )}
       <NotesSection parentType="project" parentId={project.id} notes={notes} currentUser={user} />
     </main>
   );

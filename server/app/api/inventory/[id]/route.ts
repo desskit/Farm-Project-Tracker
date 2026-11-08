@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireUser } from '@/lib/auth/session';
+import { requireCap } from '@/lib/auth/session';
 import { updateInventoryItem, deleteInventoryItem } from '@/lib/data/inventory';
 import { errorResponse } from '@/lib/api/errors';
 
@@ -15,7 +15,7 @@ const schema = z.object({
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await requireUser();
+    const user = await requireCap('farm.view');
     const parsed = schema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: 'Invalid update.' }, { status: 400 });
     const item = await updateInventoryItem(user, params.id, parsed.data);
@@ -27,7 +27,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await requireUser();
+    const user = await requireCap('farm.view');
     await deleteInventoryItem(user, params.id);
     return NextResponse.json({ ok: true });
   } catch (e) {

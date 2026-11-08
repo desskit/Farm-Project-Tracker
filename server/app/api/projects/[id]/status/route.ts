@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireUser } from '@/lib/auth/session';
+import { requireCap } from '@/lib/auth/session';
 import { updateProjectStatus } from '@/lib/data/projects';
 import { errorResponse } from '@/lib/api/errors';
 
@@ -8,7 +8,7 @@ const schema = z.object({ status: z.enum(['idea', 'planned', 'in_progress', 'on_
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await requireUser();
+    const user = await requireCap('farm.view');
     const parsed = schema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: 'A valid status is required.' }, { status: 400 });
     await updateProjectStatus(user, params.id, parsed.data.status);

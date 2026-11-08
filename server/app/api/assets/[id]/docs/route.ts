@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireUser } from '@/lib/auth/session';
+import { requireCap } from '@/lib/auth/session';
 import { addAssetDoc } from '@/lib/data/asset-docs';
 import { errorResponse } from '@/lib/api/errors';
 
@@ -12,7 +12,7 @@ const schema = z.object({
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await requireUser();
+    const user = await requireCap('farm.view');
     const parsed = schema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: 'Invalid document.' }, { status: 400 });
     await addAssetDoc(user, params.id, parsed.data);

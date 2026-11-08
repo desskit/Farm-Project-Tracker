@@ -11,7 +11,8 @@ export default async function ProjectsPage() {
   if (!user) return null; // middleware already guards this route
   const canCreate = can(user, 'work.manage');
   const projects = await listProjectsWithProgress(user);
-  const spent = await spentByProject(projects.map((p) => p.id));
+  const seesMoney = can(user, 'finance.view');
+  const spent = seesMoney ? await spentByProject(projects.map((p) => p.id)) : {};
 
   return (
     <main className="view">
@@ -43,7 +44,7 @@ export default async function ProjectsPage() {
               </div>
               <p className="subtle" style={{ margin: 0 }}>
                 {p.done} / {p.total} tasks done
-                {p.budget != null && p.budget > 0 && (
+                {seesMoney && p.budget != null && p.budget > 0 && (
                   <>
                     {' · '}
                     <span className={spent[p.id] > p.budget ? 'over-text' : undefined}>
@@ -51,7 +52,7 @@ export default async function ProjectsPage() {
                     </span>
                   </>
                 )}
-                {(p.budget == null || p.budget <= 0) && spent[p.id] > 0 && ` · $${spent[p.id].toFixed(0)} spent`}
+                {seesMoney && (p.budget == null || p.budget <= 0) && spent[p.id] > 0 && ` · $${spent[p.id].toFixed(0)} spent`}
               </p>
             </Link>
           );

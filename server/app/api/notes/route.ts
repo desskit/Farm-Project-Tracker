@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireUser } from '@/lib/auth/session';
+import { requireCap } from '@/lib/auth/session';
 import { addNote } from '@/lib/data/notes';
 import { errorResponse } from '@/lib/api/errors';
 import { idempotencyKey, withIdempotency } from '@/lib/api/idempotency';
@@ -14,7 +14,7 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireCap('work.do');
     const parsed = schema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: 'Invalid note.' }, { status: 400 });
     return await withIdempotency(user.id, idempotencyKey(req), async () => {

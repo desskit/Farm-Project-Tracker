@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireUser } from '@/lib/auth/session';
+import { requireCap } from '@/lib/auth/session';
 import { listInventory, addInventoryItem } from '@/lib/data/inventory';
 import { errorResponse } from '@/lib/api/errors';
 
@@ -16,7 +16,7 @@ const schema = z.object({
 
 export async function GET() {
   try {
-    await requireUser();
+    await requireCap('farm.view');
     return NextResponse.json({ inventory: await listInventory() });
   } catch (e) {
     return errorResponse(e);
@@ -25,7 +25,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireCap('farm.view');
     const parsed = schema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: 'A name is required.' }, { status: 400 });
     const item = await addInventoryItem(user, parsed.data);

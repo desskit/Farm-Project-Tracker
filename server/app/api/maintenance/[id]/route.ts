@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth/session';
+import { requireCap } from '@/lib/auth/session';
 import { updateMaintenance, deleteMaintenance } from '@/lib/data/maintenance';
 import { updateMaintenanceSchema } from '@/lib/api/maintenance-schemas';
 import { errorResponse } from '@/lib/api/errors';
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await requireUser();
+    const user = await requireCap('farm.view');
     const parsed = updateMaintenanceSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: 'Invalid update.' }, { status: 400 });
     const item = await updateMaintenance(user, params.id, parsed.data);
@@ -18,7 +18,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await requireUser();
+    const user = await requireCap('farm.view');
     await deleteMaintenance(user, params.id);
     return NextResponse.json({ ok: true });
   } catch (e) {

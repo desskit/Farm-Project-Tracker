@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth/session';
+import { requireCap } from '@/lib/auth/session';
 import { completeChore } from '@/lib/data/chores';
 import { completeChoreSchema } from '@/lib/api/chore-schemas';
 import { errorResponse } from '@/lib/api/errors';
@@ -7,7 +7,7 @@ import { idempotencyKey, withIdempotency } from '@/lib/api/idempotency';
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await requireUser();
+    const user = await requireCap('work.do');
     const parsed = completeChoreSchema.safeParse(await req.json().catch(() => ({})));
     if (!parsed.success) return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
     // Replay-safe: this may arrive twice from a phone that queued it offline.

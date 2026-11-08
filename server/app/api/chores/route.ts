@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth/session';
+import { requireCap } from '@/lib/auth/session';
 import { listChores, addChore } from '@/lib/data/chores';
 import { createChoreSchema } from '@/lib/api/chore-schemas';
 import { errorResponse } from '@/lib/api/errors';
 
 export async function GET() {
   try {
-    const user = await requireUser();
+    const user = await requireCap('farm.view');
     return NextResponse.json({ chores: await listChores(user) });
   } catch (e) {
     return errorResponse(e);
@@ -15,7 +15,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireCap('farm.view');
     const parsed = createChoreSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message || 'Invalid chore.' }, { status: 400 });

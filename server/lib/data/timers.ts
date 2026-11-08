@@ -17,6 +17,7 @@ import { logActivity } from './activity';
 import { publishChange } from '@/lib/realtime/bus';
 import { fmtDur } from '@/lib/domain/dates';
 import { DataError } from './errors';
+import { assertWorkVisible } from './work-access';
 
 export type TimerKind = 'chore' | 'task' | 'maintenance';
 export type TimeEntryRow = typeof timeEntries.$inferSelect;
@@ -57,6 +58,7 @@ export async function activeTimersForUser(userId: string): Promise<ActiveTimer[]
 }
 
 export async function startTimer(user: SessionUser, kind: TimerKind, refId: string): Promise<void> {
+  await assertWorkVisible(user, kind, refId);
   const existing = await activeTimerFor(user.id, kind, refId);
   if (existing) return; // idempotent — already running
   await db.insert(timeEntries).values({ id: uid('te'), kind, refId, userId: user.id, start: Date.now(), end: null, seconds: 0 });
