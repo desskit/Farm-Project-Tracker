@@ -1,22 +1,28 @@
 import Link from 'next/link';
+import { Search, Sprout } from 'lucide-react';
 import type { SessionUser } from '@/lib/auth/session';
-import { LogoutButton } from '@/app/_components/logout-button';
-import { ROLE_LABEL } from '@/lib/domain/permissions';
+import { ROLE_LABEL, can } from '@/lib/domain/permissions';
+import s from './top-bar.module.css';
 
+/** Slim brand bar on every page. Sign out lives in More / Me. */
 export function TopBar({ user }: { user: SessionUser }) {
   return (
-    <header className="topbar">
-      <div className="topbar-inner">
-        <Link href="/" className="brand">
-          <span className="brand-mark">🌾</span>
-          <span className="brand-name">Farm Tracker</span>
+    <header className={s.bar}>
+      <div className={s.inner}>
+        <Link href="/" className={s.brand}>
+          <span className={s.mark}><Sprout aria-hidden /></span>
+          <span className={s.name}>Farm Tracker</span>
         </Link>
-        <div className="user-area">
-          <Link href="/more/search" className="topbar-search" aria-label="Search" title="Search">
-            🔍
+        <div className={s.right}>
+          {can(user, 'farm.view') && (
+            <Link href="/more/search" className={s.icon} aria-label="Search" title="Search">
+              <Search aria-hidden />
+            </Link>
+          )}
+          <Link href="/more" className={s.who} title={`${user.name} · ${ROLE_LABEL[user.role]}`}>
+            <span className={s.avatar} aria-hidden>{(user.name || '?').charAt(0)}</span>
+            <span className={s.role}>{ROLE_LABEL[user.role]}</span>
           </Link>
-          <span className="role-badge">{ROLE_LABEL[user.role]}</span>
-          <LogoutButton className="topbar-link" />
         </div>
       </div>
     </header>

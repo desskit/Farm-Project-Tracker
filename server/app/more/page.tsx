@@ -1,99 +1,83 @@
-import Link from 'next/link';
+import {
+  Activity, Bell, CalendarDays, CloudSun, Database, KeyRound, LockKeyhole, MessageSquareWarning, Package, Search,
+  Timer, Tractor, Trophy, Users, UserCog, Wallet, Receipt,
+} from 'lucide-react';
+import type { ReactNode } from 'react';
 import { getSessionUser } from '@/lib/auth/session';
 import { lowStockItems } from '@/lib/data/inventory';
 import { LogoutButton } from '@/app/_components/logout-button';
 import { can, ROLE_LABEL } from '@/lib/domain/permissions';
+import { Card, ListRow, PageHeader, StatusPill } from '@/components/ui';
+import s from './more.module.css';
 
-type Tile = { href: string; icon: string; label: string; sub: string; badge?: number; warn?: boolean };
+type Row = { href: string; icon: ReactNode; label: string; sub: string; trail?: ReactNode };
 
 export default async function MorePage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
+  const onFarm = can(user, 'farm.view');
   const seesTeam = can(user, 'team.view');
   const seesMoney = can(user, 'finance.view');
-  const managesPeople = can(user, 'people.manage');
-  const onFarm = can(user, 'farm.view');
   const low = can(user, 'supplies.use') ? (await lowStockItems()).length : 0;
 
-  const farm: Tile[] = !onFarm ? [] : [
-    { href: '/more/assets', icon: '🚜', label: 'Assets', sub: 'Equipment & documents' },
-    { href: '/more/supplies', icon: '📦', label: 'Supplies', sub: 'Feed, fuel & parts', badge: low || undefined, warn: low > 0 },
-    { href: '/more/leaderboard', icon: '🏆', label: 'Leaderboard', sub: 'Points & streaks' },
-    { href: '/more/time', icon: '⏱', label: seesTeam ? 'Time report' : 'My hours', sub: seesTeam ? 'Hours logged' : 'Time you logged' },
-    { href: '/more/rent', icon: '💵', label: 'Rent', sub: seesMoney ? 'Collect & verify' : 'Your charges' },
-  ];
-  if (can(user, 'requests.create') || can(user, 'requests.manage')) {
-    farm.push({ href: '/requests', icon: '🛠️', label: 'Requests', sub: can(user, 'requests.manage') ? 'Things to fix' : 'Report a problem' });
+  const farm: Row[] = [];
+  if (onFarm) {
+    if (can(user, 'supplies.use'))
+      farm.push({ href: '/more/supplies', icon: <Package />, label: 'Supplies', sub: 'Feed, fuel & parts', trail: low ? <StatusPill tone="today">{low} low</StatusPill> : undefined });
+    farm.push({ href: '/more/assets', icon: <Tractor />, label: 'Assets', sub: 'Equipment & documents' });
+    farm.push({ href: '/more/calendar', icon: <CalendarDays />, label: 'Calendar', sub: 'What’s due, by day' });
+    farm.push({ href: '/more/time', icon: <Timer />, label: seesTeam ? 'Time report' : 'My hours', sub: seesTeam ? 'Hours logged' : 'Time you logged' });
+    if (seesTeam) farm.push({ href: '/more/team', icon: <Users />, label: 'Team', sub: 'Who’s on what' });
+    farm.push({ href: '/more/leaderboard', icon: <Trophy />, label: 'Leaderboard', sub: 'Points & streaks' });
+    farm.push({ href: '/more/weather', icon: <CloudSun />, label: 'Weather', sub: 'Forecast & fire danger' });
+    farm.push({ href: '/more/activity', icon: <Activity />, label: 'Activity', sub: 'Recent history' });
+    farm.push({ href: '/more/search', icon: <Search />, label: 'Search', sub: 'Find anything' });
   }
-  if (seesMoney) farm.push({ href: '/more/spend', icon: '💸', label: 'Spending', sub: 'Farm costs' });
-  if (seesTeam) farm.push({ href: '/more/team', icon: '👥', label: 'Team', sub: 'Farm-wide status' });
 
-  const settings: Tile[] = [
-    ...(onFarm
-      ? [
-          { href: '/more/search', icon: '🔍', label: 'Search', sub: 'Find anything' },
-          { href: '/more/calendar', icon: '📅', label: 'Calendar', sub: 'What’s due, by day' },
-        ]
-      : []),
-    { href: '/more/account', icon: '🔑', label: 'Account', sub: 'Password & sign-in' },
-    ...(managesPeople
-      ? [
-          { href: '/people', icon: '🧑‍🌾', label: 'People', sub: 'Invite & manage access' },
-          { href: '/more/access', icon: '🔐', label: 'Who sees what', sub: 'Permissions by role' },
-        ]
-      : []),
-    ...(onFarm ? [{ href: '/more/activity', icon: '🕙', label: 'Activity', sub: 'Recent history' }] : []),
-    { href: '/more/notifications', icon: '🔔', label: 'Notifications', sub: 'Digests & push' },
-    ...(onFarm ? [{ href: '/more/weather', icon: '🌤️', label: 'Weather', sub: 'Forecast & fire' }] : []),
-    ...(can(user, 'system.admin') ? [{ href: '/more/data', icon: '💾', label: 'Data', sub: 'Updates, backup & export' }] : []),
+  const money: Row[] = [];
+  money.push({ href: '/more/rent', icon: <Wallet />, label: 'Rent', sub: seesMoney ? 'Collect & confirm' : 'Your charges & documents' });
+  if (can(user, 'requests.create') || can(user, 'requests.manage'))
+    money.push({ href: '/requests', icon: <MessageSquareWarning />, label: 'Requests', sub: can(user, 'requests.manage') ? 'Things to fix' : 'Report a problem' });
+  if (seesMoney) money.push({ href: '/more/spend', icon: <Receipt />, label: 'Spending', sub: 'Farm costs' });
+
+  const admin: Row[] = [];
+  if (can(user, 'people.manage')) {
+    admin.push({ href: '/people', icon: <UserCog />, label: 'People', sub: 'Invite & manage access' });
+    admin.push({ href: '/more/access', icon: <LockKeyhole />, label: 'Who sees what', sub: 'Permissions by role' });
+  }
+  if (can(user, 'system.admin')) admin.push({ href: '/more/data', icon: <Database />, label: 'Server & data', sub: 'Updates, backups, export' });
+
+  const me: Row[] = [
+    { href: '/more/account', icon: <KeyRound />, label: 'Account', sub: 'Password & sign-in' },
+    { href: '/more/notifications', icon: <Bell />, label: 'Notifications', sub: 'Digests & push' },
   ];
 
-  return (
-    <main className="view">
-      <div className="view-head">
-        <div>
-          <h1>More</h1>
-          <p className="subtle">{onFarm ? 'Everything beyond today\u2019s work' : 'Your account and settings'}</p>
-        </div>
-      </div>
-
-      <div className="card who-card">
-        <span className="who-avatar">{(user.name || '?').charAt(0)}</span>
-        <div className="who-main">
-          <p className="who-name">{user.name}</p>
-          <p className="who-role">{ROLE_LABEL[user.role]}</p>
-        </div>
-        <LogoutButton className="btn small ghost" />
-      </div>
-
-      {farm.length > 0 && (
-        <>
-          <div className="section-title">Farm</div>
-          <div className="tile-grid">
-            {farm.map((t) => (
-              <TileLink key={t.href} tile={t} />
-            ))}
-          </div>
-        </>
-      )}
-
-      <div className="section-title">People &amp; settings</div>
-      <div className="tile-grid">
-        {settings.map((t) => (
-          <TileLink key={t.href} tile={t} />
+  const section = (title: string, rows: Row[]) =>
+    rows.length > 0 && (
+      <Card title={title} flush>
+        {rows.map((r) => (
+          <ListRow key={r.href} href={r.href} lead={r.icon} title={r.label} meta={r.sub} trail={r.trail} />
         ))}
-      </div>
-    </main>
-  );
-}
+      </Card>
+    );
 
-function TileLink({ tile }: { tile: Tile }) {
   return (
-    <Link href={tile.href} className={`more-tile${tile.warn ? ' warn' : ''}`}>
-      {tile.badge ? <span className="more-tile-badge">{tile.badge}</span> : null}
-      <span className="more-tile-ico">{tile.icon}</span>
-      <span className="more-tile-lbl">{tile.label}</span>
-      <span className="more-tile-sub">{tile.sub}</span>
-    </Link>
+    <main className={s.wrap}>
+      <PageHeader title={onFarm && seesTeam ? 'More' : 'Me'} />
+      <Card>
+        <div className={s.who}>
+          <span className={s.avatar} aria-hidden>{(user.name || '?').charAt(0)}</span>
+          <div className={s.whoMain}>
+            <strong>{user.name}</strong>
+            <span className={s.role}>{ROLE_LABEL[user.role]} · {user.email}</span>
+          </div>
+          <LogoutButton className="btn small ghost" />
+        </div>
+      </Card>
+      {section('Farm', farm)}
+      {section(onFarm ? 'Money & requests' : 'Your home', money)}
+      {section('Running the farm', admin)}
+      {section('You', me)}
+    </main>
   );
 }
