@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getSessionUser } from '@/lib/auth/session';
-import { getProject, projectTasksFor } from '@/lib/data/projects';
+import { projectForViewer, projectTasksFor } from '@/lib/data/projects';
 import { timerStatesFor } from '@/lib/data/timers';
 import { aiSuggestConfigured } from '@/lib/ai/suggest-steps';
 import { listNotes, listNotesForParents } from '@/lib/data/notes';
@@ -14,11 +14,11 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
 
-  const project = await getProject(params.id);
+  const project = await projectForViewer(user, params.id);
   if (!project) notFound();
 
   const [tasks, people, notes, expenses] = await Promise.all([
-    projectTasksFor(params.id),
+    projectTasksFor(params.id, user),
     listUsers(),
     listNotes('project', params.id),
     listExpenses(params.id),

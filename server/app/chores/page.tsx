@@ -13,7 +13,7 @@ export default async function ChoresPage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
 
-  const [chores, people] = await Promise.all([listChores(), listUsers()]);
+  const [chores, people] = await Promise.all([listChores(user), listUsers()]);
   const today = todayISO();
   const nameById = new Map(people.map((p) => [p.id, p.name]));
   const isManager = can(user, 'work.manage');

@@ -28,6 +28,7 @@ import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
 import { pushAssigned, pushClaimed, pushSentBack } from '@/lib/notify/events';
 import { can } from '@/lib/domain/permissions';
+import { canSeeWork } from '@/lib/domain/scope';
 
 /**
  * A chore plus the people on it. `assignedTo` is still on the underlying table
@@ -37,11 +38,13 @@ export type ChoreRow = typeof chores.$inferSelect & { assigneeIds: string[] };
 export type ChoreCompletionRow = typeof choreCompletions.$inferSelect;
 
 
-export async function listChores(): Promise<ChoreRow[]> {
+/** Active chores `viewer` can see (lib/domain/scope). */
+export async function listChores(viewer: SessionUser): Promise<ChoreRow[]> {
   const rows = await db.select().from(chores).where(eq(chores.done, false));
   const assignees = await choreAssigneeIdsFor(rows.map((r) => r.id));
   return rows
     .map((r) => ({ ...r, assigneeIds: assignees[r.id] ?? [] }))
+    .filter((c) => canSeeWork(viewer, c))
     .sort((a, b) => (a.nextDue < b.nextDue ? -1 : 1));
 }
 
@@ -49,6 +52,12 @@ export async function choreById(id: string): Promise<ChoreRow | null> {
   const rows = await db.select().from(chores).where(eq(chores.id, id)).limit(1);
   if (!rows[0]) return null;
   return { ...rows[0], assigneeIds: await choreAssigneeIds(id) };
+}
+
+/** The chore if `viewer` can see it, else null (callers answer 404). */
+export async function choreForViewer(viewer: SessionUser, id: string): Promise<ChoreRow | null> {
+  const c = await choreById(id);
+  return c && canSeeWork(viewer, c) ? c : null;
 }
 
 export type ChoreInput = {
@@ -144,7 +153,7 @@ export async function completeChore(
   notes?: string,
   photoId?: string | null,
 ): Promise<void> {
-  const chore = await choreById(id);
+  const chore = await choreForViewer(user, id);
   if (!chore) throw new DataError('No such chore.', 404);
   if (chore.requirePhoto && !photoId) {
     throw new DataError('This chore requires a photo to complete.', 400);
@@ -181,8 +190,9 @@ export async function completeChore(
 }
 
 export async function claimChore(user: SessionUser, id: string): Promise<void> {
-  const chore = await choreById(id);
+  const chore = await choreForViewer(user, id);
   if (!chore) throw new DataError('No such chore.', 404);
+  if (!can(user, 'work.claim')) throw new DataError('You can’t pick up open work.', 403);
   if (!chore.open) throw new DataError('This chore is not open to claim.', 400);
   if (chore.assigneeIds.includes(user.id)) throw new DataError('You are already on this chore.', 400);
   await addChoreAssignee(id, user.id);
@@ -191,7 +201,7 @@ export async function claimChore(user: SessionUser, id: string): Promise<void> {
 }
 
 export async function releaseChore(user: SessionUser, id: string): Promise<void> {
-  const chore = await choreById(id);
+  const chore = await choreForViewer(user, id);
   if (!chore) throw new DataError('No such chore.', 404);
   if (!chore.open) throw new DataError('This item is not an open item.', 400);
   if (chore.assigneeIds.includes(user.id)) {

@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth/session';
-import { choreById, updateChore, deleteChore, choreCompletionsFor, choreStreak } from '@/lib/data/chores';
+import { choreForViewer, updateChore, deleteChore, choreCompletionsFor, choreStreak } from '@/lib/data/chores';
 import { updateChoreSchema } from '@/lib/api/chore-schemas';
 import { errorResponse } from '@/lib/api/errors';
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
-    await requireUser();
-    const chore = await choreById(params.id);
+    const user = await requireUser();
+    const chore = await choreForViewer(user, params.id);
     if (!chore) return NextResponse.json({ error: 'No such chore.' }, { status: 404 });
     const [completions, streak] = await Promise.all([choreCompletionsFor(params.id), choreStreak(params.id)]);
     return NextResponse.json({ chore, completions, streak });

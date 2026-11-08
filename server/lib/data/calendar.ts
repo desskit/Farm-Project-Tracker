@@ -10,6 +10,8 @@ import { chores, maintenanceItems, projectTasks, rentCharges, users } from '@/db
 import { nextOccurrenceAfter } from '@/lib/domain/recurrence';
 import type { SessionUser } from '@/lib/auth/session';
 import { can } from '@/lib/domain/permissions';
+import { canSeeWork } from '@/lib/domain/scope';
+import { choreAssigneeIdsFor, taskAssigneeIdsFor } from './assignees';
 
 export type CalendarKind = 'chore' | 'maintenance' | 'task' | 'rent';
 export type CalendarItem = { date: string; kind: CalendarKind; id: string; title: string; href: string };
@@ -28,10 +30,15 @@ export async function calendarItems(viewer: SessionUser, fromISO: string, toISO:
     db.select({ id: users.id, name: users.name }).from(users),
   ]);
   const nameById = new Map(userRows.map((u) => [u.id, u.name]));
+  const [choreOn, taskOn] = await Promise.all([
+    choreAssigneeIdsFor(choreRows.map((c) => c.id)),
+    taskAssigneeIdsFor(taskRows.map((t) => t.id)),
+  ]);
 
   // Chores recur — walk each schedule from its next-due up to the window end.
   for (const c of choreRows) {
     if (c.done) continue; // completed one-time chores are off the calendar
+    if (!canSeeWork(viewer, { ...c, assigneeIds: choreOn[c.id] ?? [] })) continue;
     let d = c.nextDue;
     let guard = 0;
     while (d < fromISO && guard < 800) {
@@ -57,6 +64,7 @@ export async function calendarItems(viewer: SessionUser, fromISO: string, toISO:
   }
 
   for (const t of taskRows) {
+    if (!canSeeWork(viewer, { ...t, assigneeIds: taskOn[t.id] ?? [] })) continue;
     if (!t.done && t.dueDate && within(t.dueDate)) {
       out.push({ date: t.dueDate, kind: 'task', id: t.id, title: t.title, href: `/projects/${t.projectId}` });
     }

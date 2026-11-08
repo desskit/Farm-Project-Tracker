@@ -81,6 +81,7 @@ describe('completeChore', () => {
   it('records the completion and moves the due date together', async () => {
     const u = await makeUser('worker');
     await db.insert(schema.chores).values({ id: 'cc1', name: 'Feed', schedule: { type: 'daily' }, nextDue: addDays(T, -1) });
+    await db.insert(schema.choreAssignees).values({ choreId: 'cc1', userId: u.id });
     await completeChore(u, 'cc1');
     expect(await choreCompletionsFor('cc1')).toHaveLength(1);
     expect((await choreById('cc1'))!.nextDue > T).toBe(true);
@@ -89,6 +90,7 @@ describe('completeChore', () => {
   it('marks a one-off done instead of rolling it forward', async () => {
     const u = await makeUser('worker');
     await db.insert(schema.chores).values({ id: 'cc2', name: 'Fix gate', schedule: { type: 'once' }, nextDue: T });
+    await db.insert(schema.choreAssignees).values({ choreId: 'cc2', userId: u.id });
     await completeChore(u, 'cc2');
     const c = (await choreById('cc2'))!;
     expect(c.done).toBe(true);

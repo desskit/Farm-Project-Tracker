@@ -24,6 +24,7 @@ import { todayISO, currentMonthKey } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
 import { choreAssigneeIdsFor, taskAssigneeIdsFor } from './assignees';
 import { can } from '@/lib/domain/permissions';
+import { canSeeWork } from '@/lib/domain/scope';
 
 export type DashboardItem = {
   kind: 'chore' | 'maintenance' | 'task' | 'rent';
@@ -85,6 +86,7 @@ export async function getDashboard(currentUser: SessionUser, scope: 'mine' | 'al
     if (b === 'later') continue;
     const choreOn = choreAssignees[c.id] ?? [];
     if (scope === 'mine' && !choreOn.includes(currentUser.id)) continue;
+    if (!canSeeWork(currentUser, { ...c, assigneeIds: choreOn })) continue;
     buckets[b].push({
       kind: 'chore',
       id: c.id,
@@ -122,6 +124,7 @@ export async function getDashboard(currentUser: SessionUser, scope: 'mine' | 'al
     if (b === 'later') continue;
     const taskOn = taskAssignees[t.id] ?? [];
     if (scope === 'mine' && !taskOn.includes(currentUser.id)) continue;
+    if (!canSeeWork(currentUser, { ...t, assigneeIds: taskOn })) continue;
     buckets[b].push({
       kind: 'task',
       id: t.id,

@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getSessionUser } from '@/lib/auth/session';
-import { choreById, choreCompletionsFor, choreStreak } from '@/lib/data/chores';
+import { choreForViewer, choreCompletionsFor, choreStreak } from '@/lib/data/chores';
 import { activeTimerFor, totalSeconds } from '@/lib/data/timers';
 import { listUsers } from '@/lib/data/users';
 import { describeSchedule, isActiveSeason } from '@/lib/domain/recurrence';
@@ -12,7 +12,7 @@ export default async function ChoreDetailPage({ params }: { params: { id: string
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
 
-  const chore = await choreById(params.id);
+  const chore = await choreForViewer(user, params.id);
   if (!chore) notFound();
 
   const [completions, streak, people, timer, timerTotal] = await Promise.all([

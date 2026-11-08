@@ -10,7 +10,7 @@ export default async function ProjectsPage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
   const canCreate = can(user, 'work.manage');
-  const projects = await listProjectsWithProgress();
+  const projects = await listProjectsWithProgress(user);
   const spent = await spentByProject(projects.map((p) => p.id));
 
   return (

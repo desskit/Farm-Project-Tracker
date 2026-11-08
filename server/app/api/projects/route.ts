@@ -6,8 +6,8 @@ import { errorResponse } from '@/lib/api/errors';
 
 export async function GET() {
   try {
-    await requireUser();
-    return NextResponse.json({ projects: await listProjects() });
+    const user = await requireUser();
+    return NextResponse.json({ projects: await listProjects(user) });
   } catch (e) {
     return errorResponse(e);
   }
