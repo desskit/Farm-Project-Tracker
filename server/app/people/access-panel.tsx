@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Banner, Button, Field, Input, Switch } from '@/components/ui';
 import type { PersonRow as Person } from '@/lib/data/users';
-import { CAP_LABEL, ROLE_BLURB, resolveCaps, toggleable, type Cap } from '@/lib/domain/permissions';
+import { CAP_LABEL, ROLE_BLURB, can, resolveCaps, toggleable, type Cap } from '@/lib/domain/permissions';
 import s from './access-panel.module.css';
 
 const dateOf = (ms: number | null) => {
@@ -25,7 +25,8 @@ export function AccessPanel({ person, isSelf }: { person: Person; isSelf: boolea
   const switchable = toggleable(person.role);
   const override = (cap: Cap) => person.overrides.find((o) => o.cap === cap);
   const ended = person.accessExpiresAt != null && person.accessExpiresAt <= Date.now();
-  const canEnd = person.role !== 'admin' && !isSelf;
+  // Admins never get an end date (the server refuses it too).
+  const canEnd = !can({ role: person.role }, 'system.admin') && !isSelf;
 
   async function send(key: string, body: object) {
     setBusy(key);
