@@ -5,6 +5,8 @@ import { BackupPanel } from './backup-panel';
 import { listBackups } from '@/lib/backup';
 import { UpdatePanel } from './update-panel';
 import { deployStatus } from '@/lib/deploy/control';
+import { checkInvariants } from '@/lib/data/invariants';
+import { Banner, Card } from '@/components/ui';
 import { can } from '@/lib/domain/permissions';
 
 export default async function DataPage() {
@@ -13,6 +15,7 @@ export default async function DataPage() {
   const isAdmin = can(user, 'system.admin');
   const backups = isAdmin ? await listBackups() : [];
   const update = isAdmin ? await deployStatus() : null;
+  const health = isAdmin ? await checkInvariants() : null;
   const keepDays = Math.max(1, Number(process.env.BACKUP_KEEP_DAYS) || 7);
 
   return (
@@ -29,6 +32,19 @@ export default async function DataPage() {
       ) : (
         <>
           {update && <UpdatePanel initial={update} />}
+          {health && (
+            <Card title="Data check" className="data-check">
+              {health.ok ? (
+                <Banner tone="ok">All {health.checked} checks pass.</Banner>
+              ) : (
+                health.findings.map((f) => (
+                  <Banner key={f.check} tone="warn" title={`${f.check} (${f.count})`}>
+                    {f.detail}
+                  </Banner>
+                ))
+              )}
+            </Card>
+          )}
           <div className="card">
             <p className="item-title">⬇︎ Download a backup</p>
             <p className="subtle">A full JSON export of the farm data (people, chores, upkeep, projects, supplies, rent, and history). Passwords and login tokens are never included.</p>

@@ -36,7 +36,12 @@ export default async function MorePage() {
         ]
       : []),
     { href: '/more/account', icon: '🔑', label: 'Account', sub: 'Password & sign-in' },
-    ...(managesPeople ? [{ href: '/people', icon: '🧑‍🌾', label: 'People', sub: 'Invite & manage access' }] : []),
+    ...(managesPeople
+      ? [
+          { href: '/people', icon: '🧑‍🌾', label: 'People', sub: 'Invite & manage access' },
+          { href: '/more/access', icon: '🔐', label: 'Who sees what', sub: 'Permissions by role' },
+        ]
+      : []),
     ...(onFarm ? [{ href: '/more/activity', icon: '🕙', label: 'Activity', sub: 'Recent history' }] : []),
     { href: '/more/notifications', icon: '🔔', label: 'Notifications', sub: 'Digests & push' },
     ...(onFarm ? [{ href: '/more/weather', icon: '🌤️', label: 'Weather', sub: 'Forecast & fire' }] : []),

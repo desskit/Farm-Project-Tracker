@@ -139,7 +139,6 @@ Edit `.env` (`nano .env`) and set at least:
 PUBLIC_DOMAIN=farm.example.com          # host only, no https://
 PUBLIC_URL=https://farm.example.com
 TZ=America/Los_Angeles                  # your farm's timezone
-SESSION_SECRET=<paste output of: openssl rand -hex 32>
 SEED_ADMIN_NAME=Dale
 SEED_ADMIN_EMAIL=you@example.com
 SEED_ADMIN_PASSWORD=<a strong password>
@@ -245,7 +244,7 @@ is preserved across rebuilds.
 
 Port-forwarding puts the app on the public internet, so:
 
-- Use a **strong admin password** and a real random **`SESSION_SECRET`**.
+- Use a **strong admin password**. (Sessions are random tokens stored hashed; there is no secret to set.)
 - Keep the guest updated (`apt upgrade`) and rebuild the app periodically for patches.
 - Consider a firewall on the guest allowing only 80/443/22, e.g.:
   ```bash

@@ -33,7 +33,7 @@ Useful scripts: `npm run typecheck`, `npm test` (Vitest domain-logic tests),
 
 ```bash
 cd server
-cp .env.example .env            # set PUBLIC_DOMAIN, SESSION_SECRET, SEED_ADMIN_*, TZ
+cp .env.example .env            # set PUBLIC_DOMAIN, SEED_ADMIN_*, TZ
 docker compose up -d --build
 ```
 

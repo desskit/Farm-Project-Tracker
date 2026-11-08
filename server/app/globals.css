@@ -625,3 +625,4 @@ a.tap-link:hover .item-title { color: var(--brand); }
   body.has-rail { padding-left: 88px; }
   body.has-rail .view { padding-bottom: 32px; }
 }
+.data-check { margin-bottom: 10px; }

@@ -44,3 +44,12 @@ describe('permission matrix', () => {
     for (const r of ROLES) expect(() => resolveCaps(r)).not.toThrow();
   });
 });
+
+describe('docs/permissions.md', () => {
+  it('matches the permission table (regenerate with: npx tsx scripts/permissions-doc.ts)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const path = await import('node:path');
+    const { permissionsMarkdown } = await import('./permissions-doc');
+    expect(readFileSync(path.resolve(__dirname, '../../../docs/permissions.md'), 'utf8')).toBe(permissionsMarkdown());
+  });
+});

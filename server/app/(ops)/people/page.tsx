@@ -38,6 +38,10 @@ export default async function PeoplePage() {
         <PersonRow key={p.id} person={p} isSelf={p.id === user.id} />
       ))}
 
+      <p className="subtle">
+        <a href="/more/access">Who sees what →</a> the full table of what each role can do.
+      </p>
+
       <div className="section-title">Invite someone</div>
       <InviteForm />
     </main>

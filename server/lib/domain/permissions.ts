@@ -93,6 +93,13 @@ const MATRIX: Record<Cap, Row> = {
   'ai.use':           [true, true,   'off', false, false, false],
 };
 
+/** How a role holds a capability: always, switchable (default on/off), or never. */
+export type Access = 'yes' | 'switch-on' | 'switch-off' | 'no';
+export function accessOf(role: Role, cap: Cap): Access {
+  const g = grant(role, cap);
+  return g === true ? 'yes' : g === 'on' ? 'switch-on' : g === 'off' ? 'switch-off' : 'no';
+}
+
 function grant(role: Role, cap: Cap): Grant {
   return MATRIX[cap][ROLES.indexOf(role)] ?? false;
 }
