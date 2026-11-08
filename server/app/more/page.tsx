@@ -30,7 +30,7 @@ export default async function MorePage() {
     { href: '/more/activity', icon: '🕙', label: 'Activity', sub: 'Recent history' },
     { href: '/more/notifications', icon: '🔔', label: 'Notifications', sub: 'Digests & push' },
     { href: '/more/weather', icon: '🌤️', label: 'Weather', sub: 'Forecast & fire' },
-    { href: '/more/data', icon: '💾', label: 'Data', sub: 'Backup & export' },
+    { href: '/more/data', icon: '💾', label: 'Data', sub: 'Updates, backup & export' },
   ];
 
   return (

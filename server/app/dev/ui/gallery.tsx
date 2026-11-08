@@ -3,39 +3,19 @@
 import { useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Bell, Check, Droplets, Egg, Home, ListChecks, MoreHorizontal, Package, Plus, Sprout, Sun, Wrench,
+  Bell, Droplets, Egg, Home, ListChecks, MoreHorizontal, Package, Plus, Sprout, Sun, Wrench,
 } from 'lucide-react';
 import {
   AvatarStack, Badge, Banner, Button, Card, Dialog, EmptyState, Fab, Field, IconButton, Input, ListRow,
   PageHeader, Segmented, Select, Skeleton, Stack, StatusPill, Switch, Textarea,
 } from '@/components/ui';
-import { BRANDS, THEME_COOKIE, type BrandId, type ThemePref } from '@/lib/domain/brand';
+import { THEME_COOKIE, type BrandId, type ThemePref } from '@/lib/domain/brand';
 import g from './gallery.module.css';
 
 const SWATCHES = ['--c-primary', '--c-accent', '--c-bg', '--c-surface', '--c-danger', '--c-warn', '--c-ok'];
 
 export function Gallery({ current, theme }: { current: BrandId; theme: ThemePref }) {
   const router = useRouter();
-  const [saving, setSaving] = useState<BrandId | null>(null);
-  const [error, setError] = useState('');
-
-  async function chooseBrand(id: BrandId) {
-    setSaving(id);
-    setError('');
-    try {
-      const res = await fetch('/api/admin/brand', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand: id }),
-      });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not save.');
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save.');
-    } finally {
-      setSaving(null);
-    }
-  }
 
   function setTheme(t: ThemePref) {
     document.cookie =
@@ -47,47 +27,15 @@ export function Gallery({ current, theme }: { current: BrandId; theme: ThemePref
 
   return (
     <main className={g.wrap}>
-      <PageHeader title="Design gallery" subtitle="Admin only. Pick the brand the whole farm will use." />
+      <PageHeader title="Design gallery" subtitle="Admin only. The building blocks the redesigned screens use." />
 
       <section className={g.section}>
-        <h2 className={g.h2}>Brand options</h2>
-        <p className={g.lede}>
-          The same Today screen in each brand, light and dark. Choosing one switches the app for everyone straight
-          away, and you can switch back at any time. Screens that haven&apos;t been redesigned yet pick up the colors
-          too.
-        </p>
-        {error && <Banner tone="danger" title="Not saved">{error}</Banner>}
-        {BRANDS.map((b) => (
-          <Card key={b.id} as="article" className={g.brand}>
-            <div className={g.brandInner}>
-            <div className={g.brandHead}>
-              <div>
-                <h3 className={g.brandName}>
-                  {b.name}
-                  {b.id === current && <StatusPill tone="done">In use</StatusPill>}
-                </h3>
-                <p className={g.lede}>{b.tagline}</p>
-              </div>
-              <Button
-                variant={b.id === current ? 'secondary' : 'primary'}
-                disabled={b.id === current}
-                loading={saving === b.id}
-                icon={b.id === current ? <Check /> : undefined}
-                onClick={() => chooseBrand(b.id)}
-              >
-                {b.id === current ? 'In use' : `Use ${b.name}`}
-              </Button>
-            </div>
-            <ul className={g.notes}>
-              {b.notes.map((n) => <li key={n}>{n}</li>)}
-            </ul>
-            <div className={g.phones}>
-              <PhoneMock brand={b.id} mode="light" />
-              <PhoneMock brand={b.id} mode="dark" />
-            </div>
-            </div>
-          </Card>
-        ))}
+        <h2 className={g.h2}>Today, light and dark</h2>
+        <p className={g.lede}>A preview of the redesigned Today screen in the farm&apos;s colors.</p>
+        <div className={g.phones}>
+          <PhoneMock brand={current} mode="light" />
+          <PhoneMock brand={current} mode="dark" />
+        </div>
       </section>
 
       <section className={g.section}>
@@ -109,7 +57,7 @@ export function Gallery({ current, theme }: { current: BrandId; theme: ThemePref
 
       <section className={g.section}>
         <h2 className={g.h2}>Components</h2>
-        <p className={g.lede}>The building blocks every redesigned screen uses, shown in the brand in use.</p>
+        <p className={g.lede}>The building blocks every redesigned screen uses, shown in the current mode.</p>
         <KitShowcase />
       </section>
     </main>

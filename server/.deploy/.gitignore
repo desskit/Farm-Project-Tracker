@@ -1,0 +1,3 @@
+# Runtime files for the in-app update button (see scripts/deploy-watch.sh).
+*
+!.gitignore

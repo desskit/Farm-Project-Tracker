@@ -3,12 +3,15 @@ import { getSessionUser } from '@/lib/auth/session';
 import { RestoreForm } from './restore-form';
 import { BackupPanel } from './backup-panel';
 import { listBackups } from '@/lib/backup';
+import { UpdatePanel } from './update-panel';
+import { deployStatus } from '@/lib/deploy/control';
 
 export default async function DataPage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
   const isAdmin = user.role === 'admin';
   const backups = isAdmin ? await listBackups() : [];
+  const update = isAdmin ? await deployStatus() : null;
   const keepDays = Math.max(1, Number(process.env.BACKUP_KEEP_DAYS) || 7);
 
   return (
@@ -17,13 +20,14 @@ export default async function DataPage() {
         <Link href="/more" className="btn small ghost back-btn">
           ‹ More
         </Link>
-        <h1>Data &amp; backup</h1>
+        <h1>Server, data &amp; backup</h1>
       </div>
 
       {!isAdmin ? (
         <div className="empty">Only admins can export farm data.</div>
       ) : (
         <>
+          {update && <UpdatePanel initial={update} />}
           <div className="card">
             <p className="item-title">⬇︎ Download a backup</p>
             <p className="subtle">A full JSON export of the farm data (people, chores, upkeep, projects, supplies, rent, and history). Passwords and login tokens are never included.</p>

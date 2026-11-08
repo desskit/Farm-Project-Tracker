@@ -102,166 +102,70 @@
   }
 }
 
-/* ---------- Brand: Meadow ---------- */
-[data-brand="meadow"] {
-  --c-bg: #f5f3ec;
-  --c-surface: #fffdf8;
-  --c-surface-2: #eeebe1;
-  --c-text: #1d2420;
-  --c-text-muted: #5c655d;
-  --c-border: #e1ddd0;
-  --c-border-strong: #c7c1b0;
-  --c-primary: #2e6b4a;
-  --c-primary-hover: #245a3c;
-  --c-on-primary: #ffffff;
-  --c-primary-soft: #e3efe6;
-  --c-accent: #b85a35;
-  --c-on-accent: #ffffff;
-  --c-accent-soft: #f7e5db;
-}
-[data-brand="meadow"][data-theme="dark"] {
-  --c-bg: #121612;
-  --c-surface: #1a201b;
-  --c-surface-2: #232a24;
-  --c-text: #e9ece6;
-  --c-text-muted: #a0a99f;
-  --c-border: #2e372f;
-  --c-border-strong: #435044;
-  --c-primary: #6cc08f;
-  --c-primary-hover: #85cfa3;
-  --c-on-primary: #0d1f14;
-  --c-primary-soft: #1d3125;
-  --c-accent: #e88a64;
-  --c-on-accent: #24120a;
-  --c-accent-soft: #3a241a;
-}
-@media (prefers-color-scheme: dark) {
-  [data-brand="meadow"]:not([data-theme="light"]) {
-    --c-bg: #121612;
-    --c-surface: #1a201b;
-    --c-surface-2: #232a24;
-    --c-text: #e9ece6;
-    --c-text-muted: #a0a99f;
-    --c-border: #2e372f;
-    --c-border-strong: #435044;
-    --c-primary: #6cc08f;
-    --c-primary-hover: #85cfa3;
-    --c-on-primary: #0d1f14;
-    --c-primary-soft: #1d3125;
-    --c-accent: #e88a64;
-    --c-on-accent: #24120a;
-    --c-accent-soft: #3a241a;
-  }
-}
-
-/* ---------- Brand: Barnyard ---------- */
-[data-brand="barnyard"] {
-  --c-bg: #f6f1e9;
-  --c-surface: #fffcf7;
-  --c-surface-2: #efe8dc;
-  --c-text: #231d1b;
-  --c-text-muted: #675e58;
-  --c-border: #e4dccd;
-  --c-border-strong: #cbbfa9;
-  --c-primary: #8f2a2a;
-  --c-primary-hover: #772222;
-  --c-on-primary: #ffffff;
-  --c-primary-soft: #f4e1df;
-  --c-accent: #c98f12;
-  --c-on-accent: #2a1d03;
-  --c-accent-soft: #f8ecd0;
-  /* Keep "overdue" visibly different from the red brand. */
-  --c-danger: #c4320a;
-  --c-danger-soft: #fde9e0;
-}
-[data-brand="barnyard"][data-theme="dark"] {
-  --c-bg: #171312;
-  --c-surface: #201a19;
-  --c-surface-2: #2a2321;
-  --c-text: #f0e9e4;
-  --c-text-muted: #b0a49c;
-  --c-border: #3a302d;
-  --c-border-strong: #554641;
-  --c-primary: #e8776d;
-  --c-primary-hover: #f08f86;
-  --c-on-primary: #2a0c09;
-  --c-primary-soft: #3b1f1c;
-  --c-accent: #f0bf55;
-  --c-on-accent: #2a1d03;
-  --c-accent-soft: #3a2f16;
-  --c-danger: #ff8a5c;
-  --c-danger-soft: #3d2116;
-}
-@media (prefers-color-scheme: dark) {
-  [data-brand="barnyard"]:not([data-theme="light"]) {
-    --c-bg: #171312;
-    --c-surface: #201a19;
-    --c-surface-2: #2a2321;
-    --c-text: #f0e9e4;
-    --c-text-muted: #b0a49c;
-    --c-border: #3a302d;
-    --c-border-strong: #554641;
-    --c-primary: #e8776d;
-    --c-primary-hover: #f08f86;
-    --c-on-primary: #2a0c09;
-    --c-primary-soft: #3b1f1c;
-    --c-accent: #f0bf55;
-    --c-on-accent: #2a1d03;
-    --c-accent-soft: #3a2f16;
-    --c-danger: #ff8a5c;
-    --c-danger-soft: #3d2116;
-  }
-}
-
-/* ---------- Brand: Field Notes ---------- */
-[data-brand="fieldnotes"] {
-  --c-bg: #f2f4f3;
+/* ---------- Brand: Classic ----------
+ * The app's original palette, kept as the farm's brand. Adding another brand
+ * later means one more set of these three blocks plus an entry in
+ * lib/domain/brand.ts. */
+[data-brand="classic"] {
+  --c-bg: #f3f2ec;
   --c-surface: #ffffff;
-  --c-surface-2: #e8ecea;
-  --c-text: #16211f;
-  --c-text-muted: #556361;
-  --c-border: #dbe1df;
-  --c-border-strong: #bcc7c4;
-  --c-primary: #1f4e5f;
-  --c-primary-hover: #183f4d;
+  --c-surface-2: #ecebe3;
+  --c-text: #1c221e;
+  --c-text-muted: #6b7269;
+  --c-border: #e2e0d6;
+  --c-border-strong: #cdcabd;
+  --c-primary: #2f6f4f;
+  --c-primary-hover: #3f855f;
   --c-on-primary: #ffffff;
-  --c-primary-soft: #dfeaee;
-  --c-accent: #d4991a;
-  --c-on-accent: #261a00;
-  --c-accent-soft: #faefd2;
+  --c-primary-soft: #e7f1ea;
+  --c-accent: #b8860b;
+  --c-on-accent: #ffffff;
+  --c-accent-soft: #fbf3df;
+  --c-danger: #c0392b;
+  --c-danger-soft: #fbeae7;
+  --c-warn: #b8860b;
+  --c-warn-soft: #fbf3df;
 }
-[data-brand="fieldnotes"][data-theme="dark"] {
-  --c-bg: #0f1517;
-  --c-surface: #172023;
-  --c-surface-2: #1f2a2e;
-  --c-text: #e6eeee;
-  --c-text-muted: #99a9a9;
-  --c-border: #2a3a3e;
-  --c-border-strong: #3e5257;
-  --c-primary: #6fb3c8;
-  --c-primary-hover: #8cc5d6;
-  --c-on-primary: #06191f;
-  --c-primary-soft: #18303a;
-  --c-accent: #f2c14e;
-  --c-on-accent: #261a00;
-  --c-accent-soft: #3a3117;
+[data-brand="classic"][data-theme="dark"] {
+  --c-bg: #12160f;
+  --c-surface: #1c211c;
+  --c-surface-2: #262c25;
+  --c-text: #e8ebe6;
+  --c-text-muted: #9aa39a;
+  --c-border: #303a30;
+  --c-border-strong: #455245;
+  --c-primary: #4c9a72;
+  --c-primary-hover: #5aad82;
+  --c-on-primary: #ffffff;
+  --c-primary-soft: #1f2f26;
+  --c-accent: #e0b24a;
+  --c-on-accent: #1c1504;
+  --c-accent-soft: #352d19;
+  --c-danger: #e57368;
+  --c-danger-soft: #3a2320;
+  --c-warn: #e0b24a;
+  --c-warn-soft: #352d19;
 }
 @media (prefers-color-scheme: dark) {
-  [data-brand="fieldnotes"]:not([data-theme="light"]) {
-    --c-bg: #0f1517;
-    --c-surface: #172023;
-    --c-surface-2: #1f2a2e;
-    --c-text: #e6eeee;
-    --c-text-muted: #99a9a9;
-    --c-border: #2a3a3e;
-    --c-border-strong: #3e5257;
-    --c-primary: #6fb3c8;
-    --c-primary-hover: #8cc5d6;
-    --c-on-primary: #06191f;
-    --c-primary-soft: #18303a;
-    --c-accent: #f2c14e;
-    --c-on-accent: #261a00;
-    --c-accent-soft: #3a3117;
+  [data-brand="classic"]:not([data-theme="light"]) {
+    --c-bg: #12160f;
+    --c-surface: #1c211c;
+    --c-surface-2: #262c25;
+    --c-text: #e8ebe6;
+    --c-text-muted: #9aa39a;
+    --c-border: #303a30;
+    --c-border-strong: #455245;
+    --c-primary: #4c9a72;
+    --c-primary-hover: #5aad82;
+    --c-on-primary: #ffffff;
+    --c-primary-soft: #1f2f26;
+    --c-accent: #e0b24a;
+    --c-on-accent: #1c1504;
+    --c-accent-soft: #352d19;
+    --c-danger: #e57368;
+    --c-danger-soft: #3a2320;
+    --c-warn: #e0b24a;
+    --c-warn-soft: #352d19;
   }
 }
 

@@ -44,11 +44,11 @@ describe('tokens.css', () => {
 
 describe('setBrand', () => {
   it('lets an admin pick a known brand and nobody else', async () => {
-    expect(await currentBrand()).toBe('meadow');
+    expect(await currentBrand()).toBe('classic');
     const mgr = await makeUser('manager');
-    await expect(setBrand(mgr, 'barnyard')).rejects.toThrow(/admin/);
+    await expect(setBrand(mgr, 'classic')).rejects.toThrow(/admin/);
     const admin = await makeUser('admin');
-    await expect(setBrand(admin, 'neon')).rejects.toThrow(/Unknown/);
-    expect(await setBrand(admin, 'barnyard')).toBe('barnyard');
+    await expect(setBrand(admin, 'meadow')).rejects.toThrow(/Unknown/);
+    expect(await setBrand(admin, 'classic')).toBe('classic');
   });
 });

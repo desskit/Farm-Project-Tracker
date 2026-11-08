@@ -75,6 +75,26 @@ PATH=/usr/local/bin:/usr/bin:/bin
 The user running it must be able to use Docker without a password prompt
 (i.e. be in the `docker` group).
 
+## Update button (optional)
+
+Admins get an **Update now** button under More → Data. It runs this same
+script on demand, with the same CI gate, pre-flight and rollback. The app
+can't touch the server itself: it only drops a request file into
+`server/.deploy` (shared with the container), and a helper on the host,
+`deploy-watch.sh`, notices it within a minute and runs the update. The
+helper also reports which version is running and whether a newer tested one
+is waiting.
+
+To turn it on, add a second cron line next to the nightly one:
+
+```cron
+PATH=/usr/local/bin:/usr/bin:/bin
+0 3 * * * /home/YOUR_USER/Farm-Project-Tracker/server/scripts/auto-update.sh
+* * * * * /home/YOUR_USER/Farm-Project-Tracker/server/scripts/deploy-watch.sh
+```
+
+Until the helper has run once, the panel says it isn't set up yet.
+
 ## Checking on it
 
 ```bash

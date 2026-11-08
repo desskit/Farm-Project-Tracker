@@ -1,9 +1,10 @@
 /**
- * Brand options for the redesign. The colors themselves live in
- * app/tokens.css under [data-brand="<id>"]; this list is what the app and the
- * /dev/ui gallery need to know about them (client-safe, no server imports).
+ * The farm's brand. The owner kept the original palette ("Classic"); the
+ * colors live in app/tokens.css under [data-brand="classic"]. The plumbing
+ * (a setting, data-brand on <html>) stays so another brand is a CSS block
+ * and a list entry away. Client-safe, no server imports.
  */
-export type BrandId = 'meadow' | 'barnyard' | 'fieldnotes';
+export type BrandId = 'classic';
 export type ThemePref = 'system' | 'light' | 'dark';
 
 export type BrandInfo = {
@@ -18,38 +19,15 @@ export type BrandInfo = {
 
 export const BRANDS: BrandInfo[] = [
   {
-    id: 'meadow',
-    name: 'Meadow',
-    tagline: 'Forest green with a terracotta accent on warm cream. Calm and familiar.',
-    notes: [
-      'Closest to what people use today, so the switch feels like a refresh, not a new app.',
-      'Green also means "on track", so the brand color and the good-news color sit close together.',
-    ],
-    themeColor: { light: '#2e6b4a', dark: '#121612' },
-  },
-  {
-    id: 'barnyard',
-    name: 'Barnyard',
-    tagline: 'Oxblood barn red and harvest gold on oat. Warm, bold, very "farm".',
-    notes: [
-      'The most distinctive of the three; reads as a farm brand at a glance.',
-      'Red brand next to red "overdue" — overdue switches to a brighter vermilion with an icon so the two stay apart.',
-    ],
-    themeColor: { light: '#8f2a2a', dark: '#171312' },
-  },
-  {
-    id: 'fieldnotes',
-    name: 'Field Notes',
-    tagline: 'Deep slate-teal and harvest gold on cool paper. Crisp and utilitarian.',
-    notes: [
-      'Status colors (red / amber / green) stand out most against a neutral brand.',
-      'Feels more like a tool than a farm; the gold accent carries the warmth.',
-    ],
-    themeColor: { light: '#1f4e5f', dark: '#0f1517' },
+    id: 'classic',
+    name: 'Classic',
+    tagline: 'Farm green and harvest gold on warm off-white — the original look.',
+    notes: [],
+    themeColor: { light: '#2f6f4f', dark: '#12160f' },
   },
 ];
 
-export const DEFAULT_BRAND: BrandId = 'meadow';
+export const DEFAULT_BRAND: BrandId = 'classic';
 export const BRAND_SETTING_KEY = 'brand';
 export const THEME_COOKIE = 'fpt-theme';
 
