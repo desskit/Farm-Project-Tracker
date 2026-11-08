@@ -61,7 +61,7 @@ describe('redesign ratchets', () => {
 
   // Inline styles are being replaced by CSS modules screen by screen. This
   // number may only go down: lower it when you remove some.
-  const INLINE_STYLE_LIMIT = 170;
+  const INLINE_STYLE_LIMIT = 168;
   it(`has at most ${INLINE_STYLE_LIMIT} inline style blocks`, () => {
     const n = ui().reduce((sum, f) => sum + (readFileSync(f, 'utf8').match(/style=\{\{/g)?.length ?? 0), 0);
     expect(n).toBeLessThanOrEqual(INLINE_STYLE_LIMIT);

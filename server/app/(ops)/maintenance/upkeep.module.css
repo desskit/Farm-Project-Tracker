@@ -1,0 +1,3 @@
+.wrap { max-width: var(--content-max); margin: 0 auto; padding: var(--space-4) var(--gutter) calc(var(--nav-h) + var(--space-8)); display: grid; gap: var(--space-3); }
+.add { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
+.h2 { font-size: var(--text-lg); margin: 0; }

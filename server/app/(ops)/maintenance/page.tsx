@@ -1,60 +1,59 @@
-import Link from 'next/link';
+import { Tractor, Wrench } from 'lucide-react';
 import { getSessionUser } from '@/lib/auth/session';
 import { listAssetsWithStatus } from '@/lib/data/maintenance';
-import { AddAssetCard } from './add-asset-card';
 import { can } from '@/lib/domain/permissions';
-import { WorkTabs } from '@/components/shell/work-tabs';
 import { workSections } from '@/lib/domain/nav';
+import { WorkTabs } from '@/components/shell/work-tabs';
+import { Card, EmptyState, ListRow, PageHeader, StatusPill } from '@/components/ui';
+import { AddAssetCard } from './add-asset-card';
+import s from './upkeep.module.css';
 
-export default async function MaintenancePage() {
+export default async function UpkeepPage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
   const isManager = can(user, 'work.manage');
   const assets = await listAssetsWithStatus();
+  const due = assets.filter((a) => a.overdue > 0 || a.soon > 0).sort((a, b) => b.overdue - a.overdue || b.soon - a.soon);
+  const fine = assets.filter((a) => !a.overdue && !a.soon);
+
+  const row = (a: (typeof assets)[number]) => (
+    <ListRow
+      key={a.id}
+      href={`/maintenance/${a.id}`}
+      lead={a.overdue || a.soon ? <Wrench /> : <Tractor />}
+      title={a.name}
+      meta={`${a.category}${a.meterUnit ? ` · ${a.meterUnit}` : ''} · ${a.itemCount} item${a.itemCount === 1 ? '' : 's'}`}
+      trail={
+        a.overdue ? (
+          <StatusPill tone="overdue">{a.overdue} overdue</StatusPill>
+        ) : a.soon ? (
+          <StatusPill tone="today">{a.soon} due soon</StatusPill>
+        ) : (
+          <StatusPill tone="done">OK</StatusPill>
+        )
+      }
+    />
+  );
 
   return (
-    <main className="view">
+    <main className={s.wrap}>
       <WorkTabs sections={workSections(user)} />
-      <div className="view-head">
-        <h1>Upkeep</h1>
-      </div>
-      <p className="subtle" style={{ marginTop: -6, marginBottom: 12 }}>
-        Assets and the maintenance coming due on each.
-      </p>
+      <PageHeader title="Upkeep" subtitle="Equipment and the service coming due on each" />
 
-      {!assets.length ? (
-        <div className="empty">No assets yet.</div>
-      ) : (
-        assets.map((a) => {
-          const rail = a.overdue ? 'overdue' : a.soon ? 'today' : 'upcoming';
-          return (
-            <Link href={`/maintenance/${a.id}`} className="card tap" key={a.id}>
-              <div className="item">
-                <span className={`left-rail ${rail}`} />
-                <div className="item-main">
-                  <p className="item-title">{a.name}</p>
-                  <p className="item-sub">
-                    {a.category}
-                    {a.meterUnit ? ` · ${a.meterUnit}` : ''} · {a.itemCount} item{a.itemCount === 1 ? '' : 's'}
-                  </p>
-                  {(a.overdue > 0 || a.soon > 0) && (
-                    <div className="item-badges">
-                      {a.overdue > 0 && <span className="badge overdue">{a.overdue} overdue</span>}
-                      {a.soon > 0 && <span className="badge today">{a.soon} coming up</span>}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Link>
-          );
-        })
+      {due.length > 0 && (
+        <Card title="Needs service" flush>
+          {due.map(row)}
+        </Card>
       )}
+      <Card title={due.length ? 'Everything else' : 'Equipment'} flush>
+        {fine.length ? fine.map(row) : !due.length ? <EmptyState icon={<Tractor />} title="No equipment yet">Add tractors, vehicles, pumps — anything that needs regular service.</EmptyState> : <EmptyState title="Everything needs attention" />}
+      </Card>
 
       {isManager && (
-        <>
-          <div className="section-title">Add an asset</div>
+        <section className={s.add}>
+          <h2 className={s.h2}>Add equipment</h2>
           <AddAssetCard />
-        </>
+        </section>
       )}
     </main>
   );
