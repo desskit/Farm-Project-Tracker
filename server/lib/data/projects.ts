@@ -25,6 +25,7 @@ import { DataError } from './errors';
 import { pushAssigned, pushClaimed, pushSentBack } from '@/lib/notify/events';
 import { can } from '@/lib/domain/permissions';
 import { canSeeWork, seesAllWork } from '@/lib/domain/scope';
+import { assertOwnUpload } from './attachment-access';
 
 export type ProjectRow = typeof projects.$inferSelect;
 /**
@@ -202,6 +203,7 @@ export async function deleteTask(user: SessionUser, taskId: string): Promise<voi
 
 /** Toggles a task done/undone. Blocks completion of a photo-required task with no photo. */
 export async function toggleTask(user: SessionUser, taskId: string, photoId?: string | null): Promise<void> {
+  await assertOwnUpload(user, photoId);
   const t = await visibleTask(user, taskId);
   if (!t.done && t.requirePhoto && !photoId) throw new DataError('This task requires a photo to complete.', 400);
   const done = !t.done;

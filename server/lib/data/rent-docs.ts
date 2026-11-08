@@ -20,6 +20,7 @@ import { logActivity } from './activity';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
 import { can } from '@/lib/domain/permissions';
+import { assertOwnUpload } from './attachment-access';
 
 export { RENT_DOC_LABELS } from '@/lib/domain/rent-doc-types';
 
@@ -88,6 +89,7 @@ export async function addRentDoc(
   renterId: string,
   data: { name: string; docType: RentDocType; attachmentId: string },
 ): Promise<void> {
+  await assertOwnUpload(user, data.attachmentId);
   assertAccess(user, renterId);
   const renter = await db.select({ id: users.id }).from(users).where(eq(users.id, renterId)).limit(1);
   if (!renter.length) throw new DataError('No such person.', 404);
@@ -142,23 +144,4 @@ export async function purgeRentDocsFor(userId: string): Promise<number> {
 export async function rentDocCountFor(userId: string): Promise<number> {
   const rows = await db.select({ id: rentDocs.id }).from(rentDocs).where(eq(rentDocs.userId, userId));
   return rows.length;
-}
-
-/**
- * Gate for the shared file route.
- *
- * Attachments are otherwise readable by any signed-in user, which is fine for
- * a chore's proof photo but not for a lease. Returns false only when the
- * attachment *is* rental paperwork and this viewer isn't entitled to it, so
- * every other kind of attachment is unaffected.
- */
-export async function canViewAttachment(user: SessionUser, attachmentId: string): Promise<boolean> {
-  const rows = await db
-    .select({ userId: rentDocs.userId })
-    .from(rentDocs)
-    .where(eq(rentDocs.attachmentId, attachmentId))
-    .limit(1);
-  const doc = rows[0];
-  if (!doc) return true; // not rental paperwork — not our business
-  return canAccess(user, doc.userId);
 }

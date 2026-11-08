@@ -19,6 +19,7 @@ import { logActivity } from './activity';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
 import { can } from '@/lib/domain/permissions';
+import { assertOwnUpload } from './attachment-access';
 
 export type ExpenseRow = {
   id: string;
@@ -96,6 +97,7 @@ export async function addExpense(
   projectId: string,
   data: { label: string; amount: number; date?: string; photoId?: string | null },
 ): Promise<void> {
+  await assertOwnUpload(user, data.photoId);
   const label = (data.label || '').trim();
   if (!label) throw new DataError('What was it for?', 400);
   const amount = Number(data.amount);

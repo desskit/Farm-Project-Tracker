@@ -8,6 +8,7 @@ import 'server-only';
 import cron from 'node-cron';
 import { runDigestTick } from './digest';
 import { cleanupAuthTables } from '@/lib/auth/cleanup';
+import { pruneOrphanAttachments } from '@/lib/data/attachment-access';
 import { reconcileChoreDueDates } from '@/lib/data/reconcile';
 import { runBackup } from '@/lib/backup';
 import { runRentReminders } from './rent-reminders';
@@ -39,6 +40,9 @@ export function startCron(): void {
   });
   // Nightly auth housekeeping (03:20) — prune expired sessions/invites/throttle.
   cron.schedule('20 3 * * *', () => {
+    pruneOrphanAttachments()
+      .then((n) => n && console.log(`[cron] removed ${n} unattached upload(s)`))
+      .catch((e) => console.error('[cron] upload cleanup failed', e));
     cleanupAuthTables().catch((e) => {
       // eslint-disable-next-line no-console
       console.error('[cron] auth cleanup failed', e);

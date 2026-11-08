@@ -15,6 +15,7 @@ import { stopTimersFor } from './timers';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
 import { can } from '@/lib/domain/permissions';
+import { assertOwnUpload } from './attachment-access';
 
 export type AssetRow = typeof assets.$inferSelect;
 export type ReadingRow = typeof meterReadings.$inferSelect;
@@ -197,6 +198,7 @@ export async function logService(
   itemId: string,
   data: { date?: string; reading?: number | null; notes?: string; cost?: number | null; photoId?: string | null },
 ): Promise<void> {
+  await assertOwnUpload(user, data.photoId);
   const item = await maintenanceById(itemId);
   if (!item) throw new DataError('No such item.', 404);
   if (item.requirePhoto && !data.photoId) throw new DataError('This item requires a photo of the completed work.', 400);

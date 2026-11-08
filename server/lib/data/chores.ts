@@ -29,6 +29,7 @@ import { DataError } from './errors';
 import { pushAssigned, pushClaimed, pushSentBack } from '@/lib/notify/events';
 import { can } from '@/lib/domain/permissions';
 import { canSeeWork } from '@/lib/domain/scope';
+import { assertOwnUpload } from './attachment-access';
 
 /**
  * A chore plus the people on it. `assignedTo` is still on the underlying table
@@ -153,6 +154,7 @@ export async function completeChore(
   notes?: string,
   photoId?: string | null,
 ): Promise<void> {
+  await assertOwnUpload(user, photoId);
   const chore = await choreForViewer(user, id);
   if (!chore) throw new DataError('No such chore.', 404);
   if (chore.requirePhoto && !photoId) {

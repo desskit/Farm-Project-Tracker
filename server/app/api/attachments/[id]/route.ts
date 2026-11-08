@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth/session';
 import { readAttachment } from '@/lib/data/attachments';
-import { canViewAttachment } from '@/lib/data/rent-docs';
+import { canViewAttachment } from '@/lib/data/attachment-access';
 import { errorResponse } from '@/lib/api/errors';
 
 /**
- * Auth-checked file serving. Any signed-in user may view proof photos and
- * asset paperwork — that's shared farm work. Rental documents are the
- * exception: a lease is between one renter and the farm, so those are
- * restricted to that renter and managers.
+ * Auth-checked file serving. Who may open which file is decided in
+ * lib/data/attachment-access.ts (deny by default).
  */
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {

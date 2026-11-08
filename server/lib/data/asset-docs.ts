@@ -16,6 +16,7 @@ import { logActivity } from './activity';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
 import { can } from '@/lib/domain/permissions';
+import { assertOwnUpload } from './attachment-access';
 
 export { DOC_TYPE_LABELS } from '@/lib/domain/asset-doc-types';
 
@@ -71,6 +72,7 @@ export async function addAssetDoc(
   assetId: string,
   data: { name: string; docType: AssetDocType; attachmentId: string },
 ): Promise<void> {
+  await assertOwnUpload(user, data.attachmentId);
   const name = (data.name || '').trim() || 'Document';
   await db.insert(assetDocs).values({
     id: uid('doc'),

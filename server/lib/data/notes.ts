@@ -14,6 +14,7 @@ import { logActivity } from './activity';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
 import { can } from '@/lib/domain/permissions';
+import { assertOwnUpload } from './attachment-access';
 
 export type NoteParentType = 'project' | 'task' | 'asset';
 export type NoteRow = {
@@ -86,6 +87,7 @@ export async function addNote(
   user: SessionUser,
   data: { parentType: NoteParentType; parentId: string; body?: string; photoId?: string | null },
 ): Promise<NoteRow> {
+  await assertOwnUpload(user, data.photoId);
   const body = (data.body || '').trim();
   if (!body && !data.photoId) throw new DataError('Write a note or attach a photo.', 400);
   const id = uid('note');
