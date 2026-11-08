@@ -4,9 +4,9 @@
  * and ensures expired credentials can't linger. Run from the cron scheduler.
  */
 import 'server-only';
-import { and, desc, isNotNull, isNull, lt, or } from 'drizzle-orm';
+import { and, desc, inArray, isNotNull, isNull, lt, or } from 'drizzle-orm';
 import { db } from '@/db';
-import { sessions, invites, authThrottle, activity, idempotencyKeys } from '@/db/schema';
+import { sessions, invites, authThrottle, activity, idempotencyKeys, users, pushSubscriptions } from '@/db/schema';
 
 /** Rows of history to keep; the feed only ever shows the most recent few. */
 const ACTIVITY_KEEP = 5000;
@@ -15,6 +15,16 @@ export async function cleanupAuthTables(): Promise<void> {
   const now = Date.now();
   // Expired sessions.
   await db.delete(sessions).where(lt(sessions.expiresAt, now));
+  // People whose access end date has passed: their sessions already stop
+  // working (the lookup checks the date), so this just stops push and clears
+  // the dead rows.
+  const ended = (
+    await db.select({ id: users.id }).from(users).where(and(isNotNull(users.accessExpiresAt), lt(users.accessExpiresAt, now)))
+  ).map((u) => u.id);
+  if (ended.length) {
+    await db.delete(sessions).where(inArray(sessions.userId, ended));
+    await db.delete(pushSubscriptions).where(inArray(pushSubscriptions.userId, ended));
+  }
   // Invites that have been used or have expired.
   await db.delete(invites).where(or(isNotNull(invites.usedAt), lt(invites.expiresAt, now)));
   // Throttle rows older than a day that are not currently locked. Actively

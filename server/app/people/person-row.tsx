@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { PersonRow as Person } from '@/lib/data/users';
 import { ASSIGNABLE_ROLES, ROLE_LABEL } from '@/lib/domain/permissions';
+import { AccessPanel } from './access-panel';
 
 /**
  * Admin controls for one person: change role, resend a pending invite, or
@@ -144,6 +145,8 @@ export function PersonRow({ person, isSelf }: { person: Person; isSelf: boolean 
           </button>
         )}
       </div>
+
+      <AccessPanel person={person} isSelf={isSelf} />
 
       {needsForce && (
         <div className="notice" style={{ marginTop: 10 }}>

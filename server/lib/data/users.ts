@@ -1,13 +1,26 @@
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { users, notificationPrefs, rentCharges, timeEntries, sessions, pushSubscriptions } from '@/db/schema';
+import { users, notificationPrefs, rentCharges, timeEntries, sessions, pushSubscriptions, userCaps } from '@/db/schema';
 import type { Role } from '@/db/schema';
 import { uid } from '@/lib/ids';
 import { createInvite } from '@/lib/auth/invites';
 import { purgeRentDocsFor, rentDocCountFor } from './rent-docs';
 import { DataError } from './errors';
+import { logActivity } from './activity';
+import { CAP_LABEL, ROLE_LABEL, toggleable, type Cap } from '@/lib/domain/permissions';
 
-export type PersonRow = { id: string; name: string; email: string; role: Role; pending: boolean; active: boolean };
+export type PersonRow = {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  pending: boolean;
+  active: boolean;
+  /** Epoch ms after which they can't sign in, or null. */
+  accessExpiresAt: number | null;
+  /** Per-person switches (only those their role allows are honoured). */
+  overrides: { cap: string; allow: boolean }[];
+};
 
 /**
  * Everyone, including deactivated people — callers need the full set to resolve
@@ -23,10 +36,16 @@ export async function listUsers(): Promise<PersonRow[]> {
       role: users.role,
       passwordHash: users.passwordHash,
       active: users.active,
+      accessExpiresAt: users.accessExpiresAt,
     })
     .from(users)
     .orderBy(users.name);
-  return rows.map(({ passwordHash, ...rest }) => ({ ...rest, pending: !passwordHash }));
+  const caps = await db.select({ userId: userCaps.userId, cap: userCaps.cap, allow: userCaps.allow }).from(userCaps);
+  return rows.map(({ passwordHash, ...rest }) => ({
+    ...rest,
+    pending: !passwordHash,
+    overrides: caps.filter((c) => c.userId === rest.id).map(({ cap, allow }) => ({ cap, allow })),
+  }));
 }
 
 /** Creates a person (no password yet) and mints an invite token for them. */
@@ -59,7 +78,53 @@ async function assertNotLastAdmin(targetId: string, action: string) {
 
 export async function updateUserRole(targetId: string, role: Role): Promise<void> {
   if (role !== 'admin') await assertNotLastAdmin(targetId, 'demote');
-  await db.update(users).set({ role }).where(eq(users.id, targetId));
+  // Admins never have an end date (see setAccessExpiry).
+  await db.update(users).set(role === 'admin' ? { role, accessExpiresAt: null } : { role }).where(eq(users.id, targetId));
+}
+
+/**
+ * Turns one of a person's switchable permissions on or off, or (allow = null)
+ * back to their role's default. Only capabilities their role marks as
+ * switchable can be set — crew can be given "manage work", never "admin".
+ */
+export async function setUserCap(actorId: string, targetId: string, cap: Cap, allow: boolean | null): Promise<void> {
+  const target = await db.select({ name: users.name, role: users.role }).from(users).where(eq(users.id, targetId)).limit(1);
+  if (!target[0]) throw new DataError('No such person.', 404);
+  if (!toggleable(target[0].role).includes(cap)) {
+    throw new DataError(`${ROLE_LABEL[target[0].role]} can't have that switched.`, 400);
+  }
+  if (allow === null) {
+    await db.delete(userCaps).where(and(eq(userCaps.userId, targetId), eq(userCaps.cap, cap)));
+  } else {
+    await db
+      .insert(userCaps)
+      .values({ userId: targetId, cap, allow, setBy: actorId, setAt: Date.now() })
+      .onConflictDoUpdate({ target: [userCaps.userId, userCaps.cap], set: { allow, setBy: actorId, setAt: Date.now() } });
+  }
+  await logActivity(
+    actorId,
+    `${allow === null ? 'reset' : allow ? 'allowed' : 'removed'} “${CAP_LABEL[cap]}” for ${target[0].name}`,
+  );
+}
+
+/**
+ * Sets (or clears, with null) the moment someone's access ends. Meant for
+ * guests and seasonal help; admins can't have one, so the farm can't be
+ * locked out by a date passing. Ending it in the past signs them out now.
+ */
+export async function setAccessExpiry(actorId: string, targetId: string, expiresAt: number | null): Promise<void> {
+  if (targetId === actorId && expiresAt !== null) throw new DataError('You can’t set an end date on your own access.', 400);
+  const target = await db.select({ name: users.name, role: users.role }).from(users).where(eq(users.id, targetId)).limit(1);
+  if (!target[0]) throw new DataError('No such person.', 404);
+  if (target[0].role === 'admin' && expiresAt !== null) throw new DataError('Admins can’t have an end date.', 400);
+  await db.update(users).set({ accessExpiresAt: expiresAt }).where(eq(users.id, targetId));
+  if (expiresAt !== null && expiresAt <= Date.now()) {
+    await db.delete(sessions).where(eq(sessions.userId, targetId));
+  }
+  await logActivity(
+    actorId,
+    expiresAt === null ? `removed the end date on ${target[0].name}'s access` : `set ${target[0].name}'s access to end ${new Date(expiresAt).toLocaleDateString()}`,
+  );
 }
 
 /**
