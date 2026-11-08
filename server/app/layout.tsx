@@ -5,6 +5,7 @@ import { getSessionUser } from '@/lib/auth/session';
 import { myOverdueCount } from '@/lib/data/dashboard';
 import { TopBar } from './_components/top-bar';
 import { AppNav } from '@/components/shell/app-nav';
+import { DialogsProvider } from '@/components/ui/dialogs';
 import { primaryNav, quickActions } from '@/lib/domain/nav';
 import { RealtimeSync } from './_components/realtime-sync';
 import { TimersStrip } from './_components/timers-strip';
@@ -50,6 +51,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     // already in the right colors (no flash).
     <html lang="en" data-brand={brand} data-theme={theme === 'system' ? undefined : theme}>
       <body className={user ? 'has-rail' : undefined}>
+        <DialogsProvider>
         <PwaRegister />
         {user?.previewBy && <PreviewBanner user={user} />}
         {user && <TopBar user={user} />}
@@ -58,6 +60,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {user && <OutboxBar />}
         {children}
         {user && <AppNav items={primaryNav(user)} actions={quickActions(user)} overdue={overdue} />}
+              </DialogsProvider>
       </body>
     </html>
   );

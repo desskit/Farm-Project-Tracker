@@ -6,6 +6,7 @@ import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
 import { fmtDate } from '@/lib/domain/dates';
 import { can } from '@/lib/domain/permissions';
+import { useDialogs } from '@/components/ui/dialogs';
 
 export function RentView({
   charges,
@@ -20,6 +21,7 @@ export function RentView({
   assignments: Record<string, RentAssignmentRow | null>;
   currentUser: SessionUser;
 }) {
+  const { confirm: askConfirm, prompt: askPrompt } = useDialogs();
   const router = useRouter();
   const isManager = can(currentUser, 'finance.view');
   const managesRent = can(currentUser, 'finance.manage');
@@ -44,8 +46,8 @@ export function RentView({
     router.refresh();
   }
 
-  function onMarkPaid(c: RentChargeRow) {
-    const note = window.prompt('Mark paid — how? (cash, check, app… optional)', c.note || '');
+  async function onMarkPaid(c: RentChargeRow) {
+    const note = await askPrompt('Mark paid — how? (cash, check, app… optional)', c.note || '');
     if (note === null) return;
     act('mark-' + c.id, `/api/rent/${c.id}/mark`, { note });
   }
@@ -138,6 +140,7 @@ function AssignForm({
   assignments: Record<string, RentAssignmentRow | null>;
   onError: (m: string | null) => void;
 }) {
+  const { confirm: askConfirm, prompt: askPrompt } = useDialogs();
   const router = useRouter();
   // The dropdown only offers active people, so every default and fallback has
   // to come from this list too. Seeding state from the unfiltered `people`
@@ -190,7 +193,7 @@ function AssignForm({
   }
 
   async function stop() {
-    if (!confirm(`Stop charging ${people.find((p) => p.id === selectedId)?.name ?? 'this person'} rent?`)) return;
+    if (!await askConfirm(`Stop charging ${people.find((p) => p.id === selectedId)?.name ?? 'this person'} rent?`)) return;
     setLoading(true);
     const res = await fetch('/api/rent/stop', {
       method: 'POST',

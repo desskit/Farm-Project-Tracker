@@ -6,6 +6,7 @@ import { uploadPhoto } from '@/lib/client/photo';
 import type { ExpenseRow, BudgetSummary } from '@/lib/data/project-expenses';
 import type { SessionUser } from '@/lib/auth/session';
 import { can } from '@/lib/domain/permissions';
+import { useDialogs } from '@/components/ui/dialogs';
 
 const money = (n: number) => `$${n.toFixed(2)}`;
 
@@ -24,6 +25,7 @@ export function BudgetSection({
   summary: BudgetSummary;
   currentUser: SessionUser;
 }) {
+  const { confirm: askConfirm } = useDialogs();
   const router = useRouter();
   const isManager = can(currentUser, 'finance.manage');
   const [adding, setAdding] = useState(false);
@@ -62,7 +64,7 @@ export function BudgetSection({
   }
 
   async function onDelete(id: string) {
-    if (!confirm('Delete this expense?')) return;
+    if (!await askConfirm('Delete this expense?')) return;
     const res = await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
     if (res.ok) router.refresh();
     else {

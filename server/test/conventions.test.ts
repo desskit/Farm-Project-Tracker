@@ -48,3 +48,22 @@ describe('permissions', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+describe('redesign ratchets', () => {
+  const ui = () => ['app', 'components'].flatMap((d) => sourceFiles(path.join(ROOT, d))).filter((f) => f.endsWith('.tsx'));
+
+  it('uses in-app dialogs, never the browser prompt/confirm boxes', () => {
+    const offenders = ui()
+      .filter((f) => !f.endsWith(path.join('components', 'ui', 'dialogs.tsx'))) // the replacement itself
+      .filter((f) => /(?<![.\w])(window\.)?(confirm|prompt|alert)\(/.test(readFileSync(f, 'utf8')));
+    expect(offenders.map((f) => path.relative(ROOT, f)), 'use useDialogs() from components/ui').toEqual([]);
+  });
+
+  // Inline styles are being replaced by CSS modules screen by screen. This
+  // number may only go down: lower it when you remove some.
+  const INLINE_STYLE_LIMIT = 173;
+  it(`has at most ${INLINE_STYLE_LIMIT} inline style blocks`, () => {
+    const n = ui().reduce((sum, f) => sum + (readFileSync(f, 'utf8').match(/style=\{\{/g)?.length ?? 0), 0);
+    expect(n).toBeLessThanOrEqual(INLINE_STYLE_LIMIT);
+  });
+});

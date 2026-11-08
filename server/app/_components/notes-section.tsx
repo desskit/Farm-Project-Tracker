@@ -7,6 +7,7 @@ import { submitQueued } from '@/lib/client/outbox';
 import type { NoteRow, NoteParentType } from '@/lib/data/notes';
 import type { SessionUser } from '@/lib/auth/session';
 import { can } from '@/lib/domain/permissions';
+import { useDialogs } from '@/components/ui/dialogs';
 
 /**
  * Logbook for a project / task / asset. Anyone can add a note (with an optional
@@ -24,6 +25,7 @@ export function NotesSection({
   notes: NoteRow[];
   currentUser: SessionUser;
 }) {
+  const { confirm: askConfirm } = useDialogs();
   const router = useRouter();
   const isManager = can(currentUser, 'work.manage');
   const [body, setBody] = useState('');
@@ -61,7 +63,7 @@ export function NotesSection({
   }
 
   async function onDelete(id: string) {
-    if (!confirm('Delete this note?')) return;
+    if (!await askConfirm('Delete this note?')) return;
     const res = await fetch(`/api/notes/${id}`, { method: 'DELETE' });
     if (res.ok) router.refresh();
     else {

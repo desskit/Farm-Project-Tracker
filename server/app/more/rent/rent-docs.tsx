@@ -8,6 +8,7 @@ import { RENT_DOC_LABELS, RENT_DOC_TYPES } from '@/lib/domain/rent-doc-types';
 import type { RentDocType } from '@/db/schema';
 import type { SessionUser } from '@/lib/auth/session';
 import { can } from '@/lib/domain/permissions';
+import { useDialogs } from '@/components/ui/dialogs';
 
 const DOC_ICON: Record<RentDocType, string> = {
   lease: '📑',
@@ -38,6 +39,7 @@ export function RentDocs({
   /** Managers see several of these, so each needs a name on it. */
   showHeading: boolean;
 }) {
+  const { confirm: askConfirm } = useDialogs();
   const router = useRouter();
   const isManager = can(currentUser, 'finance.view');
   const [file, setFile] = useState<File | null>(null);
@@ -82,7 +84,7 @@ export function RentDocs({
   }
 
   async function onDelete(id: string) {
-    if (!confirm('Delete this document? The file is removed too.')) return;
+    if (!await askConfirm('Delete this document? The file is removed too.')) return;
     const res = await fetch(`/api/rent-docs/${id}`, { method: 'DELETE' });
     if (res.ok) router.refresh();
     else {

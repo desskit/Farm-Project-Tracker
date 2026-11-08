@@ -8,6 +8,7 @@ import { DOC_TYPE_LABELS } from '@/lib/domain/asset-doc-types';
 import type { AssetDocType } from '@/db/schema';
 import type { SessionUser } from '@/lib/auth/session';
 import { can } from '@/lib/domain/permissions';
+import { useDialogs } from '@/components/ui/dialogs';
 
 const DOC_ICON: Record<AssetDocType, string> = {
   receipt: '🧾',
@@ -26,6 +27,7 @@ export function AssetDocs({
   docs: AssetDocRow[];
   currentUser: SessionUser;
 }) {
+  const { confirm: askConfirm } = useDialogs();
   const router = useRouter();
   const isManager = can(currentUser, 'work.manage');
   const [file, setFile] = useState<File | null>(null);
@@ -71,7 +73,7 @@ export function AssetDocs({
   }
 
   async function onDelete(id: string) {
-    if (!confirm('Delete this document? The file is removed too.')) return;
+    if (!await askConfirm('Delete this document? The file is removed too.')) return;
     const res = await fetch(`/api/asset-docs/${id}`, { method: 'DELETE' });
     if (res.ok) router.refresh();
     else {

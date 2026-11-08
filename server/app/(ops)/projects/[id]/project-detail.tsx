@@ -15,6 +15,7 @@ import { AssigneePicker } from '@/app/_components/assignee-picker';
 import type { TimerState } from '@/lib/data/timers';
 import type { NoteRow } from '@/lib/data/notes';
 import { can } from '@/lib/domain/permissions';
+import { useDialogs } from '@/components/ui/dialogs';
 
 export function ProjectDetail({
   project,
@@ -33,6 +34,7 @@ export function ProjectDetail({
   taskNotes: Record<string, NoteRow[]>;
   aiEnabled: boolean;
 }) {
+  const { confirm: askConfirm, prompt: askPrompt } = useDialogs();
   const router = useRouter();
   const canManage = can(currentUser, 'work.manage');
   const nameById = new Map(people.map((p) => [p.id, p.name]));
@@ -120,17 +122,17 @@ export function ProjectDetail({
   }
 
   async function onDeleteProject() {
-    if (!confirm('Delete this project and its tasks?')) return;
+    if (!await askConfirm('Delete this project and its tasks?')) return;
     await act('del-project', `/api/projects/${project.id}`, 'DELETE', undefined, () => router.push('/projects'));
   }
 
   async function onDeleteTask(id: string) {
-    if (!confirm('Delete this task?')) return;
+    if (!await askConfirm('Delete this task?')) return;
     await act('del-' + id, `/api/tasks/${id}`, 'DELETE');
   }
 
   async function onSendBack(id: string) {
-    const reason = window.prompt('Send this task back to be redone. Reason (optional):', '');
+    const reason = await askPrompt('Send this task back to be redone. Reason (optional):', '');
     if (reason === null) return;
     await act('sb-' + id, `/api/tasks/${id}/send-back`, 'POST', { reason });
   }

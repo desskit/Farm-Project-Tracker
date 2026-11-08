@@ -1,8 +1,10 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useDialogs } from '@/components/ui/dialogs';
 
 export function RestoreForm() {
+  const { confirm: askConfirm } = useDialogs();
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -12,7 +14,7 @@ export function RestoreForm() {
 
   async function onRestore() {
     if (!file) return;
-    if (!confirm('Replace all current farm data with this backup? This cannot be undone.')) return;
+    if (!await askConfirm('Replace all current farm data with this backup? This cannot be undone.')) return;
     setBusy(true);
     setError(null);
     setResult(null);

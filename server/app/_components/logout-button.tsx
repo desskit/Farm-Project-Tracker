@@ -1,6 +1,7 @@
 'use client';
 import type { FormEvent } from 'react';
 import { pendingCount } from '@/lib/client/outbox';
+import { useDialogs } from '@/components/ui/dialogs';
 
 /**
  * Sign-out as a POST form (a GET link can be triggered from any other site).
@@ -10,13 +11,14 @@ import { pendingCount } from '@/lib/client/outbox';
  * the last one's screens.
  */
 export function LogoutButton({ className, label = 'Log out' }: { className?: string; label?: string }) {
+  const { confirm: askConfirm } = useDialogs();
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
     const waiting = await pendingCount().catch(() => 0);
     if (
       waiting > 0 &&
-      !window.confirm(
+      !await askConfirm(
         `${waiting} change${waiting === 1 ? ' hasn’t' : 's haven’t'} synced yet. If you log out now, ` +
           `${waiting === 1 ? 'it' : 'they'} will be sent as whoever signs in next on this device. Log out anyway?`,
       )

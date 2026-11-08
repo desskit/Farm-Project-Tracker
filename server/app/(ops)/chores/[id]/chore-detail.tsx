@@ -12,6 +12,7 @@ import { submitQueued } from '@/lib/client/outbox';
 import { TimerControl } from '@/app/_components/timer-control';
 import { ChoreForm, type ChorePayload } from '../chore-form';
 import { can } from '@/lib/domain/permissions';
+import { useDialogs } from '@/components/ui/dialogs';
 
 export function ChoreDetail({
   chore,
@@ -41,6 +42,7 @@ export function ChoreDetail({
   timerStartedAt: number | null;
   timerTotalSec: number;
 }) {
+  const { confirm: askConfirm, prompt: askPrompt } = useDialogs();
   const router = useRouter();
   const isManager = can(currentUser, 'work.manage');
   const nameById = new Map(people.map((p) => [p.id, p.name]));
@@ -119,12 +121,12 @@ export function ChoreDetail({
   }
 
   async function onDelete() {
-    if (!confirm('Delete this chore and its history?')) return;
+    if (!await askConfirm('Delete this chore and its history?')) return;
     await act('delete', `/api/chores/${chore.id}`, 'DELETE', undefined, () => router.push('/chores'));
   }
 
   async function onSendBack(completionId: string) {
-    const reason = window.prompt('Send this work back to be redone. Reason (optional):', '');
+    const reason = await askPrompt('Send this work back to be redone. Reason (optional):', '');
     if (reason === null) return;
     await act('sendback-' + completionId, `/api/chore-completions/${completionId}/send-back`, 'POST', { reason });
   }

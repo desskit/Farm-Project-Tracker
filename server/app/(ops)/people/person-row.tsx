@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import type { PersonRow as Person } from '@/lib/data/users';
 import { ASSIGNABLE_ROLES, ROLE_LABEL } from '@/lib/domain/permissions';
 import { AccessPanel } from './access-panel';
+import { useDialogs } from '@/components/ui/dialogs';
 
 /**
  * Admin controls for one person: change role, resend a pending invite, or
@@ -12,6 +13,7 @@ import { AccessPanel } from './access-panel';
  * being hidden here.
  */
 export function PersonRow({ person, isSelf }: { person: Person; isSelf: boolean }) {
+  const { confirm: askConfirm } = useDialogs();
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +70,7 @@ export function PersonRow({ person, isSelf }: { person: Person; isSelf: boolean 
   async function onSetActive(active: boolean) {
     if (
       !active &&
-      !confirm(
+      !await askConfirm(
         `Deactivate ${person.name}? They'll be signed out and can't log in, but all their history is kept. You can turn them back on any time.`,
       )
     ) {
@@ -91,7 +93,7 @@ export function PersonRow({ person, isSelf }: { person: Person; isSelf: boolean 
   }
 
   async function onRemove(force = false) {
-    if (!force && !confirm(`Remove ${person.name}? They immediately lose access to the farm.`)) return;
+    if (!force && !await askConfirm(`Remove ${person.name}? They immediately lose access to the farm.`)) return;
     setBusy('remove');
     setError(null);
     const res = await fetch(`/api/admin/users/${person.id}${force ? '?force=1' : ''}`, { method: 'DELETE' });

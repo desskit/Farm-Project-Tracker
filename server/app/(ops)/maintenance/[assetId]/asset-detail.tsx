@@ -11,6 +11,7 @@ import { submitQueued } from '@/lib/client/outbox';
 import { TimerControl } from '@/app/_components/timer-control';
 import type { TimerState } from '@/lib/data/timers';
 import { can } from '@/lib/domain/permissions';
+import { useDialogs } from '@/components/ui/dialogs';
 
 type ItemWithLogs = MaintWithStatus & { logs: MaintLogRow[]; costTotal: number };
 
@@ -33,6 +34,7 @@ export function AssetDetail({
   currentUser: SessionUser;
   timers: Record<string, TimerState>;
 }) {
+  const { confirm: askConfirm, prompt: askPrompt } = useDialogs();
   const router = useRouter();
   const isManager = can(currentUser, 'work.manage');
   const nameById = new Map(people.map((p) => [p.id, p.name]));
@@ -57,7 +59,7 @@ export function AssetDetail({
   }
 
   async function onDeleteAsset() {
-    if (!confirm('Delete this asset, its maintenance items, and history?')) return;
+    if (!await askConfirm('Delete this asset, its maintenance items, and history?')) return;
     setBusy('del-asset');
     const ok = await request(`/api/assets/${asset.id}`, 'DELETE');
     setBusy(null);
@@ -65,7 +67,7 @@ export function AssetDetail({
   }
 
   async function onSendBack(logId: string) {
-    const reason = window.prompt('Send this service back / undo it. Reason (optional):', '');
+    const reason = await askPrompt('Send this service back / undo it. Reason (optional):', '');
     if (reason === null) return;
     setBusy('sb-' + logId);
     const ok = await request(`/api/maintenance-logs/${logId}/send-back`, 'POST', { reason });
@@ -74,7 +76,7 @@ export function AssetDetail({
   }
 
   async function onDeleteItem(id: string) {
-    if (!confirm('Delete this maintenance item and its history?')) return;
+    if (!await askConfirm('Delete this maintenance item and its history?')) return;
     setBusy('del-' + id);
     const ok = await request(`/api/maintenance/${id}`, 'DELETE');
     setBusy(null);

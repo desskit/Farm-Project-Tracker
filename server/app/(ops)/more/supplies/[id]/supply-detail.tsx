@@ -8,6 +8,7 @@ import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
 import { fmtDate } from '@/lib/domain/dates';
 import { can } from '@/lib/domain/permissions';
+import { useDialogs } from '@/components/ui/dialogs';
 
 export function SupplyDetail({
   item,
@@ -20,6 +21,7 @@ export function SupplyDetail({
   people: PersonRow[];
   currentUser: SessionUser;
 }) {
+  const { confirm: askConfirm } = useDialogs();
   const router = useRouter();
   const isManager = can(currentUser, 'supplies.manage');
   const nameById = new Map(people.map((p) => [p.id, p.name]));
@@ -61,7 +63,7 @@ export function SupplyDetail({
   }
 
   async function onDelete() {
-    if (!confirm('Delete this inventory item and its history?')) return;
+    if (!await askConfirm('Delete this inventory item and its history?')) return;
     setBusy(true);
     const res = await fetch(`/api/inventory/${item.id}`, { method: 'DELETE' });
     setBusy(false);
