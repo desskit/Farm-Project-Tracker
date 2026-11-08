@@ -21,7 +21,10 @@ export type NavItem = {
 export function primaryNav(v: Subject): NavItem[] {
   if (!can(v, 'farm.view')) {
     // Renters get their own portal (rent, documents, requests).
-    return [{ key: 'home', label: 'Home', href: '/', icon: 'today', match: ['/'] }, more(v)];
+    const portal: NavItem[] = [{ key: 'home', label: 'Home', href: '/', icon: 'today', match: ['/'] }];
+    if (can(v, 'requests.create')) portal.push({ key: 'requests', label: 'Requests', href: '/requests', icon: 'requests', match: ['/requests'] });
+    portal.push({ key: 'rent', label: 'Rent', href: '/more/rent', icon: 'rent', match: ['/more/rent'] });
+    return [...portal, more(v)];
   }
   const items: NavItem[] = [
     { key: 'today', label: 'Today', href: '/', icon: 'today', match: ['/'], badge: 'overdue' },

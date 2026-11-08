@@ -8,7 +8,7 @@ describe('navigation', () => {
     expect(keys('manager')).toEqual(['today', 'work', 'log', 'farm', 'more']);
     expect(keys('worker')).toEqual(['today', 'work', 'log', 'farm', 'more']);
     expect(keys('guest')).toEqual(['today', 'work', 'log', 'more']);
-    expect(keys('renter')).toEqual(['home', 'more']);
+    expect(keys('renter')).toEqual(['home', 'requests', 'rent', 'more']);
   });
   it('labels More as "Me" for people without the team view', () => {
     expect(primaryNav({ role: 'worker' }).at(-1)?.label).toBe('Me');

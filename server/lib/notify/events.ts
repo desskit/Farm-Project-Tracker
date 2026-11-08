@@ -120,3 +120,12 @@ export async function pushLowStock(actorId: string, itemName: string, qty: numbe
     url: '/more/supplies',
   });
 }
+
+/** Maintenance requests: a new one, a status change, or a reply. */
+export async function pushRequest(
+  actorId: string,
+  userIds: string[],
+  payload: { title: string; body: string; url: string },
+): Promise<void> {
+  await notify(userIds, actorId, payload);
+}

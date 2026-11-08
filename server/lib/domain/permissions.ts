@@ -156,5 +156,12 @@ export function onTeam(role: Role): boolean {
   return can({ role }, 'work.claim');
 }
 
-/** Roles an admin can hand out today. Renter and guest wait for their screens. */
-export const ASSIGNABLE_ROLES: Role[] = ['admin', 'manager', 'family', 'worker'];
+/** Which kind of app someone gets: the farm app, the renter portal, or the farm app as a guest. */
+export function audienceOf(role: Role): 'farm' | 'renter' | 'guest' {
+  if (!can({ role }, 'farm.view')) return 'renter';
+  if (!onTeam(role)) return 'guest';
+  return 'farm';
+}
+
+/** Roles an admin can hand out. */
+export const ASSIGNABLE_ROLES: Role[] = ['admin', 'manager', 'family', 'worker', 'guest', 'renter'];

@@ -453,3 +453,38 @@ export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value', { mode: 'json' }),
 });
+
+/* ---------------- maintenance requests ---------------- */
+export type RequestStatus = 'open' | 'in_progress' | 'done' | 'declined';
+
+/**
+ * Something that needs fixing, reported by a renter or anyone on the farm
+ * ("the hot water is out", "gate latch broken"). People with requests.manage
+ * handle them. `unitId` is reserved for rental units (not yet a table).
+ */
+export const maintenanceRequests = sqliteTable('maintenance_requests', {
+  id: text('id').primaryKey(),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  unitId: text('unit_id'),
+  title: text('title').notNull(),
+  details: text('details').notNull().default(''),
+  status: text('status').$type<RequestStatus>().notNull().default('open'),
+  urgent: integer('urgent', { mode: 'boolean' }).notNull().default(false),
+  photoId: text('photo_id').references(() => attachments.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at').notNull().default(now),
+  updatedAt: integer('updated_at').notNull().default(now),
+}, (t) => ({
+  createdByIdx: index('maintenance_requests_created_by_idx').on(t.createdBy),
+  statusIdx: index('maintenance_requests_status_idx').on(t.status),
+}));
+
+/** The back-and-forth on a request, including status changes. */
+export const requestComments = sqliteTable('request_comments', {
+  id: text('id').primaryKey(),
+  requestId: text('request_id').notNull().references(() => maintenanceRequests.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  body: text('body').notNull(),
+  ts: integer('ts').notNull().default(now),
+}, (t) => ({
+  requestIdx: index('request_comments_request_idx').on(t.requestId, t.ts),
+}));

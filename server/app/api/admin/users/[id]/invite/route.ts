@@ -7,6 +7,7 @@ import { createInvite } from '@/lib/auth/invites';
 import { emailConfigured, sendMail } from '@/lib/notify/email';
 import { inviteEmail } from '@/lib/notify/templates';
 import { errorResponse } from '@/lib/api/errors';
+import { audienceOf } from '@/lib/domain/permissions';
 
 /**
  * Re-sends an invite to someone who hasn't set a password yet — used when the
@@ -16,7 +17,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   try {
     const admin = await requireAdmin();
     const rows = await db
-      .select({ id: users.id, name: users.name, email: users.email, passwordHash: users.passwordHash })
+      .select({ id: users.id, name: users.name, email: users.email, passwordHash: users.passwordHash, role: users.role, accessExpiresAt: users.accessExpiresAt })
       .from(users)
       .where(eq(users.id, params.id))
       .limit(1);
@@ -38,7 +39,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       emailed = await sendMail(
         person.email,
         `${admin.name} invited you to Farm Project Tracker`,
-        inviteEmail(person.name, admin.name, inviteUrl),
+        inviteEmail(person.name, admin.name, inviteUrl, audienceOf(person.role), person.accessExpiresAt),
       );
     }
     return NextResponse.json({ ok: true, inviteUrl, emailed });

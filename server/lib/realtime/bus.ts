@@ -43,6 +43,7 @@ export const CHANGE_AUDIENCE: Record<string, Cap> = {
   timer: 'farm.view',
   activity: 'farm.view',
   all: 'farm.view',
+  // 'request' goes to everyone: each person refetches only their own.
 };
 
 /** Subscribe to change events; returns an unsubscribe function. */

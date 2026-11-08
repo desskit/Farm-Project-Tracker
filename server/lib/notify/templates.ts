@@ -7,11 +7,29 @@ import { escapeHtml, emailLayout, emailButton, publicUrl } from './email';
 import { fmtDate } from '@/lib/domain/dates';
 import type { DashboardBuckets } from '@/lib/data/dashboard';
 
-export function inviteEmail(name: string, inviterName: string, url: string): string {
+/**
+ * The invite email, worded for who it's going to: renters get "your rent,
+ * documents and requests", guests are told their access is time-limited.
+ */
+export function inviteEmail(
+  name: string,
+  inviterName: string,
+  url: string,
+  kind: 'farm' | 'renter' | 'guest' = 'farm',
+  accessEnds?: number | null,
+): string {
+  const what =
+    kind === 'renter'
+      ? 'the farm\'s tenant portal — where you can see your rent, your lease and documents, and send maintenance requests'
+      : 'the farm\'s Project Tracker — the app the crew uses for chores, equipment upkeep, and projects';
+  const ends =
+    kind === 'guest' && accessEnds
+      ? `<p>Your access runs until ${escapeHtml(new Date(accessEnds).toLocaleDateString())}.</p>`
+      : '';
   return emailLayout(`
     <p>Hi ${escapeHtml(name)},</p>
-    <p>${escapeHtml(inviterName)} has added you to the farm's Project Tracker — the app the crew uses for chores,
-    equipment upkeep, and projects. Set your password to get started:</p>
+    <p>${escapeHtml(inviterName)} has added you to ${what}. Set your password to get started:</p>
+    ${ends}
     ${emailButton('Set your password', url)}
     <p style="color:#6b7269;font-size:13px">This link expires in 7 days. If it stops working, ask an admin to resend it.</p>`);
 }

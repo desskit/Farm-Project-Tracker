@@ -92,7 +92,7 @@ export function RentDocs({
   }
 
   return (
-    <div className="card">
+    <div className="card" id="documents">
       {showHeading && (
         <p className="item-title" style={{ marginBottom: 6 }}>
           {renterName}

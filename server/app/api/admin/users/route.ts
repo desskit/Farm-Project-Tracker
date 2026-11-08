@@ -5,7 +5,7 @@ import { listUsers, createUserWithInvite } from '@/lib/data/users';
 import { emailConfigured, sendMail } from '@/lib/notify/email';
 import { inviteEmail } from '@/lib/notify/templates';
 import { errorResponse } from '@/lib/api/errors';
-import { ASSIGNABLE_ROLES, type Role } from '@/lib/domain/permissions';
+import { ASSIGNABLE_ROLES, audienceOf, type Role } from '@/lib/domain/permissions';
 
 const createSchema = z.object({
   name: z.string().trim().min(1),
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       emailed = await sendMail(
         parsed.data.email,
         `${admin.name} invited you to Farm Project Tracker`,
-        inviteEmail(parsed.data.name, admin.name, inviteUrl),
+        inviteEmail(parsed.data.name, admin.name, inviteUrl, audienceOf(parsed.data.role)),
       );
     }
     return NextResponse.json({ ok: true, inviteUrl, emailed });

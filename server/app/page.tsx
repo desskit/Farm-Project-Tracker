@@ -3,7 +3,8 @@ import { getSessionUser } from '@/lib/auth/session';
 import { getDashboard, type DashboardItem } from '@/lib/data/dashboard';
 import { CompleteChoreButton } from './_components/complete-chore-button';
 import { WeatherWidget } from './_components/weather-widget';
-import { ROLE_LABEL } from '@/lib/domain/permissions';
+import { ROLE_LABEL, can } from '@/lib/domain/permissions';
+import { PortalHome } from './_components/portal-home';
 
 export default async function HomePage({ searchParams }: { searchParams: { scope?: string } }) {
   const user = await getSessionUser();
@@ -20,6 +21,9 @@ export default async function HomePage({ searchParams }: { searchParams: { scope
       </main>
     );
   }
+
+  // Renters (no farm access) get their own home: rent, documents, requests.
+  if (!can(user, 'farm.view')) return <PortalHome user={user} />;
 
   const scope = searchParams.scope === 'all' ? 'all' : 'mine';
   const buckets = await getDashboard(user, scope);

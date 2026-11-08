@@ -1,7 +1,7 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { ASSIGNABLE_ROLES, ROLE_LABEL } from '@/lib/domain/permissions';
+import { ASSIGNABLE_ROLES, ROLE_BLURB, ROLE_LABEL, audienceOf, isRole } from '@/lib/domain/permissions';
 
 export function InviteForm() {
   const router = useRouter();
@@ -56,6 +56,12 @@ export function InviteForm() {
               <option key={r} value={r}>{ROLE_LABEL[r]}</option>
             ))}
           </select>
+          {isRole(role) && (
+            <p className="subtle" style={{ marginTop: 6 }}>
+              {ROLE_BLURB[role]}
+              {audienceOf(role) === 'guest' ? ' After inviting, set when their access ends under Access.' : ''}
+            </p>
+          )}
         </div>
         {error && <p className="error-text">{error}</p>}
         <button type="submit" disabled={loading} className="btn primary block">
