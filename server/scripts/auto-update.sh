@@ -115,7 +115,7 @@ fi
 # deploy's start counts.
 restore_db_if_migrated() {
   local marker ts file
-  marker="$(docker compose run --rm --no-deps --entrypoint cat app "$CONTAINER_BACKUPS/pre-migrate-latest.txt" 2>/dev/null | head -n1 || true)"
+  marker="$(docker compose run -T --rm --no-deps --entrypoint cat app "$CONTAINER_BACKUPS/pre-migrate-latest.txt" 2>/dev/null | head -n1 || true)"
   ts="${marker%% *}"
   file="${marker#* }"
   case "$ts" in ''|*[!0-9]*) return 0 ;; esac
@@ -126,7 +126,7 @@ restore_db_if_migrated() {
   docker compose stop app >>"$LOG_FILE" 2>&1 || true
   # Remove the WAL before swapping files: a leftover WAL from the migrated
   # database replayed onto the restored one would corrupt it.
-  if docker compose run --rm --no-deps --entrypoint sh app -c \
+  if docker compose run -T --rm --no-deps --entrypoint sh app -c \
     "cp '$CONTAINER_BACKUPS/$file' '$CONTAINER_DB.restoring' && rm -f '$CONTAINER_DB-wal' '$CONTAINER_DB-shm' && mv '$CONTAINER_DB.restoring' '$CONTAINER_DB'" \
     >>"$LOG_FILE" 2>&1; then
     log "database restored from $file"
@@ -165,7 +165,7 @@ fi
 # its pending migrations against the copy, checks it, deletes it and exits.
 # Real data is never touched, and the running app keeps serving.
 log "pre-flight: testing migrations on a copy of the live database…"
-if ! timeout "$PREFLIGHT_TIMEOUT" docker compose run --rm --no-deps -e MIGRATION_PREFLIGHT=1 app >>"$LOG_FILE" 2>&1; then
+if ! timeout "$PREFLIGHT_TIMEOUT" docker compose run -T --rm --no-deps -e MIGRATION_PREFLIGHT=1 app </dev/null >>"$LOG_FILE" 2>&1; then
   alert "pre-flight failed at ${REMOTE:0:8} — its migrations would not apply cleanly to real data (or the app refused to boot); app left running ${LOCAL:0:8}"
   git -C "$REPO_DIR" reset --hard "$LOCAL" >>"$LOG_FILE" 2>&1 || true
   exit 1
