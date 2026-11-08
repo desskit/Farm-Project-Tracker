@@ -6,6 +6,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      # See the Dockerfile: without this the healthcheck can't reach the app.
+      HOSTNAME: 0.0.0.0
       DATABASE_URL: file:/data/app.db
       UPLOAD_DIR: /data/uploads
       BACKUP_DIR: /data/backups

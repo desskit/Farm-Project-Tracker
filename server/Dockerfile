@@ -20,6 +20,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
+# Next's standalone server listens on $HOSTNAME. Docker sets that to the
+# container ID, which binds only the container's network address — Caddy can
+# reach it but the localhost healthcheck can't, so it reads "unhealthy" and
+# auto-update would roll every deploy back. Listen on all interfaces.
+ENV HOSTNAME=0.0.0.0
 ENV DATABASE_URL=file:/data/app.db
 ENV UPLOAD_DIR=/data/uploads
 
@@ -36,6 +41,6 @@ USER node
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD node -e "fetch('http://localhost:'+ (process.env.PORT||3000) +'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:'+ (process.env.PORT||3000) +'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "server.js"]
