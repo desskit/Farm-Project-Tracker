@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { destroySession } from '@/lib/auth/session';
+import { PREVIEW_COOKIE } from '@/lib/auth/constants';
 
 /**
  * Sign out. POST only: a GET logout can be triggered by any page that embeds
@@ -12,6 +13,7 @@ export async function POST(req: Request) {
   await destroySession();
   const res = NextResponse.redirect(new URL('/login', req.url), 303);
   res.headers.set('Clear-Site-Data', '"cache"');
+  res.cookies.delete(PREVIEW_COOKIE);
   return res;
 }
 

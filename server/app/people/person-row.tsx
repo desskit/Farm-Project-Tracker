@@ -35,6 +35,22 @@ export function PersonRow({ person, isSelf }: { person: Person; isSelf: boolean 
     router.refresh();
   }
 
+  async function onPreview() {
+    setBusy('preview');
+    setError(null);
+    const res = await fetch('/api/preview/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: person.id }),
+    });
+    if (!res.ok) {
+      setBusy(null);
+      setError((await res.json().catch(() => ({}))).error || 'Could not start the preview.');
+      return;
+    }
+    window.location.href = '/'; // full load, so every screen picks up their view
+  }
+
   async function onResend() {
     setBusy('resend');
     setError(null);
@@ -124,6 +140,11 @@ export function PersonRow({ person, isSelf }: { person: Person; isSelf: boolean 
             <option key={r} value={r}>{ROLE_LABEL[r]}</option>
           ))}
         </select>
+        {!isSelf && person.active && (
+          <button className="btn small ghost" disabled={busy !== null} onClick={onPreview} title="See the app as they do, read-only, for up to an hour">
+            {busy === 'preview' ? 'Opening…' : '👁 Preview as'}
+          </button>
+        )}
         {person.active && person.pending && (
           <button className="btn small ghost" disabled={busy !== null} onClick={onResend}>
             {busy === 'resend' ? 'Sending…' : '✉️ Resend invite'}

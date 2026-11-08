@@ -15,6 +15,7 @@ const API = path.resolve(__dirname, '../app/api');
 const PUBLIC = ['auth/login', 'auth/logout', 'auth/forgot-password', 'invite/[token]', 'health'];
 const ANY_SIGNED_IN = [
   'attachments', 'attachments/[id]', 'auth/change-password', 'events', 'prefs', 'push/public-key', 'push/subscribe',
+  'preview/stop',
   'rent/[id]/mark', 'rent/[id]/reopen', 'rent/[id]/verify', 'rent/assign', 'rent/stop', 'rent-docs', 'rent-docs/[id]',
 ];
 
@@ -34,7 +35,7 @@ describe('API route access', () => {
   it('every non-public route checks who is asking', () => {
     const unguarded = all.filter((r) => !PUBLIC.includes(r)).filter((r) => {
       const src = readFileSync(path.join(API, r, 'route.ts'), 'utf8');
-      return !/require(User|Cap|Admin)\(/.test(src);
+      return !/require(User|Cap|Admin)\(|getRealSessionUser\(/.test(src);
     });
     expect(unguarded).toEqual([]);
   });

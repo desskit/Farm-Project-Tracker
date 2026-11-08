@@ -11,7 +11,7 @@ import { sessions, userCaps, users } from '@/db/schema';
 import type { Role } from '@/db/schema';
 import { can, resolveCaps, type Cap } from '@/lib/domain/permissions';
 import { requestCache } from '@/lib/request-cache';
-import { SESSION_COOKIE } from './constants';
+import { PREVIEW_COOKIE, SESSION_COOKIE } from './constants';
 import { hashToken } from './tokens';
 
 export { SESSION_COOKIE };
@@ -24,7 +24,15 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
  * It's optional only so tests and scripts can build a user by hand; then the
  * role's defaults apply.
  */
-export type SessionUser = { id: string; name: string; email: string; role: Role; caps?: Cap[] };
+export type SessionUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  caps?: Cap[];
+  /** Set while an admin previews the app as this person (everything read-only). */
+  previewBy?: { id: string; name: string; until: number };
+};
 
 /** Role defaults plus this person's switches. */
 export async function capsFor(userId: string, role: Role): Promise<Cap[]> {
@@ -54,10 +62,10 @@ export async function destroySession(): Promise<void> {
 }
 
 /**
- * The signed-in user, or null. Validates the token against the DB + expiry.
- * Cached per request: the layout, the page and its components all ask.
+ * The person actually signed in, ignoring any preview. Only the preview
+ * controls need this; everything else uses getSessionUser().
  */
-export const getSessionUser = requestCache(async (): Promise<SessionUser | null> => {
+export const getRealSessionUser = requestCache(async (): Promise<SessionUser | null> => {
   const token = cookies().get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const now = Date.now();
@@ -79,6 +87,39 @@ export const getSessionUser = requestCache(async (): Promise<SessionUser | null>
   const u = rows[0];
   if (!u) return null;
   return { ...u, caps: await capsFor(u.id, u.role) };
+});
+
+/** Parses the preview cookie: whose view, and until when. */
+export function parsePreview(value: string | undefined, now = Date.now()): { userId: string; until: number } | null {
+  if (!value) return null;
+  const [userId, untilRaw] = value.split('.');
+  const until = Number(untilRaw);
+  if (!userId || !Number.isFinite(until) || until <= now) return null;
+  return { userId, until };
+}
+
+/**
+ * The signed-in user, or null — or, while an admin is previewing, the person
+ * being previewed (with `previewBy` set), so every page and permission check
+ * shows exactly what that person would get. Cached per request.
+ */
+export const getSessionUser = requestCache(async (): Promise<SessionUser | null> => {
+  const real = await getRealSessionUser();
+  if (!real) return null;
+  const preview = parsePreview(cookies().get(PREVIEW_COOKIE)?.value);
+  if (!preview || !can(real, 'system.admin') || preview.userId === real.id) return real;
+  const rows = await db
+    .select({ id: users.id, name: users.name, email: users.email, role: users.role })
+    .from(users)
+    .where(eq(users.id, preview.userId))
+    .limit(1);
+  const target = rows[0];
+  if (!target) return real;
+  return {
+    ...target,
+    caps: await capsFor(target.id, target.role),
+    previewBy: { id: real.id, name: real.name, until: preview.until },
+  };
 });
 
 /** Throwing guard for API routes / server actions. */

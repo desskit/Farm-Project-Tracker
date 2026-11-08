@@ -9,6 +9,7 @@ import { RealtimeSync } from './_components/realtime-sync';
 import { TimersStrip } from './_components/timers-strip';
 import { OutboxBar } from './_components/outbox-bar';
 import { PwaRegister } from './_components/pwa-register';
+import { PreviewBanner } from './_components/preview-banner';
 import { activeTimersForUser } from '@/lib/data/timers';
 import { currentBrand, currentThemePref } from '@/lib/data/brand';
 import { brandInfo } from '@/lib/domain/brand';
@@ -49,6 +50,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" data-brand={brand} data-theme={theme === 'system' ? undefined : theme}>
       <body>
         <PwaRegister />
+        {user?.previewBy && <PreviewBanner user={user} />}
         {user && <TopBar user={user} />}
         {user && <RealtimeSync />}
         {user && timers.length > 0 && <TimersStrip timers={timers} />}

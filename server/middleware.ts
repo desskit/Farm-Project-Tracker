@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { SESSION_COOKIE } from '@/lib/auth/constants';
+import { PREVIEW_COOKIE, SESSION_COOKIE } from '@/lib/auth/constants';
 
 /**
  * Edge middleware: applies security headers to every response, and does a fast
@@ -88,6 +88,19 @@ export function middleware(req: NextRequest) {
     return withSecurityHeaders(NextResponse.json({ error: 'Cross-site request refused.' }, { status: 403 }));
   }
   const isPublic = PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
+  // Previewing as someone else is look-only: no write gets through except
+  // ending the preview (or signing out).
+  if (
+    req.cookies.has(PREVIEW_COOKIE) &&
+    !SAFE_METHODS.has(req.method) &&
+    pathname !== '/api/preview/stop' &&
+    pathname !== '/api/auth/logout'
+  ) {
+    return withSecurityHeaders(
+      NextResponse.json({ error: 'You’re previewing as someone else — nothing can be changed. End the preview first.' }, { status: 403 }),
+    );
+  }
 
   if (!isPublic && !req.cookies.has(SESSION_COOKIE)) {
     const url = req.nextUrl.clone();
