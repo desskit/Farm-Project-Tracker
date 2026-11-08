@@ -3,6 +3,8 @@ import { getSessionUser } from '@/lib/auth/session';
 import { listAssetsWithStatus } from '@/lib/data/maintenance';
 import { AddAssetCard } from './add-asset-card';
 import { can } from '@/lib/domain/permissions';
+import { WorkTabs } from '@/components/shell/work-tabs';
+import { workSections } from '@/lib/domain/nav';
 
 export default async function MaintenancePage() {
   const user = await getSessionUser();
@@ -12,6 +14,7 @@ export default async function MaintenancePage() {
 
   return (
     <main className="view">
+      <WorkTabs sections={workSections(user)} />
       <div className="view-head">
         <h1>Upkeep</h1>
       </div>

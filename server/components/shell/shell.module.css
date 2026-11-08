@@ -1,0 +1,80 @@
+/* ---------- Main nav: bottom bar on phones ---------- */
+.nav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
+  display: flex; align-items: stretch;
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  padding: 0 4px env(safe-area-inset-bottom);
+  background: color-mix(in srgb, var(--c-surface) 92%, transparent);
+  backdrop-filter: saturate(1.4) blur(10px);
+  border-top: 1px solid var(--c-border);
+}
+.item, .fabSlot {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  color: var(--c-text-muted); text-decoration: none;
+  background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.icon {
+  position: relative; display: grid; place-items: center;
+  width: 52px; height: 30px; border-radius: var(--r-pill);
+  transition: background var(--dur-fast) var(--ease);
+}
+.icon svg { width: 22px; height: 22px; }
+.label { font-size: 11px; font-weight: 600; line-height: 1; }
+.active { color: var(--c-primary); }
+.active .icon { background: var(--c-primary-soft); }
+.item:focus-visible, .fabSlot:focus-visible { outline: 3px solid var(--c-focus); outline-offset: -3px; border-radius: var(--r-md); }
+.badge {
+  position: absolute; top: -4px; right: 6px;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--r-pill);
+  display: grid; place-items: center;
+  background: var(--c-danger); color: var(--c-surface); font-size: 10.5px; font-weight: 800;
+  border: 2px solid var(--c-surface);
+}
+.fab {
+  display: grid; place-items: center;
+  width: 48px; height: 48px; margin-top: -18px; border-radius: 50%;
+  background: var(--c-primary); color: var(--c-on-primary); box-shadow: var(--shadow-3);
+}
+.fab svg { width: 26px; height: 26px; }
+.fabSlot .label { color: var(--c-text-muted); }
+
+/* ---------- Side rail on wide screens ---------- */
+@media (min-width: 960px) {
+  .nav {
+    top: 0; right: auto; width: 88px; height: auto; flex-direction: column; justify-content: flex-start; gap: var(--space-2);
+    padding: calc(72px + env(safe-area-inset-top)) 0 var(--space-4);
+    border-top: 0; border-right: 1px solid var(--c-border);
+  }
+  .item, .fabSlot { flex: 0 0 auto; min-height: 64px; }
+  .fab { margin-top: 0; }
+}
+
+/* ---------- Quick log sheet ---------- */
+.actions { display: grid; gap: var(--space-2); }
+.action {
+  display: flex; align-items: center; gap: var(--space-3);
+  min-height: 60px; padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--c-border); border-radius: var(--r-md);
+  color: var(--c-text); text-decoration: none; background: var(--c-surface);
+}
+.action:hover { background: var(--c-surface-2); }
+.actionIcon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-md); background: var(--c-primary-soft); color: var(--c-primary); }
+.actionIcon svg { width: 20px; height: 20px; }
+.actionText { flex: 1; display: grid; gap: 2px; }
+.actionText span { color: var(--c-text-muted); font-size: var(--text-sm); }
+.chev { width: 18px; height: 18px; color: var(--c-text-muted); }
+
+/* ---------- Work tab switcher ---------- */
+.workTabs {
+  display: flex; gap: 4px; padding: 4px; margin: 0 0 var(--space-4);
+  background: var(--c-surface-2); border-radius: var(--r-md);
+}
+.workTab {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 40px; border-radius: calc(var(--r-md) - 4px);
+  color: var(--c-text-muted); text-decoration: none; font-weight: 600; font-size: var(--text-sm);
+}
+.workTab svg { width: 16px; height: 16px; }
+.workTabOn { background: var(--c-surface); color: var(--c-text); box-shadow: var(--shadow-1); }

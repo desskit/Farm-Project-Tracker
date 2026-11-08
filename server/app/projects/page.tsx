@@ -5,6 +5,8 @@ import { fmtDate } from '@/lib/domain/dates';
 import { spentByProject } from '@/lib/data/project-expenses';
 import { AddProjectCard } from './add-project-card';
 import { can } from '@/lib/domain/permissions';
+import { WorkTabs } from '@/components/shell/work-tabs';
+import { workSections } from '@/lib/domain/nav';
 
 export default async function ProjectsPage() {
   const user = await getSessionUser();
@@ -16,6 +18,7 @@ export default async function ProjectsPage() {
 
   return (
     <main className="view">
+      <WorkTabs sections={workSections(user)} />
       <div className="view-head">
         <h1>Projects</h1>
       </div>

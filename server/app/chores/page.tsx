@@ -8,6 +8,8 @@ import { todayISO } from '@/lib/domain/dates';
 import { assigneeLabel } from '@/app/_components/assignee-picker';
 import { AddChoreCard } from './add-chore-card';
 import { can } from '@/lib/domain/permissions';
+import { WorkTabs } from '@/components/shell/work-tabs';
+import { workSections } from '@/lib/domain/nav';
 
 export default async function ChoresPage() {
   const user = await getSessionUser();
@@ -20,6 +22,7 @@ export default async function ChoresPage() {
 
   return (
     <main className="view">
+      <WorkTabs sections={workSections(user)} />
       <div className="view-head">
         <h1>Chores</h1>
       </div>

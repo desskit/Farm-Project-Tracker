@@ -618,3 +618,10 @@ a.tap-link:hover .item-title { color: var(--brand); }
   padding: 4px 0; font-size: 13px;
 }
 .outbox-row.problem { color: var(--overdue); }
+
+/* ---------- App shell (components/shell) ---------- */
+/* Wide screens: the main nav becomes a side rail; keep content clear of it. */
+@media (min-width: 960px) {
+  body.has-rail { padding-left: 88px; }
+  body.has-rail .view { padding-bottom: 32px; }
+}

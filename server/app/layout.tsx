@@ -4,7 +4,8 @@ import './globals.css';
 import { getSessionUser } from '@/lib/auth/session';
 import { myOverdueCount } from '@/lib/data/dashboard';
 import { TopBar } from './_components/top-bar';
-import { BottomNav } from './_components/bottom-nav';
+import { AppNav } from '@/components/shell/app-nav';
+import { primaryNav, quickActions } from '@/lib/domain/nav';
 import { RealtimeSync } from './_components/realtime-sync';
 import { TimersStrip } from './_components/timers-strip';
 import { OutboxBar } from './_components/outbox-bar';
@@ -48,7 +49,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     // Set server-side from the setting and cookie, so the first paint is
     // already in the right colors (no flash).
     <html lang="en" data-brand={brand} data-theme={theme === 'system' ? undefined : theme}>
-      <body>
+      <body className={user ? 'has-rail' : undefined}>
         <PwaRegister />
         {user?.previewBy && <PreviewBanner user={user} />}
         {user && <TopBar user={user} />}
@@ -56,7 +57,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {user && timers.length > 0 && <TimersStrip timers={timers} />}
         {user && <OutboxBar />}
         {children}
-        {user && <BottomNav overdue={overdue} />}
+        {user && <AppNav items={primaryNav(user)} actions={quickActions(user)} overdue={overdue} />}
       </body>
     </html>
   );
