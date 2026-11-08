@@ -3,7 +3,7 @@
  * an httpOnly cookie. Identity for the whole app derives from here (replacing
  * the prototype's `currentUserId`-in-state).
  */
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { randomBytes } from 'node:crypto';
 import { and, eq, gt, isNull, or } from 'drizzle-orm';
 import { db } from '@/db';
@@ -126,6 +126,13 @@ export const getSessionUser = requestCache(async (): Promise<SessionUser | null>
 export async function requireUser(): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) throw new AuthError('Not signed in.', 401);
+  // Offline-queued writes carry who made them. If a different person is
+  // signed in by the time it's sent (a shared phone), refuse rather than
+  // record it under the wrong name.
+  const acting = headers().get('x-acting-user');
+  if (acting && acting !== user.id) {
+    throw new AuthError('This was saved on this phone by someone else; it will send when they sign back in.', 412);
+  }
   return user;
 }
 

@@ -50,7 +50,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     // Set server-side from the setting and cookie, so the first paint is
     // already in the right colors (no flash).
     <html lang="en" data-brand={brand} data-theme={theme === 'system' ? undefined : theme}>
-      <body className={user ? 'has-rail' : undefined}>
+      <body className={user ? 'has-rail' : undefined} data-user-id={user?.id}>
         <DialogsProvider>
         <PwaRegister />
         {user?.previewBy && <PreviewBanner user={user} />}

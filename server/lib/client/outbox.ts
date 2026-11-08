@@ -44,7 +44,14 @@ export type OutboxEntry = {
   createdAt: number;
   tries: number;
   lastError?: string;
+  /** Who made the change. Only sent while that same person is signed in. */
+  userId?: string;
 };
+
+/** The signed-in person on this page (the root layout puts it on <body>). */
+function currentUserId(): string | undefined {
+  return typeof document !== 'undefined' ? document.body?.dataset.userId || undefined : undefined;
+}
 
 /** Broadcast so any mounted indicator can refresh its count. */
 const CHANGED = 'farm-outbox-changed';
@@ -145,6 +152,7 @@ export async function submitQueued(opts: {
     photoField: opts.photoField,
     createdAt: Date.now(),
     tries: 0,
+    userId: currentUserId(),
   };
 
   // Known-offline: don't even try, so the user gets instant feedback.
@@ -182,7 +190,13 @@ async function send(entry: OutboxEntry): Promise<SendResult> {
   }
   const res = await fetch(entry.url, {
     method: entry.method,
-    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': entry.id },
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': entry.id,
+      // The server refuses the write if someone else is signed in now, so a
+      // shared phone can't send one person's queued work as another's.
+      ...(entry.userId ? { 'X-Acting-User': entry.userId } : {}),
+    },
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
@@ -215,7 +229,10 @@ export async function flushOutbox(): Promise<FlushSummary> {
   if (!outboxSupported() || flushing) return summary;
   flushing = true;
   try {
+    const me = currentUserId();
     for (const entry of await pendingEntries()) {
+      // Someone else's queued work waits until they sign back in on this phone.
+      if (entry.userId && me && entry.userId !== me) continue;
       // Bumped before each decision so a permanently-failing entry can't sit
       // in the queue forever.
       const tries = entry.tries + 1;
