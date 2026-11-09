@@ -24,7 +24,7 @@ export default async function RequestsPage() {
       href={`/requests/${r.id}`}
       lead={<MessageSquareWarning />}
       title={`${r.urgent ? '⚠︎ ' : ''}${r.title}`}
-      meta={`${manages ? `${r.createdByName} · ` : ''}${new Date(r.createdAt).toLocaleDateString()}`}
+      meta={`${manages ? `${r.createdByName}${r.unitName ? ` (${r.unitName})` : ''} · ` : ''}${new Date(r.createdAt).toLocaleDateString()}`}
       trail={<RequestStatusPill status={r.status} />}
     />
   );

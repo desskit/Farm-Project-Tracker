@@ -374,6 +374,8 @@ export const rentAssignments = sqliteTable('rent_assignments', {
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
 });
 
+export type ChargeKind = 'rent' | 'utility' | 'late_fee' | 'other';
+
 export const rentCharges = sqliteTable('rent_charges', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -393,8 +395,15 @@ export const rentCharges = sqliteTable('rent_charges', {
    */
   reminderStage: text('reminder_stage').$type<'upcoming' | 'due' | 'overdue'>(),
   reminderSentOn: text('reminder_sent_on'),
+  /** The lease this is billed under (null only for charges from before leases). */
+  leaseId: text('lease_id').references(() => leases.id, { onDelete: 'set null' }),
+  /** Rent, a utility billed back, a late fee… Only one 'rent' per lease per month. */
+  kind: text('kind').$type<ChargeKind>().notNull().default('rent'),
+  label: text('label').notNull().default(''),
 }, (t) => ({
-  userMonthUnique: uniqueIndex('rent_charges_user_month_unique').on(t.userId, t.month),
+  leaseMonthUnique: uniqueIndex('rent_charges_lease_month_unique').on(t.leaseId, t.month).where(sql`kind = 'rent'`),
+  legacyUserMonthUnique: uniqueIndex('rent_charges_user_month_unique').on(t.userId, t.month).where(sql`kind = 'rent' AND lease_id IS NULL`),
+  leaseIdx: index('rent_charges_lease_idx').on(t.leaseId),
   monthIdx: index('rent_charges_month_idx').on(t.month),
 }));
 
@@ -772,4 +781,101 @@ export const grazingMoves = sqliteTable('grazing_moves', {
 }, (t) => ({
   fromIdx: index('grazing_moves_from_idx').on(t.fromUnitId, t.movedOn),
   groupIdx: index('grazing_moves_group_idx').on(t.groupId, t.movedOn),
+}));
+
+/* ---------------- rentals ---------------- */
+
+export type RentalKind = 'house' | 'apartment' | 'room' | 'cabin' | 'rv' | 'other';
+
+/** A place the farm rents out. Requests, inspections and utilities hang off it. */
+export const rentalUnits = sqliteTable('rental_units', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  kind: text('kind').$type<RentalKind>().notNull().default('other'),
+  address: text('address').notNull().default(''),
+  notes: text('notes').notNull().default(''),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at').notNull().default(now),
+});
+
+export type LeaseStatus = 'active' | 'ended';
+export type LeaseReminderStage = 'renewal' | 'ending' | 'ended';
+
+/** Who rents a unit, for how long, at what rent. No end date = month to month. */
+export const leases = sqliteTable('leases', {
+  id: text('id').primaryKey(),
+  unitId: text('unit_id').notNull().references(() => rentalUnits.id, { onDelete: 'cascade' }),
+  startDate: text('start_date').notNull(),
+  endDate: text('end_date'),
+  rent: real('rent').notNull(),
+  dueDay: integer('due_day').notNull().default(1),
+  deposit: real('deposit'),
+  lateFee: real('late_fee'),
+  graceDays: integer('grace_days').notNull().default(5),
+  /** Days before the end to start talking about renewal. */
+  noticeDays: integer('notice_days').notNull().default(60),
+  status: text('status').$type<LeaseStatus>().notNull().default('active'),
+  notes: text('notes').notNull().default(''),
+  reminderStage: text('reminder_stage').$type<LeaseReminderStage>(),
+  reminderSentOn: text('reminder_sent_on'),
+  createdAt: integer('created_at').notNull().default(now),
+}, (t) => ({
+  unitIdx: index('leases_unit_idx').on(t.unitId, t.status),
+}));
+
+export const leaseTenants = sqliteTable('lease_tenants', {
+  leaseId: text('lease_id').notNull().references(() => leases.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** The one rent is billed to. Everyone on the lease can see and pay it. */
+  isPrimary: integer('is_primary', { mode: 'boolean' }).notNull().default(false),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.leaseId, t.userId] }),
+  userIdx: index('lease_tenants_user_idx').on(t.userId),
+}));
+
+export type UtilityKind = 'electric' | 'water' | 'gas' | 'propane' | 'internet' | 'trash' | 'other';
+
+export const utilityAccounts = sqliteTable('utility_accounts', {
+  id: text('id').primaryKey(),
+  unitId: text('unit_id').notNull().references(() => rentalUnits.id, { onDelete: 'cascade' }),
+  kind: text('kind').$type<UtilityKind>().notNull(),
+  provider: text('provider').notNull().default(''),
+  accountNo: text('account_no').notNull().default(''),
+  /** Share of each bill charged to the tenant, 0–100. 0 = farm pays. */
+  billBackPct: integer('bill_back_pct').notNull().default(100),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+}, (t) => ({
+  unitIdx: index('utility_accounts_unit_idx').on(t.unitId),
+}));
+
+export const utilityBills = sqliteTable('utility_bills', {
+  id: text('id').primaryKey(),
+  accountId: text('account_id').notNull().references(() => utilityAccounts.id, { onDelete: 'cascade' }),
+  period: text('period').notNull(), // YYYY-MM the bill covers
+  amount: real('amount').notNull(),
+  /** The tenant charge it created, if any. */
+  chargeId: text('charge_id').references(() => rentCharges.id, { onDelete: 'set null' }),
+  notes: text('notes').notNull().default(''),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at').notNull().default(now),
+}, (t) => ({
+  accountIdx: index('utility_bills_account_idx').on(t.accountId, t.period),
+}));
+
+export type InspectionKind = 'move_in' | 'move_out' | 'routine';
+export type Condition = 'good' | 'fair' | 'poor' | 'na';
+export type InspectionItem = { area: string; condition: Condition; notes: string };
+
+export const inspections = sqliteTable('inspections', {
+  id: text('id').primaryKey(),
+  unitId: text('unit_id').notNull().references(() => rentalUnits.id, { onDelete: 'cascade' }),
+  leaseId: text('lease_id').references(() => leases.id, { onDelete: 'set null' }),
+  kind: text('kind').$type<InspectionKind>().notNull(),
+  date: text('date').notNull(),
+  items: text('items', { mode: 'json' }).$type<InspectionItem[]>().notNull().default(sql`'[]'`),
+  notes: text('notes').notNull().default(''),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at').notNull().default(now),
+}, (t) => ({
+  unitIdx: index('inspections_unit_idx').on(t.unitId, t.date),
 }));

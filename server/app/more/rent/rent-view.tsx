@@ -7,6 +7,7 @@ import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
 import { fmtDate } from '@/lib/domain/dates';
 import { can } from '@/lib/domain/permissions';
+import { CHARGE_KIND_LABEL } from '@/lib/domain/rentals';
 import { Banner, Button, Card, EmptyState, Field, Input, Select, Stack, StatusPill } from '@/components/ui';
 import { useDialogs } from '@/components/ui/dialogs';
 import s from './rent.module.css';
@@ -25,6 +26,8 @@ export function RentView({
   const { prompt: askPrompt } = useDialogs();
   const router = useRouter();
   const seesAll = can(currentUser, 'finance.view');
+  // Without finance.view the list only holds this person's own charges (theirs or their lease's).
+  const isMine = (c: RentChargeRow) => !seesAll || c.userId === currentUser.id;
   const managesRent = can(currentUser, 'finance.manage');
   const nameById = new Map(people.map((p) => [p.id, p.name]));
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +74,7 @@ export function RentView({
                   <strong className={s.amount}>{money(c.amount)}</strong>
                 </div>
                 <div className={s.chips}>
+                  {c.kind !== 'rent' && <StatusPill tone="neutral">{c.label || CHARGE_KIND_LABEL[c.kind]}</StatusPill>}
                   {c.status === 'verified' ? (
                     <StatusPill tone="done">Paid{c.verifiedAt ? ` · confirmed ${fmtDate(c.verifiedAt)}` : ''}</StatusPill>
                   ) : c.status === 'marked' ? (
@@ -85,9 +89,9 @@ export function RentView({
                 {c.note && <p className={s.note}>“{c.note}”</p>}
               </div>
               <div className={s.actions}>
-                {c.status !== 'verified' && (c.userId === currentUser.id || managesRent) && c.status !== 'marked' && (
-                  <Button size="sm" variant={c.userId === currentUser.id ? 'primary' : 'secondary'} loading={busy === 'mark-' + c.id} onClick={() => onMarkPaid(c)}>
-                    {c.userId === currentUser.id ? 'I’ve paid' : 'Mark paid'}
+                {c.status !== 'verified' && (isMine(c) || managesRent) && c.status !== 'marked' && (
+                  <Button size="sm" variant={isMine(c) ? 'primary' : 'secondary'} loading={busy === 'mark-' + c.id} onClick={() => onMarkPaid(c)}>
+                    {isMine(c) ? 'I’ve paid' : 'Mark paid'}
                   </Button>
                 )}
                 {managesRent && c.status !== 'verified' && (

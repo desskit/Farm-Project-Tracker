@@ -26,6 +26,7 @@ import { sendMail, emailConfigured } from './email';
 import { rentReminderEmail, rentOverdueDigestEmail } from './templates';
 import { sendPushToUser, pushConfigured } from './push';
 import { recipientsWith } from '@/lib/data/recipients';
+import { shouldSendStage } from './staged-reminders';
 
 /** How many days ahead the first heads-up goes out. */
 const LEAD_DAYS = 3;
@@ -73,10 +74,7 @@ export function shouldSend(
   lastSentOn: string | null,
   today: string,
 ): boolean {
-  if (stage !== lastStage) return true;
-  if (stage !== 'overdue') return false;
-  if (!lastSentOn) return true;
-  return diffDays(today, lastSentOn) >= OVERDUE_REPEAT_DAYS;
+  return shouldSendStage(stage, lastStage, lastSentOn, today, { stage: 'overdue', everyDays: OVERDUE_REPEAT_DAYS });
 }
 
 function money(n: number): string {
@@ -111,7 +109,8 @@ export async function runRentReminders(
   // Make sure this month's charges exist before deciding what to remind about.
   await ensureRentCharges();
 
-  const charges = await db.select().from(rentCharges).where(ne(rentCharges.status, 'verified'));
+  // Rent and late fees are chased; utility shares just sit on the rent page.
+  const charges = await db.select().from(rentCharges).where(and(ne(rentCharges.status, 'verified'), ne(rentCharges.kind, 'utility')));
   if (!charges.length) return result;
 
   const people = await db.select({ id: users.id, name: users.name, email: users.email, active: users.active }).from(users);

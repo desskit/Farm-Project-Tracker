@@ -1,9 +1,10 @@
 import Link from 'next/link';
-import { ChevronLeft, History } from 'lucide-react';
+import { Building2, ChevronLeft, History } from 'lucide-react';
 import { ButtonLink, PageHeader } from '@/components/ui';
 import s from './rent.module.css';
 import { getSessionUser } from '@/lib/auth/session';
 import { rentChargesForMonth, rentSummary, rentAssignmentFor } from '@/lib/data/rent';
+import { leaseIdsFor } from '@/lib/data/rentals';
 import { listRentDocs, docCountsByRenter } from '@/lib/data/rent-docs';
 import { listUsers } from '@/lib/data/users';
 import { currentMonthKey, monthLabel } from '@/lib/domain/dates';
@@ -18,7 +19,8 @@ export default async function RentPage() {
   const mk = currentMonthKey();
 
   const [allCharges, people] = await Promise.all([rentChargesForMonth(mk), listUsers()]);
-  const charges = isManager ? allCharges : allCharges.filter((c) => c.userId === user.id);
+  const myLeases = isManager ? [] : await leaseIdsFor(user.id);
+  const charges = isManager ? allCharges : allCharges.filter((c) => c.userId === user.id || (c.leaseId && myLeases.includes(c.leaseId)));
   const summary = rentSummary(allCharges);
 
   // Managers need current assignment amounts to prefill the assign form.
@@ -47,7 +49,12 @@ export default async function RentPage() {
         back={<Link href={can(user, 'farm.view') ? '/more' : '/'} aria-label="Back" className={s.back}><ChevronLeft /></Link>}
         title="Rent"
         subtitle={monthLabel(mk)}
-        actions={<ButtonLink href="/more/rent/history" size="sm" variant="ghost" icon={<History />}>History</ButtonLink>}
+        actions={
+          <>
+            {can(user, 'rentals.manage') && <ButtonLink href="/more/rentals" size="sm" variant="ghost" icon={<Building2 />}>Units</ButtonLink>}
+            <ButtonLink href="/more/rent/history" size="sm" variant="ghost" icon={<History />}>History</ButtonLink>
+          </>
+        }
       />
 
       <RentView

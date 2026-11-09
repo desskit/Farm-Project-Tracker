@@ -6,7 +6,7 @@
 import 'server-only';
 import { desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
-import { maintenanceRequests, requestComments, users, type RequestStatus } from '@/db/schema';
+import { maintenanceRequests, rentalUnits, requestComments, users, type RequestStatus } from '@/db/schema';
 import type { SessionUser } from '@/lib/auth/session';
 import { can } from '@/lib/domain/permissions';
 import { uid } from '@/lib/ids';
@@ -16,6 +16,7 @@ import { recipientsWith } from './recipients';
 import { assertOwnUpload } from './attachment-access';
 import { logActivity } from './activity';
 import { DataError } from './errors';
+import { activeLeaseFor } from './rentals';
 
 export const REQUEST_STATUS_LABEL: Record<RequestStatus, string> = {
   open: 'Open',
@@ -24,7 +25,7 @@ export const REQUEST_STATUS_LABEL: Record<RequestStatus, string> = {
   declined: 'Declined',
 };
 
-export type RequestRow = typeof maintenanceRequests.$inferSelect & { createdByName: string };
+export type RequestRow = typeof maintenanceRequests.$inferSelect & { createdByName: string; unitName: string | null };
 export type RequestComment = { id: string; userId: string | null; userName: string; body: string; ts: number };
 
 function seesAll(user: SessionUser) {
@@ -35,7 +36,10 @@ async function withNames(rows: (typeof maintenanceRequests.$inferSelect)[]): Pro
   const ids = [...new Set(rows.map((r) => r.createdBy).filter((x): x is string => !!x))];
   const names = ids.length ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, ids)) : [];
   const nameById = new Map(names.map((n) => [n.id, n.name]));
-  return rows.map((r) => ({ ...r, createdByName: (r.createdBy && nameById.get(r.createdBy)) || 'Someone' }));
+  const unitIds = [...new Set(rows.map((r) => r.unitId).filter((x): x is string => !!x))];
+  const units = unitIds.length ? await db.select({ id: rentalUnits.id, name: rentalUnits.name }).from(rentalUnits).where(inArray(rentalUnits.id, unitIds)) : [];
+  const unitById = new Map(units.map((u) => [u.id, u.name]));
+  return rows.map((r) => ({ ...r, createdByName: (r.createdBy && nameById.get(r.createdBy)) || 'Someone', unitName: (r.unitId && unitById.get(r.unitId)) || null }));
 }
 
 export async function listRequests(viewer: SessionUser): Promise<RequestRow[]> {
@@ -79,9 +83,12 @@ export async function createRequest(
   if (!title) throw new DataError('Say briefly what needs fixing.', 400);
   await assertOwnUpload(user, data.photoId);
   const id = uid('rq');
+  // A tenant's request is about their place.
+  const lease = await activeLeaseFor(user.id);
   await db.insert(maintenanceRequests).values({
     id,
     createdBy: user.id,
+    unitId: lease?.unitId ?? null,
     title,
     details: (data.details || '').trim(),
     urgent: !!data.urgent,

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AlertTriangle, Baby, Egg, Hand, ShieldAlert, Sprout, Wheat, MessageSquareWarning, Package, Users, Wallet, Wrench } from 'lucide-react';
+import { AlertTriangle, Baby, Building2, Egg, Hand, ShieldAlert, Sprout, Wheat, MessageSquareWarning, Package, Users, Wallet, Wrench } from 'lucide-react';
 import { getSessionUser } from '@/lib/auth/session';
 import { getDashboard, type DashboardItem } from '@/lib/data/dashboard';
 import { farmCards, upForGrabs } from '@/lib/data/today';
@@ -170,6 +170,7 @@ function FarmToday({ cards }: { cards: NonNullable<Awaited<ReturnType<typeof far
     tiles.push({ href: '/more/rent', icon: <Wallet />, label: 'Rent to confirm', value: cards.rentToVerify, tone: cards.rentToVerify ? 'today' : undefined });
   if (cards.openRequests !== undefined)
     tiles.push({ href: '/requests', icon: <MessageSquareWarning />, label: 'Open requests', value: cards.openRequests, tone: cards.openRequests ? 'today' : undefined });
+  if (cards.leasesToActOn) tiles.push({ href: '/more/rentals', icon: <Building2 />, label: 'Leases ending', value: cards.leasesToActOn, tone: 'today' });
   if (cards.team) tiles.push({ href: '/more/team', icon: <Users />, label: 'Team', value: 'View' });
 
   return (

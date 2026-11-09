@@ -3,6 +3,8 @@ import type { SessionUser } from '@/lib/auth/session';
 import { rentChargesForMonth, rentAssignmentFor } from '@/lib/data/rent';
 import { rentDocCountFor } from '@/lib/data/rent-docs';
 import { listRequests } from '@/lib/data/requests';
+import { leaseIdsFor } from '@/lib/data/rentals';
+import Link from 'next/link';
 import { currentMonthKey, monthLabel } from '@/lib/domain/dates';
 import { can } from '@/lib/domain/permissions';
 import { ButtonLink, Card, ListRow, PageHeader, StatusPill } from '@/components/ui';
@@ -22,7 +24,10 @@ export async function PortalHome({ user }: { user: SessionUser }) {
     rentDocCountFor(user.id),
     listRequests(user),
   ]);
-  const charge = charges.find((c) => c.userId === user.id);
+  const myLeases = await leaseIdsFor(user.id);
+  const mine = charges.filter((c) => c.userId === user.id || (c.leaseId && myLeases.includes(c.leaseId)));
+  const charge = mine.find((c) => c.kind === 'rent');
+  const extras = mine.filter((c) => c.kind !== 'rent' && c.status === 'unpaid');
   const openRequests = requests.filter((r) => r.status === 'open' || r.status === 'in_progress').length;
 
   return (
@@ -48,6 +53,11 @@ export async function PortalHome({ user }: { user: SessionUser }) {
           </div>
         ) : (
           <p className={s.muted}>{assignment ? 'This month’s charge isn’t out yet.' : 'No rent is set up for you.'}</p>
+        )}
+        {extras.length > 0 && (
+          <p className={s.muted}>
+            Also due: {extras.map((c) => `${c.label || 'a charge'} ${money(c.amount)}`).join(', ')} — <Link href="/more/rent">see rent</Link>
+          </p>
         )}
       </Card>
 

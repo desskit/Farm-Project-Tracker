@@ -17,6 +17,7 @@ import { listChores } from './chores';
 import { taskAssigneeIdsFor } from './assignees';
 import { getDashboard } from './dashboard';
 import { lowStockItems } from './inventory';
+import { listRentalUnits } from './rentals';
 import { openRequestCount } from './requests';
 
 export type GrabItem = { kind: 'chore' | 'task'; id: string; title: string; subtitle: string; href: string; dueDate: string | null };
@@ -44,6 +45,7 @@ export type FarmCards = {
   lowStock?: number;
   rentToVerify?: number;
   openRequests?: number;
+  leasesToActOn?: number;
   team?: boolean;
 };
 
@@ -61,6 +63,7 @@ export async function farmCards(viewer: SessionUser): Promise<FarmCards | null> 
     cards.rentToVerify = charges.filter((c) => c.status === 'marked').length;
   }
   if (can(viewer, 'requests.manage')) cards.openRequests = await openRequestCount();
+  if (can(viewer, 'rentals.manage')) cards.leasesToActOn = (await listRentalUnits()).filter((u) => u.active && u.stage).length;
   if (can(viewer, 'team.view')) cards.team = true;
   return cards;
 }

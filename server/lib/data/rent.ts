@@ -1,12 +1,18 @@
 /**
- * Rent data-access layer — ported from js/store.js's rent functions. Managers
- * assign/stop/verify/reopen; a worker (or manager) can mark their own charge
- * paid. Monthly charges are created lazily for active assignments on read
- * (ensureRentCharges), mirroring the prototype.
+ * Rent charges. Rent is billed per lease (see ./rentals.ts): one 'rent'
+ * charge per active lease per month, to the lease's primary tenant; utility
+ * shares and late fees are charges too. Managers verify/reopen; anyone on the
+ * lease can mark a charge paid. Charges are created on read and nightly
+ * (ensureRentCharges).
+ *
+ * setRent / stopRent / rentAssignmentFor keep the simple "this person pays
+ * $X on day N" controls working: they act on that person's lease.
  */
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
-import { rentAssignments, rentCharges, users } from '@/db/schema';
+import { leaseTenants, leases, rentCharges, rentalUnits, users } from '@/db/schema';
+import { leaseCoversMonth } from '@/lib/domain/rentals';
+import { leaseIdsFor, primaryLeaseFor, syncCurrentRentCharge } from './rentals';
 import { uid } from '@/lib/ids';
 import { todayISO, currentMonthKey } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
@@ -15,7 +21,8 @@ import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
 import { can } from '@/lib/domain/permissions';
 
-export type RentAssignmentRow = typeof rentAssignments.$inferSelect;
+/** The simple per-person view of rent: what they're billed and when, from their lease. */
+export type RentAssignmentRow = { userId: string; amount: number; dueDay: number; active: boolean; leaseId: string };
 export type RentChargeRow = typeof rentCharges.$inferSelect;
 export type RentSummary = { count: number; unpaid: number; marked: number; verified: number; due: number; collected: number };
 
@@ -24,79 +31,95 @@ function pad2(n: number): string {
 }
 
 export async function rentAssignmentFor(userId: string): Promise<RentAssignmentRow | null> {
-  const rows = await db.select().from(rentAssignments).where(eq(rentAssignments.userId, userId)).limit(1);
-  return rows[0] ?? null;
+  const l = await primaryLeaseFor(userId);
+  return l ? { userId, amount: l.rent, dueDay: l.dueDay, active: true, leaseId: l.id } : null;
 }
 
+/**
+ * "This person pays $X on day N": updates their lease, or — for someone
+ * without one — creates a unit in their name with a month-to-month lease.
+ */
 export async function setRent(user: SessionUser, targetUserId: string, amount: number, dueDay: number): Promise<void> {
   if (!can(user, 'finance.manage')) throw new DataError('Only managers and admins can assign rent.', 403);
   const amt = Number(amount);
   const day = Math.min(28, Math.max(1, Number(dueDay) || 1));
   if (!isFinite(amt) || amt <= 0) throw new DataError('Enter a valid monthly amount.', 400);
-  const target = await db.select({ id: users.id }).from(users).where(eq(users.id, targetUserId)).limit(1);
+  const target = await db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, targetUserId)).limit(1);
   if (!target.length) throw new DataError('No such person.', 404);
 
-  const existing = await rentAssignmentFor(targetUserId);
+  const existing = await primaryLeaseFor(targetUserId);
   if (existing) {
-    await db.update(rentAssignments).set({ amount: amt, dueDay: day, active: true }).where(eq(rentAssignments.userId, targetUserId));
+    await db.update(leases).set({ rent: amt, dueDay: day }).where(eq(leases.id, existing.id));
+    await syncCurrentRentCharge(existing.id);
   } else {
-    await db.insert(rentAssignments).values({ userId: targetUserId, amount: amt, dueDay: day, active: true });
-  }
-
-  // Keep this month's still-unpaid charge in sync with the new terms.
-  const mk = currentMonthKey();
-  const ch = await db
-    .select()
-    .from(rentCharges)
-    .where(and(eq(rentCharges.userId, targetUserId), eq(rentCharges.month, mk)))
-    .limit(1);
-  if (ch[0] && ch[0].status === 'unpaid') {
-    await db.update(rentCharges).set({ amount: amt, dueDate: `${mk}-${pad2(day)}` }).where(eq(rentCharges.id, ch[0].id));
+    const unitId = uid('ru');
+    const leaseId = uid('ls');
+    await db.batch([
+      db.insert(rentalUnits).values({ id: unitId, name: `${target[0].name}'s place`, kind: 'other' }),
+      db.insert(leases).values({ id: leaseId, unitId, startDate: todayISO(), rent: amt, dueDay: day, notes: 'Month to month.' }),
+      db.insert(leaseTenants).values({ leaseId, userId: targetUserId, isPrimary: true }),
+    ]);
   }
   publishChange('rent');
 }
 
+/** Stop billing someone: ends their lease today and drops this month's unpaid rent. */
 export async function stopRent(user: SessionUser, targetUserId: string): Promise<void> {
   if (!can(user, 'finance.manage')) throw new DataError('Only managers and admins can stop rent.', 403);
-  await db.update(rentAssignments).set({ active: false }).where(eq(rentAssignments.userId, targetUserId));
+  const l = await primaryLeaseFor(targetUserId);
+  if (!l) return;
   const mk = currentMonthKey();
-  const charges = await db.select().from(rentCharges).where(and(eq(rentCharges.userId, targetUserId), eq(rentCharges.month, mk)));
-  for (const c of charges) {
-    if (c.status === 'unpaid') await db.delete(rentCharges).where(eq(rentCharges.id, c.id));
-  }
+  await db.batch([
+    db.update(leases).set({ status: 'ended', endDate: todayISO() < l.startDate ? l.startDate : todayISO() }).where(eq(leases.id, l.id)),
+    db.delete(rentCharges).where(and(eq(rentCharges.leaseId, l.id), eq(rentCharges.month, mk), eq(rentCharges.kind, 'rent'), eq(rentCharges.status, 'unpaid'))),
+  ]);
   publishChange('rent');
 }
 
 /**
- * Create this month's charge for every active assignment.
+ * Create this month's rent charge for every active lease that runs this month.
  *
  * Called on read (so the rent page is always current) and nightly by cron —
- * the reminder job can't warn anyone about a charge that doesn't exist yet,
- * and until this ran on a schedule a month's charges only appeared once
- * somebody happened to open the page.
+ * the reminder job can't warn anyone about a charge that doesn't exist yet.
  */
 export async function ensureRentCharges(): Promise<void> {
   const mk = currentMonthKey();
-  const assignments = await db.select().from(rentAssignments).where(eq(rentAssignments.active, true));
-  const existing = await db.select({ userId: rentCharges.userId }).from(rentCharges).where(eq(rentCharges.month, mk));
-  const have = new Set(existing.map((c) => c.userId));
-  const toCreate = assignments.filter((a) => !have.has(a.userId));
+  const active = (await db.select().from(leases).where(eq(leases.status, 'active'))).filter((l) => leaseCoversMonth(l, mk));
+  if (!active.length) return;
+  const [existing, tenants] = await Promise.all([
+    db.select({ leaseId: rentCharges.leaseId }).from(rentCharges).where(and(eq(rentCharges.month, mk), eq(rentCharges.kind, 'rent'))),
+    db.select().from(leaseTenants).where(inArray(leaseTenants.leaseId, active.map((l) => l.id))),
+  ]);
+  const have = new Set(existing.map((c) => c.leaseId));
+  const toCreate = active
+    .filter((l) => !have.has(l.id))
+    .map((l) => ({ l, payer: (tenants.find((t) => t.leaseId === l.id && t.isPrimary) ?? tenants.find((t) => t.leaseId === l.id))?.userId }))
+    .filter((x): x is { l: typeof x.l; payer: string } => !!x.payer);
   if (toCreate.length) {
     await db.insert(rentCharges).values(
-      toCreate.map((a) => ({
+      toCreate.map(({ l, payer }) => ({
         id: uid('rc'),
-        userId: a.userId,
+        userId: payer,
+        leaseId: l.id,
+        kind: 'rent' as const,
         month: mk,
-        amount: a.amount,
-        dueDate: `${mk}-${pad2(a.dueDay)}`,
+        amount: l.rent,
+        dueDate: `${mk}-${pad2(l.dueDay)}`,
         status: 'unpaid' as const,
       })),
     )
       // The page and the nightly cron can both get here for the same month.
-      // The (user, month) unique index makes the loser of that race a no-op
+      // The (lease, month) unique index makes the loser of that race a no-op
       // instead of a second bill.
       .onConflictDoNothing();
   }
+}
+
+/** Charges someone can see as a tenant: billed to them, or on a lease they're on. */
+export async function chargeIsMine(userId: string, c: Pick<RentChargeRow, 'userId' | 'leaseId'>, myLeases?: string[]): Promise<boolean> {
+  if (c.userId === userId) return true;
+  if (!c.leaseId) return false;
+  return (myLeases ?? (await leaseIdsFor(userId))).includes(c.leaseId);
 }
 
 export async function rentChargesForMonth(mk: string): Promise<RentChargeRow[]> {
@@ -122,7 +145,7 @@ export async function rentHistoryFor(userId: string): Promise<RentChargeRow[]> {
 export async function markRentPaid(user: SessionUser, chargeId: string, note?: string): Promise<void> {
   const c = await rentChargeById(chargeId);
   if (!c) throw new DataError('No such charge.', 404);
-  if (c.userId !== user.id && !can(user, 'finance.manage')) throw new DataError('Only the renter or a manager can mark this paid.', 403);
+  if (!can(user, 'finance.manage') && !(await chargeIsMine(user.id, c))) throw new DataError('Only the renter or a manager can mark this paid.', 403);
   if (c.status === 'verified') throw new DataError('Already verified.', 400);
   await db
     .update(rentCharges)
@@ -136,7 +159,8 @@ export async function markRentPaid(user: SessionUser, chargeId: string, note?: s
       reminderSentOn: null,
     })
     .where(eq(rentCharges.id, chargeId));
-  await logActivity(user.id, `marked rent paid (${c.month})`, { audience: 'finance.view', href: '/more/rent' });
+  publishChange('rent');
+  await logActivity(user.id, `marked ${c.kind === 'rent' ? 'rent' : c.label || 'a charge'} paid (${c.month})`, { audience: 'finance.view', href: '/more/rent' });
 }
 
 export async function verifyRent(user: SessionUser, chargeId: string): Promise<void> {
@@ -150,7 +174,8 @@ export async function verifyRent(user: SessionUser, chargeId: string): Promise<v
     patch.markedBy = user.id;
   }
   await db.update(rentCharges).set(patch).where(eq(rentCharges.id, chargeId));
-  await logActivity(user.id, `verified rent (${c.month})`, { audience: 'finance.view', href: '/more/rent' });
+  publishChange('rent');
+  await logActivity(user.id, `verified ${c.kind === 'rent' ? 'rent' : c.label || 'a charge'} (${c.month})`, { audience: 'finance.view', href: '/more/rent' });
 }
 
 export async function reopenRent(user: SessionUser, chargeId: string): Promise<void> {

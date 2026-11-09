@@ -12,8 +12,8 @@ export type Finding = { check: string; count: number; detail: string };
 const CHECKS: { check: string; detail: string; query: ReturnType<typeof sql> }[] = [
   {
     check: 'Duplicate rent charges',
-    detail: 'More than one charge for the same person and month.',
-    query: sql`SELECT count(*) AS n FROM (SELECT 1 FROM rent_charges GROUP BY user_id, month HAVING count(*) > 1)`,
+    detail: 'More than one rent charge for the same lease (or, before leases, person) and month.',
+    query: sql`SELECT count(*) AS n FROM (SELECT 1 FROM rent_charges WHERE kind = 'rent' GROUP BY coalesce(lease_id, 'u:' || user_id), month HAVING count(*) > 1)`,
   },
   {
     check: 'Assignees on deleted work',

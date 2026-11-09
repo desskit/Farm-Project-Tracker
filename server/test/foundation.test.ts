@@ -116,9 +116,11 @@ describe('logService', () => {
 });
 
 describe('ensureRentCharges', () => {
-  it('creates exactly one charge per person even when it races itself', async () => {
+  it('creates exactly one charge per lease even when it races itself', async () => {
     const u = await makeUser('worker');
-    await db.insert(schema.rentAssignments).values({ userId: u.id, amount: 600, dueDay: 1, active: true });
+    await db.insert(schema.rentalUnits).values({ id: 'ru-race', name: 'Cabin' });
+    await db.insert(schema.leases).values({ id: 'ls-race', unitId: 'ru-race', startDate: '2020-01-01', rent: 600, dueDay: 1 });
+    await db.insert(schema.leaseTenants).values({ leaseId: 'ls-race', userId: u.id, isPrimary: true });
     await Promise.all([ensureRentCharges(), ensureRentCharges(), ensureRentCharges()]);
     const rows = await db.select().from(schema.rentCharges).where(eq(schema.rentCharges.userId, u.id));
     expect(rows).toHaveLength(1);

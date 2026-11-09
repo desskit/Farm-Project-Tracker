@@ -69,3 +69,37 @@ describe('0010 indexes + rent uniqueness', () => {
     expect(idx.rows.length).toBeGreaterThanOrEqual(20);
   });
 });
+
+describe('0018 rentals: per-person rent becomes units and leases', () => {
+  it('wraps each assignment as a unit + month-to-month lease and moves charges under it', async () => {
+    await migrate(drizzle(c), { migrationsFolder: migrationsBefore('0018') });
+    await c.execute(`INSERT INTO users (id, name, email, role) VALUES ('u1','Sam','s@x','renter'), ('u2','Jo','j@x','worker'), ('u3','Al','a@x','worker')`);
+    await c.execute(`INSERT INTO rent_assignments (user_id, amount, due_day, active) VALUES ('u1', 900, 5, 1), ('u2', 400, 1, 0)`);
+    await c.execute(`INSERT INTO rent_charges (id, user_id, month, amount, due_date, status) VALUES
+      ('a','u1','2026-09',900,'2026-09-05','verified'),
+      ('b','u1','2026-10',900,'2026-10-05','unpaid'),
+      ('c','u2','2026-10',400,'2026-10-01','verified'),
+      ('d','u3','2026-10',300,'2026-10-01','unpaid')`);
+    await c.execute(`INSERT INTO maintenance_requests (id, created_by, title) VALUES ('r1','u1','Leaky tap')`);
+
+    await migrate(drizzle(c), { migrationsFolder: MIGRATIONS });
+
+    const ls = (await c.execute('SELECT id, unit_id, start_date, end_date, rent, due_day, status FROM leases ORDER BY id')).rows;
+    expect(ls.map((r) => [r.id, r.unit_id, r.start_date, r.rent, r.due_day, r.status])).toEqual([
+      ['ls_u1', 'ru_u1', '2026-09-01', 900, 5, 'active'],
+      ['ls_u2', 'ru_u2', '2026-10-01', 400, 1, 'ended'],
+    ]);
+    expect(ls[0].end_date).toBeNull();
+    expect((await c.execute(`SELECT name FROM rental_units WHERE id = 'ru_u1'`)).rows[0].name).toBe("Sam's place");
+    expect((await c.execute(`SELECT user_id, is_primary FROM lease_tenants WHERE lease_id = 'ls_u1'`)).rows[0]).toMatchObject({ user_id: 'u1', is_primary: 1 });
+    const ch = (await c.execute('SELECT id, lease_id, kind FROM rent_charges ORDER BY id')).rows;
+    expect(ch.map((r) => [r.id, r.lease_id, r.kind])).toEqual([['a', 'ls_u1', 'rent'], ['b', 'ls_u1', 'rent'], ['c', 'ls_u2', 'rent'], ['d', null, 'rent']]);
+    expect((await c.execute(`SELECT unit_id FROM maintenance_requests WHERE id = 'r1'`)).rows[0].unit_id).toBe('ru_u1');
+
+    // One rent per lease per month; utilities alongside are fine.
+    await expect(c.execute(`INSERT INTO rent_charges (id, user_id, lease_id, month, amount, due_date) VALUES ('x','u1','ls_u1','2026-10',1,'2026-10-05')`)).rejects.toThrow();
+    await c.execute(`INSERT INTO rent_charges (id, user_id, lease_id, kind, month, amount, due_date) VALUES ('y','u1','ls_u1','utility','2026-10',80,'2026-10-20')`);
+    // Charges from before leases keep their one-per-person-per-month rule.
+    await expect(c.execute(`INSERT INTO rent_charges (id, user_id, month, amount, due_date) VALUES ('z','u3','2026-10',1,'2026-10-01')`)).rejects.toThrow();
+  });
+});

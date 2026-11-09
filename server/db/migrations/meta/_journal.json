@@ -127,6 +127,13 @@
       "when": 1794237081649,
       "tag": "0017_land",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1794237583617,
+      "tag": "0018_rentals",
+      "breakpoints": true
     }
   ]
 }

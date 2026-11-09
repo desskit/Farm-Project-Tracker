@@ -152,7 +152,7 @@ export async function getDashboard(currentUser: SessionUser, scope: 'mine' | 'al
     buckets[b].push({
       kind: 'rent',
       id: c.id,
-      title: `Rent · $${c.amount}`,
+      title: `${c.kind === 'rent' ? 'Rent' : c.label || 'Charge'} · $${c.amount}`,
       subtitle: `${userName(c.userId)} · ${c.status === 'marked' ? 'awaiting verification' : 'unpaid'}`,
       dueDate: c.dueDate,
       href: '/more/rent',

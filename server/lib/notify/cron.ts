@@ -13,6 +13,7 @@ import { reconcileChoreDueDates } from '@/lib/data/reconcile';
 import { runBackup } from '@/lib/backup';
 import { runRentReminders } from './rent-reminders';
 import { runUpkeepAlerts } from './upkeep-alerts';
+import { runLeaseJobs } from './lease-jobs';
 import { getWeather, refreshForecast } from '@/lib/data/weather';
 
 const g = globalThis as unknown as { __fptCronStarted?: boolean };
@@ -66,6 +67,12 @@ export function startCron(): void {
   // Rent reminders, once a day at 07:00 local — early enough to act on, late
   // enough not to arrive overnight. The job records what it has already sent,
   // so a restart during the day can't re-nag anyone.
+  // Late fees first, so the 07:00 reminders already include them.
+  cron.schedule('50 6 * * *', () => {
+    runLeaseJobs()
+      .then((r) => (r.lateFees || r.reminders) && console.log(`[cron] leases: ${r.lateFees} late fee(s), ${r.reminders} reminder(s)`))
+      .catch((e) => console.error('[cron] lease jobs failed', e));
+  });
   cron.schedule('0 7 * * *', () => {
     runRentReminders()
       .then((r) => {

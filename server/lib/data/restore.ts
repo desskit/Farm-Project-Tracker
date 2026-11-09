@@ -10,7 +10,7 @@
  * the restore can't fail on a dangling attachment.
  */
 import 'server-only';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db, schema, transaction } from '@/db';
 import type { SessionUser } from '@/lib/auth/session';
 import { logActivity } from './activity';
@@ -44,11 +44,29 @@ export async function restoreBackup(admin: SessionUser, backup: Backup): Promise
   await transaction(async (tx) => {
     // Delete content, children before parents (safe whether or not FKs are on).
     for (const t of [
+      // Livestock, land and rentals (children before parents).
+      schema.utilityBills,
+      schema.utilityAccounts,
+      schema.inspections,
+      schema.grazingMoves,
+      schema.harvests,
+      schema.landEvents,
+      schema.plantings,
+      schema.perennials,
+      schema.productionLogs,
+      schema.breedings,
+      schema.animalEvents,
+      schema.animals,
+      schema.animalGroups,
+      schema.landUnits,
       schema.activity,
       schema.inventoryLog,
       schema.inventory,
       schema.rentDocs,
       schema.rentCharges,
+      schema.leaseTenants,
+      schema.leases,
+      schema.rentalUnits,
       schema.rentAssignments,
       schema.choreCompletions,
       schema.choreAssignees,
@@ -115,7 +133,24 @@ export async function restoreBackup(admin: SessionUser, backup: Backup): Promise
       [schema.inventoryLog, 'inventoryLog'],
       [schema.notes, 'notes', 'photoId'],
       [schema.rentAssignments, 'rentAssignments'],
+      [schema.rentalUnits, 'rentalUnits'],
+      [schema.leases, 'leases'],
+      [schema.leaseTenants, 'leaseTenants'],
       [schema.rentCharges, 'rentCharges'],
+      [schema.utilityAccounts, 'utilityAccounts'],
+      [schema.utilityBills, 'utilityBills'],
+      [schema.inspections, 'inspections'],
+      [schema.landUnits, 'landUnits'],
+      [schema.animalGroups, 'animalGroups'],
+      [schema.animals, 'animals'],
+      [schema.animalEvents, 'animalEvents'],
+      [schema.breedings, 'breedings'],
+      [schema.productionLogs, 'productionLogs'],
+      [schema.plantings, 'plantings'],
+      [schema.perennials, 'perennials'],
+      [schema.harvests, 'harvests'],
+      [schema.landEvents, 'landEvents'],
+      [schema.grazingMoves, 'grazingMoves'],
       [schema.settings, 'settings'],
       [schema.activity, 'activity'],
     ];
@@ -136,6 +171,22 @@ export async function restoreBackup(admin: SessionUser, backup: Backup): Promise
     const rentPapers = arr('rentDocs').filter((d) => typeof d.attachmentId === 'string' && attIds.has(d.attachmentId));
     await insertChunked(tx as unknown as typeof db, schema.rentDocs, rentPapers);
     counts.rentDocs = rentPapers.length;
+
+    // A backup from before leases has per-person rent only: wrap it the way the
+    // 0018 migration did, so rent keeps billing after the restore.
+    if (!backup.leases && arr('rentAssignments').length) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const run = (q: ReturnType<typeof sql>) => (tx as any).run(q);
+      await run(sql`INSERT OR IGNORE INTO rental_units (id, name, kind) SELECT 'ru_' || a.user_id, u.name || '''s place', 'other' FROM rent_assignments a JOIN users u ON u.id = a.user_id`);
+      await run(sql`INSERT OR IGNORE INTO leases (id, unit_id, start_date, end_date, rent, due_day, status, notes)
+        SELECT 'ls_' || a.user_id, 'ru_' || a.user_id,
+          COALESCE((SELECT MIN(c.month) FROM rent_charges c WHERE c.user_id = a.user_id) || '-01', date('now', 'localtime')),
+          CASE WHEN a.active THEN NULL ELSE date('now', 'localtime') END, a.amount, a.due_day,
+          CASE WHEN a.active THEN 'active' ELSE 'ended' END, 'Created from the rent set up before leases.'
+        FROM rent_assignments a JOIN users u ON u.id = a.user_id`);
+      await run(sql`INSERT OR IGNORE INTO lease_tenants (lease_id, user_id, is_primary) SELECT 'ls_' || a.user_id, a.user_id, 1 FROM rent_assignments a JOIN users u ON u.id = a.user_id`);
+      await run(sql`UPDATE rent_charges SET lease_id = 'ls_' || user_id WHERE lease_id IS NULL AND user_id IN (SELECT user_id FROM rent_assignments)`);
+    }
 
     // Assignee join rows last — they need both the work item and the person to
     // exist. Anything pointing at a user this server doesn't have is skipped.
