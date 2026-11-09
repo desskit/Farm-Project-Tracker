@@ -6,7 +6,7 @@
  * the authoritative rollover used server-side when a chore is completed and by
  * the nightly reconciliation job.
  */
-import { addDays, iso, parseISO, weekday } from './dates';
+import { addDays, addMonths, iso, parseISO, weekday } from './dates';
 import type { Schedule } from '@/db/schema';
 
 function mdOf(s: string): string {
@@ -108,4 +108,10 @@ export function describeSeason(season: { start: string; end: string }): string {
     return month ? `${month} ${Number(d)}` : md;
   };
   return `${fmt(season.start)} – ${fmt(season.end)}`;
+}
+
+/** When the next copy of a repeating project task is due: `every` days/weeks/months after `from`. */
+export function nextRepeat(from: string, repeat: { every: number; unit: 'days' | 'weeks' | 'months' }): string {
+  const n = Math.max(1, Math.floor(repeat.every));
+  return repeat.unit === 'months' ? addMonths(from, n) : addDays(from, repeat.unit === 'weeks' ? n * 7 : n);
 }

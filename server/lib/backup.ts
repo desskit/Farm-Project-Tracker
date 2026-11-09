@@ -161,3 +161,10 @@ async function countFiles(dir: string): Promise<number> {
   await walk(dir);
   return n;
 }
+
+/** The folder holding one day's backup, or null if there isn't one. */
+export async function backupFolder(date: string): Promise<string | null> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const dir = path.join(BACKUP_DIR, date);
+  return (await fs.stat(path.join(dir, 'app.db')).catch(() => null)) ? dir : null;
+}

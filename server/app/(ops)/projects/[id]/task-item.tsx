@@ -55,6 +55,7 @@ export function TaskItem({
               <span className={s.muted}>{t.open ? 'Up for grabs' : 'Nobody assigned'}</span>
             )}
             {t.dueDate && !t.done && <StatusPill tone={overdue ? 'overdue' : 'upcoming'}>{relativeLabel(t.dueDate)}</StatusPill>}
+            {t.repeat && !t.done && <StatusPill tone="neutral">Every {t.repeat.every === 1 ? t.repeat.unit.replace(/s$/, '') : `${t.repeat.every} ${t.repeat.unit}`}</StatusPill>}
             {t.requirePhoto && !t.done && <span className={s.flag}><Camera aria-hidden /> photo</span>}
             {t.done && t.doneAt && (
               <span className={s.muted}>Done {fmtDate(t.doneAt)} by {nameById.get(t.doneBy ?? '') ?? 'someone'}</span>

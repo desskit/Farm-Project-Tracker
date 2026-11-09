@@ -1,9 +1,10 @@
-import { Activity, Bell, Building2, CalendarDays, CloudSun, Database, KeyRound, LockKeyhole, MessageSquareWarning, Package, Receipt, Search, ShieldCheck, Timer, Tractor, Trophy, UserCog, Users, Wallet } from 'lucide-react';
+import { Activity, Bell, Building2, CalendarDays, CloudSun, Database, FileSpreadsheet, KeyRound, LockKeyhole, MessageSquareWarning, Package, Receipt, Search, ShieldCheck, Timer, Tractor, Trophy, UserCog, Users, Wallet } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { getSessionUser } from '@/lib/auth/session';
 import { lowStockItems } from '@/lib/data/inventory';
 import { LogoutButton } from '@/app/_components/logout-button';
 import { can, ROLE_LABEL } from '@/lib/domain/permissions';
+import { datasetsFor } from '@/lib/data/csv';
 import { Card, ListRow, PageHeader, StatusPill } from '@/components/ui';
 import s from './more.module.css';
 
@@ -29,6 +30,7 @@ export default async function MorePage() {
     farm.push({ href: '/more/weather', icon: <CloudSun />, label: 'Weather', sub: 'Forecast & fire danger' });
     farm.push({ href: '/more/activity', icon: <Activity />, label: 'Activity', sub: 'Recent history' });
     farm.push({ href: '/more/search', icon: <Search />, label: 'Search', sub: 'Find anything' });
+    if (datasetsFor(user).length) farm.push({ href: '/more/export', icon: <FileSpreadsheet />, label: 'Export', sub: 'Spreadsheets of the records' });
   }
 
   const money: Row[] = [];

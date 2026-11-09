@@ -28,26 +28,39 @@ const PUBLIC_PREFIXES = [
 
 const isProd = process.env.NODE_ENV === 'production';
 
-// Pragmatic CSP for a Next.js App Router app: locks down external origins and
-// framing while allowing the inline scripts/styles Next injects for hydration.
-// 'unsafe-eval' is dev-only (HMR needs it); it is dropped in production builds.
-const CSP = [
-  "default-src 'self'",
-  "base-uri 'self'",
-  "object-src 'none'",
-  "frame-ancestors 'none'",
-  "form-action 'self'",
-  "img-src 'self' data: blob:",
-  "font-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
-  `script-src 'self' 'unsafe-inline'${isProd ? '' : " 'unsafe-eval'"}`,
-  "connect-src 'self'",
-  "worker-src 'self'",
-  "manifest-src 'self'",
-].join('; ');
+/**
+ * Content Security Policy with a fresh nonce per request. Next.js reads the
+ * policy off the request, finds the nonce and stamps it on every script it
+ * renders, so only scripts from this response run — an injected <script> has
+ * no nonce and is refused. 'strict-dynamic' lets those trusted scripts load
+ * the app's chunks. Styles stay 'unsafe-inline' (React style props need it,
+ * and styles can't run code). 'unsafe-eval' is dev-only, for hot reload.
+ */
+export function buildCsp(nonce: string): string {
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isProd ? '' : " 'unsafe-eval'"}`,
+    "connect-src 'self'",
+    "worker-src 'self'",
+    "manifest-src 'self'",
+  ].join('; ');
+}
 
-function withSecurityHeaders(res: NextResponse): NextResponse {
-  res.headers.set('Content-Security-Policy', CSP);
+function newNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return btoa(String.fromCharCode(...bytes));
+}
+
+function withSecurityHeaders(res: NextResponse, csp = buildCsp(newNonce())): NextResponse {
+  res.headers.set('Content-Security-Policy', csp);
   res.headers.set('X-Content-Type-Options', 'nosniff');
   res.headers.set('X-Frame-Options', 'DENY');
   res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -108,7 +121,13 @@ export function middleware(req: NextRequest) {
     url.searchParams.set('next', pathname);
     return withSecurityHeaders(NextResponse.redirect(url));
   }
-  return withSecurityHeaders(NextResponse.next());
+  // Hand the nonce to Next (it reads the policy off the request) and to pages (x-nonce).
+  const nonce = newNonce();
+  const csp = buildCsp(nonce);
+  const headers = new Headers(req.headers);
+  headers.set('x-nonce', nonce);
+  headers.set('Content-Security-Policy', csp);
+  return withSecurityHeaders(NextResponse.next({ request: { headers } }), csp);
 }
 
 export const config = {

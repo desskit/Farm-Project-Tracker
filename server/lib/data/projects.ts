@@ -4,9 +4,11 @@
  * anyone can complete/claim tasks. Role checks live here.
  */
 import { eq } from 'drizzle-orm';
+import type { BatchItem } from 'drizzle-orm/batch';
 import { db } from '@/db';
-import { projects, projectTasks } from '@/db/schema';
-import type { SentBack } from '@/db/schema';
+import { projects, projectTasks, taskAssignees } from '@/db/schema';
+import type { SentBack, TaskRepeat } from '@/db/schema';
+import { nextRepeat } from '@/lib/domain/recurrence';
 import { uid } from '@/lib/ids';
 import { todayISO } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
@@ -28,10 +30,7 @@ import { canSeeWork, seesAllWork } from '@/lib/domain/scope';
 import { assertOwnUpload } from './attachment-access';
 
 export type ProjectRow = typeof projects.$inferSelect;
-/**
- * A task plus the people on it. `assignedTo` is still on the underlying table
- * as the pre-multi-assignee backup, but `assigneeIds` is what callers read.
- */
+/** A task plus the people on it (from task_assignees). */
 export type TaskRow = typeof projectTasks.$inferSelect & { assigneeIds: string[] };
 export { STATUS_LABELS };
 export type { ProjectStatus };
@@ -150,7 +149,7 @@ export async function taskById(id: string): Promise<TaskRow | null> {
   return { ...rows[0], assigneeIds: await taskAssigneeIds(id) };
 }
 
-export type TaskInput = { title: string; description?: string; assigneeIds?: string[]; dueDate?: string | null; requirePhoto?: boolean; open?: boolean };
+export type TaskInput = { title: string; description?: string; assigneeIds?: string[]; dueDate?: string | null; requirePhoto?: boolean; open?: boolean; repeat?: TaskRepeat };
 
 export async function addTask(user: SessionUser, projectId: string, data: TaskInput): Promise<TaskRow> {
   if (!canCreateProject(user)) throw new DataError('Only managers and admins can add tasks.', 403);
@@ -165,6 +164,7 @@ export async function addTask(user: SessionUser, projectId: string, data: TaskIn
     sort: existing.length,
     requirePhoto: !!data.requirePhoto,
     open: !!data.open,
+    repeat: data.repeat ?? null,
   });
   await setTaskAssignees(id, data.assigneeIds ?? []);
   await pushAssigned(user.id, data.assigneeIds ?? [], 'task', data.title.trim(), `/projects/${projectId}`);
@@ -182,6 +182,7 @@ export async function updateTask(user: SessionUser, taskId: string, data: Partia
     requirePhoto: !!data.requirePhoto,
     open: !!data.open,
   };
+  if (data.repeat !== undefined) patch.repeat = data.repeat;
   if (data.title != null && data.title.trim()) patch.title = data.title.trim();
   await db.update(projectTasks).set(patch).where(eq(projectTasks.id, taskId));
   if (Array.isArray(data.assigneeIds)) {
@@ -201,28 +202,54 @@ export async function deleteTask(user: SessionUser, taskId: string): Promise<voi
   publishChange('task');
 }
 
-/** Toggles a task done/undone. Blocks completion of a photo-required task with no photo. */
+/**
+ * Toggles a task done/undone. Blocks completion of a photo-required task with
+ * no photo. Finishing a repeating task creates the next one (same people, due
+ * the repeat interval after this one's due date, or after today); undoing it
+ * takes that next one back if nobody has finished it yet.
+ */
 export async function toggleTask(user: SessionUser, taskId: string, photoId?: string | null): Promise<void> {
   await assertOwnUpload(user, photoId);
   const t = await visibleTask(user, taskId);
   if (!t.done && t.requirePhoto && !photoId) throw new DataError('This task requires a photo to complete.', 400);
   const done = !t.done;
-  await db
-    .update(projectTasks)
-    .set({
+  const today = todayISO();
+  const ops: BatchItem<'sqlite'>[] = [];
+  let nextId: string | null = t.repeatedTo;
+  if (done && t.repeat && !t.repeatedTo) {
+    nextId = uid('t');
+    // On schedule from its due date; if that's already past (it was done late), from today.
+    let due = nextRepeat(t.dueDate ?? today, t.repeat);
+    if (due <= today) due = nextRepeat(today, t.repeat);
+    ops.push(
+      db.insert(projectTasks).values({
+        id: nextId, projectId: t.projectId, title: t.title, description: t.description, dueDate: due,
+        sort: t.sort, requirePhoto: t.requirePhoto, open: t.open, repeat: t.repeat,
+      }),
+      ...t.assigneeIds.map((u) => db.insert(taskAssignees).values({ taskId: nextId!, userId: u }).onConflictDoNothing()),
+    );
+  }
+  if (!done && t.repeatedTo) {
+    const [next] = await db.select({ done: projectTasks.done }).from(projectTasks).where(eq(projectTasks.id, t.repeatedTo)).limit(1);
+    if (next && !next.done) ops.push(db.delete(projectTasks).where(eq(projectTasks.id, t.repeatedTo)));
+    nextId = null;
+  }
+  ops.unshift(
+    db.update(projectTasks).set({
       done,
       doneBy: done ? user.id : null,
-      doneAt: done ? todayISO() : null,
+      doneAt: done ? today : null,
       donePhotoId: done ? photoId || null : null,
       sentBack: done ? null : t.sentBack,
-    })
-    .where(eq(projectTasks.id, taskId));
+      repeatedTo: nextId,
+    }).where(eq(projectTasks.id, taskId)),
+  );
+  await db.batch(ops as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]]);
   if (done) {
     await stopTimersFor('task', taskId); // finishing the task stops any running clock
     await logActivity(user.id, `completed task "${t.title}"`, { href: `/projects/${t.projectId}` });
-  } else {
-    publishChange('task');
   }
+  publishChange('task');
 }
 
 export async function claimTask(user: SessionUser, taskId: string): Promise<void> {

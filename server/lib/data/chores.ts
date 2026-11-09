@@ -31,10 +31,7 @@ import { can } from '@/lib/domain/permissions';
 import { canSeeWork } from '@/lib/domain/scope';
 import { assertOwnUpload } from './attachment-access';
 
-/**
- * A chore plus the people on it. `assignedTo` is still on the underlying table
- * as the pre-multi-assignee backup, but `assigneeIds` is what callers read.
- */
+/** A chore plus the people on it (from chore_assignees). */
 export type ChoreRow = typeof chores.$inferSelect & { assigneeIds: string[] };
 export type ChoreCompletionRow = typeof choreCompletions.$inferSelect;
 
@@ -193,6 +190,37 @@ export async function completeChore(
   ]);
   await stopTimersFor('chore', id); // completing the work stops any running clock
   await logActivity(user.id, `completed chore "${chore.name}"`, { href: `/chores/${id}` });
+}
+
+/** Who may move a chore's date: someone on it, or a manager. */
+async function choreToReschedule(user: SessionUser, id: string): Promise<ChoreRow> {
+  const chore = await choreForViewer(user, id);
+  if (!chore) throw new DataError('No such chore.', 404);
+  if (chore.done) throw new DataError('This chore is already done.', 400);
+  if (!chore.assigneeIds.includes(user.id) && !can(user, 'work.manage')) throw new DataError('Only someone on the chore or a manager can do that.', 403);
+  return chore;
+}
+
+/** Skip this occurrence of a repeating chore: no completion is logged, the next one comes due. */
+export async function skipChore(user: SessionUser, id: string, note?: string): Promise<string> {
+  const chore = await choreToReschedule(user, id);
+  if (chore.schedule.type === 'once') throw new DataError('A one-off chore can’t be skipped — snooze it or delete it.', 400);
+  const nextDue = nextOccurrenceAfter(chore.schedule, chore.nextDue);
+  await db.update(chores).set({ nextDue, sentBack: null }).where(eq(chores.id, id));
+  await logActivity(user.id, `skipped chore "${chore.name}" (${chore.nextDue})${note?.trim() ? ` — ${note.trim()}` : ''}`, { href: `/chores/${id}` });
+  publishChange('chore');
+  return nextDue;
+}
+
+/** Push a chore to a later day (at most 60 days out). Its repeat pattern carries on from there. */
+export async function snoozeChore(user: SessionUser, id: string, until: string): Promise<void> {
+  const chore = await choreToReschedule(user, id);
+  const today = todayISO();
+  if (until <= today) throw new DataError('Pick a day after today.', 400);
+  if (until > addDays(today, 60)) throw new DataError('Snooze up to 60 days; edit the chore to change it for longer.', 400);
+  await db.update(chores).set({ nextDue: until }).where(eq(chores.id, id));
+  await logActivity(user.id, `snoozed chore "${chore.name}" to ${until}`, { href: `/chores/${id}` });
+  publishChange('chore');
 }
 
 export async function claimChore(user: SessionUser, id: string): Promise<void> {

@@ -2,18 +2,18 @@
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Camera, ChevronLeft, Flame, Hand, Image as ImageIcon, Pencil, Trash2, Undo2 } from 'lucide-react';
+import { AlarmClock, Camera, ChevronLeft, Flame, Hand, Image as ImageIcon, Pencil, SkipForward, Trash2, Undo2 } from 'lucide-react';
 import type { ChoreRow, ChoreCompletionRow } from '@/lib/data/chores';
 import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
 import type { Bucket } from '@/lib/domain/dashboard';
-import { fmtDate } from '@/lib/domain/dates';
+import { addDays, fmtDate, todayISO } from '@/lib/domain/dates';
 import { preparePhoto } from '@/lib/client/photo';
 import { submitQueued } from '@/lib/client/outbox';
 import { useMutation } from '@/lib/client/mutate';
 import { TimerControl } from '@/app/_components/timer-control';
 import { can } from '@/lib/domain/permissions';
-import { AvatarStack, Banner, Button, Card, Field, IconButton, Input, PageHeader, Stack, StatusPill, type Tone } from '@/components/ui';
+import { AvatarStack, Banner, Button, Card, Dialog, Field, IconButton, Input, PageHeader, Stack, StatusPill, type Tone } from '@/components/ui';
 import { useDialogs } from '@/components/ui/dialogs';
 import { ChoreForm, type ChorePayload } from '../chore-form';
 import s from './chore-detail.module.css';
@@ -189,6 +189,7 @@ export function ChoreDetail({
               Step off
             </Button>
           )}
+          {!chore.done && (onIt || isManager) && <RescheduleButtons choreId={chore.id} name={chore.name} repeats={chore.schedule.type !== 'once'} />}
         </div>
         {!chore.done && (
           <TimerControl kind="chore" refId={chore.id} running={timerRunning} startedAt={timerStartedAt} totalSec={timerTotalSec} />
@@ -269,5 +270,42 @@ export function ChoreDetail({
         )}
       </Card>
     </Stack>
+  );
+}
+
+/** Skip this one (repeating chores) or push it to a later day. */
+function RescheduleButtons({ choreId, name, repeats }: { choreId: string; name: string; repeats: boolean }) {
+  const { confirm: askConfirm } = useDialogs();
+  const m = useMutation();
+  const [open, setOpen] = useState(false);
+  const today = todayISO();
+  const [until, setUntil] = useState(addDays(today, 1));
+  async function snooze(d: string) {
+    if (await m.run({ url: `/api/chores/${choreId}/snooze`, body: { until: d }, label: `Snoozed ${name}` })) setOpen(false);
+  }
+  return (
+    <>
+      {repeats && (
+        <Button size="sm" variant="ghost" icon={<SkipForward />} loading={m.busy} onClick={async () => {
+          if (await askConfirm(`Skip this time? Nothing is logged as done, and ${name} comes due again next time round.`)) m.run({ url: `/api/chores/${choreId}/skip`, label: `Skipped ${name}` });
+        }}>Skip this one</Button>
+      )}
+      <Button size="sm" variant="ghost" icon={<AlarmClock />} onClick={() => setOpen(true)}>Snooze</Button>
+      {m.error && <span className={s.muted}>{m.error}</span>}
+      <Dialog sheet open={open} onClose={() => setOpen(false)} title={`Snooze ${name}`}>
+        <Stack>
+          <div className={s.actions}>
+            {[[1, 'Tomorrow'], [3, '3 days'], [7, 'A week']].map(([n, label]) => (
+              <Button key={n} variant="secondary" loading={m.busy} onClick={() => snooze(addDays(today, n as number))}>{label}</Button>
+            ))}
+          </div>
+          <Field label="Or pick a day" htmlFor="snooze-until">
+            <Input id="snooze-until" type="date" min={addDays(today, 1)} max={addDays(today, 60)} value={until} onChange={(e) => setUntil(e.target.value)} />
+          </Field>
+          <Button block loading={m.busy} onClick={() => snooze(until)}>Snooze to {fmtDate(until)}</Button>
+          {m.error && <Banner tone="danger">{m.error}</Banner>}
+        </Stack>
+      </Dialog>
+    </>
   );
 }

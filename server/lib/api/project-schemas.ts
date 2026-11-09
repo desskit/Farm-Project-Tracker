@@ -33,6 +33,7 @@ const taskFields = z.object({
   dueDate: z.string().nullable().optional(),
   requirePhoto: z.boolean().optional(),
   open: z.boolean().optional(),
+  repeat: z.object({ every: z.number().int().min(1).max(365), unit: z.enum(['days', 'weeks', 'months']) }).nullable().optional(),
 });
 
 export const createTaskSchema = z.preprocess(foldLegacyAssignee, taskFields);

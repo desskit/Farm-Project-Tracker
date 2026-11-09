@@ -103,3 +103,27 @@ describe('0018 rentals: per-person rent becomes units and leases', () => {
     await expect(c.execute(`INSERT INTO rent_charges (id, user_id, month, amount, due_date) VALUES ('z','u3','2026-10',1,'2026-10-01')`)).rejects.toThrow();
   });
 });
+
+describe('0020 dropping the old single-assignee columns', () => {
+  it('keeps every chore, task, completion and assignment, and the cascades still work', async () => {
+    await migrate(drizzle(c), { migrationsFolder: migrationsBefore('0020') });
+    await c.execute(`INSERT INTO users (id, name, email, role) VALUES ('u1','Sam','s@x','worker'), ('u2','Jo','j@x','worker')`);
+    await c.execute(`INSERT INTO chores (id, name, schedule, next_due, assigned_to) VALUES ('c1','Feed','{"type":"daily"}','2026-11-01','u1'), ('c2','Water','{"type":"daily"}','2026-11-01',NULL)`);
+    await c.execute(`INSERT INTO chore_assignees (chore_id, user_id) VALUES ('c2','u2')`);
+    await c.execute(`INSERT INTO chore_completions (id, chore_id, completed_by, date) VALUES ('cc1','c1','u1','2026-10-31'), ('cc2','c2','u2','2026-10-31')`);
+    await c.execute(`INSERT INTO projects (id, name) VALUES ('p1','Barn')`);
+    await c.execute(`INSERT INTO project_tasks (id, project_id, title, assigned_to) VALUES ('t1','p1','Roof','u2')`);
+
+    await migrate(drizzle(c), { migrationsFolder: MIGRATIONS });
+
+    const cols = (await c.execute(`SELECT name FROM pragma_table_info('chores')`)).rows.map((r) => r.name);
+    expect(cols).not.toContain('assigned_to');
+    expect((await c.execute('SELECT chore_id, user_id FROM chore_assignees ORDER BY chore_id')).rows.map((r) => [r.chore_id, r.user_id])).toEqual([['c1', 'u1'], ['c2', 'u2']]);
+    expect((await c.execute('SELECT task_id, user_id FROM task_assignees')).rows.map((r) => [r.task_id, r.user_id])).toEqual([['t1', 'u2']]);
+    expect((await c.execute('SELECT count(*) AS n FROM chore_completions')).rows[0].n).toBe(2);
+    expect((await c.execute('PRAGMA foreign_key_check')).rows).toHaveLength(0);
+    await c.execute('PRAGMA foreign_keys = ON');
+    await c.execute(`DELETE FROM chores WHERE id = 'c1'`);
+    expect((await c.execute('SELECT count(*) AS n FROM chore_completions')).rows[0].n).toBe(1);
+  });
+});

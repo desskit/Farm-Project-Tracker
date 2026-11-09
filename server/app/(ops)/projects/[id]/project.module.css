@@ -30,3 +30,4 @@
 .taskActions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-left: 34px; }
 .notes { padding-left: 34px; }
 .doneList summary { cursor: pointer; min-height: var(--tap); display: flex; align-items: center; font-weight: 600; color: var(--c-text-muted); }
+.repeatRow { display: flex; gap: var(--space-2); } .repeatRow input { width: 84px; flex: none; }

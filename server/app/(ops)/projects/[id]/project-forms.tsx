@@ -5,10 +5,11 @@ import { Plus } from 'lucide-react';
 import type { ProjectRow, TaskRow } from '@/lib/data/projects';
 import type { PersonRow } from '@/lib/data/users';
 import { AssigneePicker } from '@/app/_components/assignee-picker';
-import { Button, Field, Input, Stack, Switch, Textarea } from '@/components/ui';
+import { Button, Field, Input, Select, Stack, Switch, Textarea } from '@/components/ui';
 import s from './project.module.css';
 
-type TaskDraft = { title: string; description: string; assigneeIds: string[]; dueDate: string; open: boolean; requirePhoto: boolean };
+type TaskDraft = { title: string; description: string; assigneeIds: string[]; dueDate: string; open: boolean; requirePhoto: boolean; repeatEvery: string; repeatUnit: 'none' | 'days' | 'weeks' | 'months' };
+const repeatOf = (t: Pick<TaskRow, 'repeat'>): Pick<TaskDraft, 'repeatEvery' | 'repeatUnit'> => ({ repeatEvery: String(t.repeat?.every ?? 1), repeatUnit: t.repeat?.unit ?? 'none' });
 
 /** The fields shared by "add a task" and "edit task". */
 function TaskFields({ d, set, people, idp }: { d: TaskDraft; set: (p: Partial<TaskDraft>) => void; people: PersonRow[]; idp: string }) {
@@ -24,6 +25,17 @@ function TaskFields({ d, set, people, idp }: { d: TaskDraft; set: (p: Partial<Ta
       <Field label="Due date (optional)" htmlFor={`${idp}-due`}>
         <Input id={`${idp}-due`} type="date" value={d.dueDate} onChange={(e) => set({ dueDate: e.target.value })} />
       </Field>
+      <Field label="Repeats" htmlFor={`${idp}-rep`} hint={d.repeatUnit === 'none' ? undefined : 'When it’s done, the next one is added with the same people.'}>
+        <div className={s.repeatRow}>
+          {d.repeatUnit !== 'none' && <Input aria-label="Every how many" type="number" inputMode="numeric" min="1" max="365" value={d.repeatEvery} onChange={(e) => set({ repeatEvery: e.target.value })} />}
+          <Select id={`${idp}-rep`} value={d.repeatUnit} onChange={(e) => set({ repeatUnit: e.target.value as TaskDraft['repeatUnit'] })}>
+            <option value="none">Doesn’t repeat</option>
+            <option value="days">{d.repeatUnit === 'none' ? 'Every … days' : 'days'}</option>
+            <option value="weeks">{d.repeatUnit === 'none' ? 'Every … weeks' : 'weeks'}</option>
+            <option value="months">{d.repeatUnit === 'none' ? 'Every … months' : 'months'}</option>
+          </Select>
+        </div>
+      </Field>
       <Switch label="Up for grabs" hint="Anyone on the crew can take it." checked={d.open} onChange={(open) => set({ open })} />
       <Switch label="Needs a photo" hint="Ask for a photo when it's marked done." checked={d.requirePhoto} onChange={(requirePhoto) => set({ requirePhoto })} />
     </>
@@ -36,11 +48,15 @@ async function send(url: string, method: string, body: unknown): Promise<string 
   return (await res.json().catch(() => ({}))).error || 'Something went wrong.';
 }
 
-const payload = (d: TaskDraft) => ({ ...d, dueDate: d.dueDate || null });
+const payload = ({ repeatEvery, repeatUnit, ...d }: TaskDraft) => ({
+  ...d,
+  dueDate: d.dueDate || null,
+  repeat: repeatUnit === 'none' ? null : { every: Math.max(1, Math.floor(Number(repeatEvery) || 1)), unit: repeatUnit },
+});
 
 export function AddTaskForm({ projectId, people, onError }: { projectId: string; people: PersonRow[]; onError: (m: string | null) => void }) {
   const router = useRouter();
-  const empty: TaskDraft = { title: '', description: '', assigneeIds: [], dueDate: '', open: false, requirePhoto: false };
+  const empty: TaskDraft = { title: '', description: '', assigneeIds: [], dueDate: '', open: false, requirePhoto: false, repeatEvery: '1', repeatUnit: 'none' };
   const [d, setD] = useState(empty);
   const [busy, setBusy] = useState(false);
   async function submit(e: FormEvent) {
@@ -67,7 +83,7 @@ export function EditTaskForm({ task, people, onDone, onError }: { task: TaskRow;
   const router = useRouter();
   const [d, setD] = useState<TaskDraft>({
     title: task.title, description: task.description ?? '', assigneeIds: task.assigneeIds,
-    dueDate: task.dueDate ?? '', open: task.open, requirePhoto: task.requirePhoto,
+    dueDate: task.dueDate ?? '', open: task.open, requirePhoto: task.requirePhoto, ...repeatOf(task),
   });
   const [busy, setBusy] = useState(false);
   async function submit(e: FormEvent) {

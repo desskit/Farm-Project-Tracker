@@ -55,7 +55,8 @@ export function BackupPanel({ backups, keepDays }: { backups: BackupEntry[]; kee
             <div className="hist-row" key={b.date}>
               <span>{b.date}</span>
               <span className="subtle">
-                {kb(b.dbBytes)} db · {b.fileCount} file{b.fileCount === 1 ? '' : 's'}
+                {kb(b.dbBytes)} db · {b.fileCount} file{b.fileCount === 1 ? '' : 's'} ·{' '}
+                <a href={`/api/data/backups/${b.date}`} download>Download .tar.gz</a>
               </span>
             </div>
           ))}

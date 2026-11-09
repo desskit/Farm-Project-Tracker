@@ -33,3 +33,16 @@ describe('preview', () => {
     expect(middleware(req('POST', '/api/chores/c1/complete', false)).status).not.toBe(403);
   });
 });
+
+describe('content security policy', () => {
+  it('allows only scripts carrying this response’s nonce, fresh each request', () => {
+    const a = middleware(req('GET', '/chores', false));
+    const b = middleware(req('GET', '/chores', false));
+    const csp = a.headers.get('Content-Security-Policy')!;
+    const nonce = /'nonce-([^']+)'/.exec(csp)?.[1];
+    expect(nonce).toBeTruthy();
+    expect(csp).toContain("'strict-dynamic'");
+    expect(csp).not.toMatch(/script-src[^;]*'unsafe-inline'/);
+    expect(b.headers.get('Content-Security-Policy')).not.toContain(nonce);
+  });
+});

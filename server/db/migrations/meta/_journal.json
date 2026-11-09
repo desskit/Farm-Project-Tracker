@@ -134,6 +134,20 @@
       "when": 1794237583617,
       "tag": "0018_rentals",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1794239282955,
+      "tag": "0019_task_repeat",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1794239283802,
+      "tag": "0020_drop_assigned_to",
+      "breakpoints": true
     }
   ]
 }

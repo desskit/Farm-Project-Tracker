@@ -2,9 +2,8 @@
  * Multi-assignee helpers for chores and project tasks.
  *
  * A chore or task can have several people on it, so assignment lives in the
- * `chore_assignees` / `task_assignees` join tables rather than in a single
- * column. The legacy `assigned_to` columns are still present in the schema as
- * the pre-migration backup but are no longer read or written.
+ * `chore_assignees` / `task_assignees` join tables (the old single
+ * `assigned_to` columns were folded in and dropped in migration 0020).
  *
  * Replacing the whole set on write keeps these idempotent and lets callers
  * treat the incoming list as the truth, which is how every edit form sends it.

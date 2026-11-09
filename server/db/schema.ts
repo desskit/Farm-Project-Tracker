@@ -27,6 +27,7 @@ export type Schedule = {
 };
 
 export type ChoreLinkType = 'animal_group';
+export type TaskRepeat = { every: number; unit: 'days' | 'weeks' | 'months' } | null;
 export type SentBack = { by: string; at: number; reason: string; worker: string | null } | null;
 
 const now = sql`(unixepoch() * 1000)`;
@@ -127,8 +128,6 @@ export const chores = sqliteTable('chores', {
   name: text('name').notNull(),
   schedule: text('schedule', { mode: 'json' }).$type<Schedule>().notNull(),
   catchUp: text('catch_up').$type<'mustCatchUp' | 'skipToNext'>().notNull().default('skipToNext'),
-  /** @deprecated superseded by `chore_assignees`; kept as the pre-migration backup. */
-  assignedTo: text('assigned_to').references(() => users.id, { onDelete: 'set null' }),
   nextDue: text('next_due').notNull(),
   requirePhoto: integer('require_photo', { mode: 'boolean' }).notNull().default(false),
   open: integer('open', { mode: 'boolean' }).notNull().default(false),
@@ -212,8 +211,7 @@ export const maintenanceLogs = sqliteTable('maintenance_logs', {
 
 /**
  * Who a chore is assigned to. A chore can have several people on it, so
- * assignment lives here rather than in a single column. `chores.assigned_to`
- * is retained only as the pre-multi-assignee backup and is no longer read.
+ * assignment lives here rather than in a single column.
  */
 export const choreAssignees = sqliteTable(
   'chore_assignees',
@@ -283,8 +281,6 @@ export const projectTasks = sqliteTable('project_tasks', {
   projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   description: text('description').notNull().default(''),
-  /** @deprecated superseded by `task_assignees`; kept as the pre-migration backup. */
-  assignedTo: text('assigned_to').references(() => users.id, { onDelete: 'set null' }),
   dueDate: text('due_date'),
   done: integer('done', { mode: 'boolean' }).notNull().default(false),
   doneBy: text('done_by').references(() => users.id, { onDelete: 'set null' }),
@@ -294,6 +290,10 @@ export const projectTasks = sqliteTable('project_tasks', {
   requirePhoto: integer('require_photo', { mode: 'boolean' }).notNull().default(false),
   open: integer('open', { mode: 'boolean' }).notNull().default(false),
   sentBack: text('sent_back', { mode: 'json' }).$type<SentBack>(),
+  /** A repeating task: when it's done, the next one is created this far after its due date. */
+  repeat: text('repeat', { mode: 'json' }).$type<TaskRepeat>(),
+  /** The task created when this one was done, so undoing can take it back. */
+  repeatedTo: text('repeated_to'),
 }, (t) => ({
   projectIdx: index('project_tasks_project_idx').on(t.projectId, t.sort),
 }));
