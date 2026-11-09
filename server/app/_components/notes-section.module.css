@@ -1,0 +1,15 @@
+.wrap { display: grid; gap: var(--space-3); }
+.list { display: grid; }
+.note { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2) 0; }
+.note + .note { border-top: 1px solid var(--c-border); }
+.main { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.body { margin: 0; white-space: pre-wrap; }
+.meta { color: var(--c-text-muted); font-size: var(--text-xs); }
+.photoLink { display: inline-flex; align-items: center; gap: 4px; color: var(--c-primary); font-weight: 600; font-size: var(--text-sm); text-decoration: none; width: fit-content; }
+.photoLink svg { width: 16px; height: 16px; }
+.form { display: grid; gap: var(--space-2); }
+.row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.photo { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: var(--tap); padding: 0 var(--space-2); color: var(--c-primary); font-weight: 600; font-size: var(--text-sm); cursor: pointer; border-radius: var(--r-sm); }
+.photo:hover { background: var(--c-primary-soft); }
+.photo svg { width: 18px; height: 18px; }
+.photo input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }

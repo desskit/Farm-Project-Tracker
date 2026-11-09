@@ -1,0 +1,19 @@
+.muted { margin: 0; color: var(--c-text-muted); font-size: var(--text-sm); }
+.big { font-size: var(--text-xl); color: var(--c-text); }
+.total { margin: 0 0 var(--space-2); color: var(--c-text-muted); }
+.bar { display: block; height: 10px; border-radius: var(--r-pill); background: var(--c-surface-2); overflow: hidden; margin-bottom: var(--space-2); }
+.fill { display: block; height: 100%; background: var(--c-primary); border-radius: inherit; }
+.over { background: var(--c-danger); }
+.overText { margin: 0; color: var(--c-danger); font-weight: 700; font-size: var(--text-sm); }
+.list { border-top: 1px solid var(--c-border); }
+.row { display: flex; align-items: center; gap: var(--space-2); min-height: 52px; font-size: var(--text-sm); }
+.row + .row { border-top: 1px solid var(--c-border); }
+.main { flex: 1; min-width: 0; display: grid; }
+.meta { color: var(--c-text-muted); font-size: var(--text-xs); }
+.receipt { display: inline-flex; align-items: center; gap: 4px; color: var(--c-primary); font-weight: 600; text-decoration: none; }
+.receipt svg { width: 15px; height: 15px; }
+.form { padding-top: var(--space-3); border-top: 1px solid var(--c-border); }
+.file { position: relative; display: flex; align-items: center; gap: var(--space-2); min-height: 52px; padding: 0 var(--space-3); border: 2px dashed var(--c-border-strong); border-radius: var(--r-md); color: var(--c-primary); font-weight: 600; cursor: pointer; }
+.file svg { width: 18px; height: 18px; }
+.file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }

@@ -1,29 +1,30 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { Camera, Image as ImageIcon, Trash2 } from 'lucide-react';
 import { fmtDate } from '@/lib/domain/dates';
 import { preparePhoto } from '@/lib/client/photo';
 import { submitQueued } from '@/lib/client/outbox';
 import type { NoteRow, NoteParentType } from '@/lib/data/notes';
 import type { SessionUser } from '@/lib/auth/session';
 import { can } from '@/lib/domain/permissions';
+import { Banner, Button, Card, IconButton, Textarea } from '@/components/ui';
 import { useDialogs } from '@/components/ui/dialogs';
+import s from './notes-section.module.css';
 
 /**
- * Logbook for a project / task / asset. Anyone can add a note (with an optional
- * photo); the author or a manager can delete one. Server-renders the initial
- * notes; changes go through the /api/notes endpoints and refresh the route.
+ * Logbook for a project / task / asset. Anyone who can do work can add a note
+ * (with an optional photo, queued offline); the author or a manager can delete
+ * one. `compact` drops the card frame for use inside a task row.
  */
 export function NotesSection({
-  parentType,
-  parentId,
-  notes,
-  currentUser,
+  parentType, parentId, notes, currentUser, compact = parentType === 'task',
 }: {
   parentType: NoteParentType;
   parentId: string;
   notes: NoteRow[];
   currentUser: SessionUser;
+  compact?: boolean;
 }) {
   const { confirm: askConfirm } = useDialogs();
   const router = useRouter();
@@ -32,29 +33,23 @@ export function NotesSection({
   const [photo, setPhoto] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [queued, setQueued] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!body.trim() && !photo) return;
     setBusy(true);
     setError(null);
+    setQueued(false);
     try {
       // An observation logged at the far fence still needs to survive.
       const prepared = photo ? await preparePhoto(photo) : undefined;
-      const r = await submitQueued({
-        url: '/api/notes',
-        body: { parentType, parentId, body },
-        label: `Note: ${body.trim().slice(0, 40) || 'photo'}`,
-        photo: prepared,
-        photoField: 'photoId',
-      });
-      if (!r.ok && !r.queued) {
-        setError(r.error);
-        return;
-      }
+      const r = await submitQueued({ url: '/api/notes', body: { parentType, parentId, body }, label: `Note: ${body.trim().slice(0, 40) || 'photo'}`, photo: prepared, photoField: 'photoId' });
+      if (!r.ok && !r.queued) return setError(r.error);
       setBody('');
       setPhoto(null);
       if (r.ok) router.refresh();
+      else setQueued(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not add note.');
     } finally {
@@ -63,63 +58,50 @@ export function NotesSection({
   }
 
   async function onDelete(id: string) {
-    if (!await askConfirm('Delete this note?')) return;
+    if (!(await askConfirm('Delete this note?'))) return;
     const res = await fetch(`/api/notes/${id}`, { method: 'DELETE' });
     if (res.ok) router.refresh();
-    else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error || 'Could not delete note.');
-    }
+    else setError((await res.json().catch(() => ({}))).error || 'Could not delete note.');
   }
 
-  return (
-    <>
-      <div className="section-title">
-        Notes
-        <span className="count-pill">{notes.length}</span>
-      </div>
-      <div className="card">
-        <form onSubmit={onSubmit}>
-          <div className="field" style={{ marginBottom: 8 }}>
-            <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={2} placeholder="Add a note for the crew…" />
-          </div>
-          <div className="note-add-row">
-            <label className="btn small ghost note-photo-btn">
-              {photo ? '📷 1 photo' : '📷 Photo'}
-              <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
-            </label>
-            <button type="submit" disabled={busy || (!body.trim() && !photo)} className="btn small primary">
-              {busy ? 'Saving…' : 'Add note'}
-            </button>
-          </div>
-          {error && <p className="error-text">{error}</p>}
-        </form>
-
-        {notes.length > 0 && (
-          <div style={{ marginTop: 12 }}>
-            {notes.map((n) => (
-              <div className="note-row" key={n.id}>
-                <div className="note-main">
-                  {n.body && <p className="note-body">{n.body}</p>}
-                  {n.photoId && (
-                    <a href={`/api/attachments/${n.photoId}`} target="_blank" rel="noopener" className="chip-link">
-                      📷 photo
-                    </a>
-                  )}
-                  <p className="note-meta">
-                    {n.userName} · {fmtDate(n.date)}
-                  </p>
-                </div>
-                {(n.userId === currentUser.id || isManager) && (
-                  <button className="icon-btn" title="Delete note" onClick={() => onDelete(n.id)}>
-                    🗑
-                  </button>
+  const content = (
+    <div className={s.wrap}>
+      {notes.length > 0 && (
+        <div className={s.list}>
+          {notes.map((n) => (
+            <div className={s.note} key={n.id}>
+              <div className={s.main}>
+                {n.body && <p className={s.body}>{n.body}</p>}
+                {n.photoId && (
+                  <a href={`/api/attachments/${n.photoId}`} target="_blank" rel="noopener" className={s.photoLink}>
+                    <ImageIcon aria-hidden /> Photo
+                  </a>
                 )}
+                <span className={s.meta}>{n.userName} · {fmtDate(n.date)}</span>
               </div>
-            ))}
+              {(n.userId === currentUser.id || isManager) && <IconButton label="Delete note" onClick={() => onDelete(n.id)}><Trash2 /></IconButton>}
+            </div>
+          ))}
+        </div>
+      )}
+      {can(currentUser, 'work.do') && (
+        <form onSubmit={onSubmit} className={s.form}>
+          <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={2} placeholder="Add a note for the crew…" aria-label="New note" />
+          <div className={s.row}>
+            <label className={s.photo}>
+              <Camera aria-hidden />
+              {photo ? '1 photo' : 'Photo'}
+              <input type="file" accept="image/*" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+            </label>
+            <Button type="submit" size="sm" loading={busy} disabled={!body.trim() && !photo}>Add note</Button>
           </div>
-        )}
-      </div>
-    </>
+          {queued && <span className={s.meta}>Saved · syncs when online</span>}
+          {error && <Banner tone="danger">{error}</Banner>}
+        </form>
+      )}
+    </div>
   );
+
+  if (compact) return content;
+  return <Card title={`Notes (${notes.length})`}>{content}</Card>;
 }

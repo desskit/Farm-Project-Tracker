@@ -18,3 +18,15 @@
 }
 .pickItem:last-child { border-bottom: 0; }
 .pickItem:hover { background: var(--c-surface-2); }
+.docs { display: grid; gap: var(--space-3); }
+.docList { display: grid; }
+.doc { display: flex; align-items: center; gap: var(--space-2); min-height: 52px; }
+.doc + .doc { border-top: 1px solid var(--c-border); }
+.docLink { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--space-3); color: var(--c-text); text-decoration: none; }
+.docLink > svg { width: 20px; height: 20px; color: var(--c-primary); flex: none; }
+.docLink > span { display: grid; min-width: 0; }
+.docLink strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dropzone { position: relative; display: flex; align-items: center; gap: var(--space-2); min-height: 52px; padding: 0 var(--space-3); border: 2px dashed var(--c-border-strong); border-radius: var(--r-md); color: var(--c-primary); font-weight: 600; cursor: pointer; }
+.dropzone svg { width: 18px; height: 18px; }
+.dropzone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.docFields { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3); }
