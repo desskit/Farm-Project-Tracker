@@ -1,30 +1,27 @@
 'use client';
-import { useRef, useState, type FormEvent } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { ChevronLeft, Pencil, Trash2 } from 'lucide-react';
 import type { ProjectRow, TaskRow } from '@/lib/data/projects';
 import { STATUS_LABELS, type ProjectStatus } from '@/lib/domain/project-status';
 import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
-import { fmtDate } from '@/lib/domain/dates';
-import { uploadPhoto, preparePhoto } from '@/lib/client/photo';
-import { submitQueued } from '@/lib/client/outbox';
-import { TimerControl } from '@/app/_components/timer-control';
-import { NotesSection } from '@/app/_components/notes-section';
-import { AssigneePicker } from '@/app/_components/assignee-picker';
 import type { TimerState } from '@/lib/data/timers';
 import type { NoteRow } from '@/lib/data/notes';
+import { fmtDate } from '@/lib/domain/dates';
+import { preparePhoto } from '@/lib/client/photo';
+import { submitQueued } from '@/lib/client/outbox';
 import { can } from '@/lib/domain/permissions';
+import { Banner, Card, EmptyState, Field, IconButton, PageHeader, Select, Stack, StatusPill } from '@/components/ui';
 import { useDialogs } from '@/components/ui/dialogs';
+import { AddTaskForm, EditProjectForm } from './project-forms';
+import { SuggestSteps } from './suggest-steps';
+import { TaskItem } from './task-item';
+import s from './project.module.css';
 
 export function ProjectDetail({
-  project,
-  tasks,
-  people,
-  currentUser,
-  timers,
-  taskNotes,
-  aiEnabled,
+  project, tasks, people, currentUser, timers, taskNotes, aiEnabled,
 }: {
   project: ProjectRow;
   tasks: TaskRow[];
@@ -37,616 +34,144 @@ export function ProjectDetail({
   const { confirm: askConfirm, prompt: askPrompt } = useDialogs();
   const router = useRouter();
   const canManage = can(currentUser, 'work.manage');
-  const nameById = new Map(people.map((p) => [p.id, p.name]));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [editingProject, setEditingProject] = useState(false);
-  const [editingTask, setEditingTask] = useState<string | null>(null);
-  const [notesOpen, setNotesOpen] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const pendingTaskRef = useRef<string | null>(null);
 
-  const done = tasks.filter((t) => t.done).length;
-  const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
-
-  async function request(url: string, method: string, body?: unknown): Promise<boolean> {
-    setError(null);
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error || 'Something went wrong.');
-      return false;
-    }
-    return true;
-  }
+  const open = tasks.filter((t) => !t.done);
+  const done = tasks.filter((t) => t.done);
+  const pct = tasks.length ? Math.round((done.length / tasks.length) * 100) : 0;
 
   async function act(key: string, url: string, method: string, body?: unknown, then?: () => void) {
     setBusy(key);
-    const ok = await request(url, method, body);
+    setError(null);
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body !== undefined ? JSON.stringify(body) : undefined });
     setBusy(null);
-    if (ok) (then ?? (() => router.refresh()))();
+    if (!res.ok) return setError((await res.json().catch(() => ({}))).error || 'Something went wrong.');
+    (then ?? (() => router.refresh()))();
   }
 
-  async function onToggle(t: TaskRow) {
+  /** Ticking a task off is field work, so it goes through the offline outbox. */
+  async function toggle(t: TaskRow, prepared?: Awaited<ReturnType<typeof preparePhoto>>) {
+    setBusy('toggle-' + t.id);
+    setError(null);
+    const r = await submitQueued({ url: `/api/tasks/${t.id}/toggle`, body: {}, label: `${t.done ? 'Reopened' : 'Completed'} ${t.title}`, photo: prepared, photoField: 'photoId' });
+    setBusy(null);
+    if (r.ok) router.refresh();
+    else if (!r.queued) setError(r.error);
+  }
+
+  function onToggle(t: TaskRow) {
     // Completing a photo-required task opens the camera/file picker first.
     if (!t.done && t.requirePhoto) {
       pendingTaskRef.current = t.id;
       photoInputRef.current?.click();
       return;
     }
-    await toggleThroughOutbox(t, undefined);
-  }
-
-  /**
-   * Ticking a task off is field work, so it goes through the outbox. The
-   * server keys the write so a replay can't flip the task back.
-   */
-  async function toggleThroughOutbox(t: TaskRow, prepared?: Awaited<ReturnType<typeof preparePhoto>>) {
-    setBusy('toggle-' + t.id);
-    setError(null);
-    const r = await submitQueued({
-      url: `/api/tasks/${t.id}/toggle`,
-      body: {},
-      label: `${t.done ? 'Reopened' : 'Completed'} ${t.title}`,
-      photo: prepared,
-      photoField: 'photoId',
-    });
-    setBusy(null);
-    if (r.ok) router.refresh();
-    else if (!r.queued) setError(r.error);
+    void toggle(t);
   }
 
   async function onPhotoPicked(file: File | null) {
-    const taskId = pendingTaskRef.current;
+    const task = tasks.find((t) => t.id === pendingTaskRef.current);
     pendingTaskRef.current = null;
     if (photoInputRef.current) photoInputRef.current.value = '';
-    if (!file || !taskId) return;
-    const task = tasks.find((t) => t.id === taskId);
-    if (!task) return;
-    setError(null);
+    if (!file || !task) return;
     try {
-      // Resize now, upload during the send — so a proof photo taken out of
-      // signal is queued with the toggle rather than lost.
-      await toggleThroughOutbox(task, await preparePhoto(file));
+      // Resize now, upload during the send — a proof photo taken out of signal queues with the toggle.
+      await toggle(task, await preparePhoto(file));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not read that photo.');
     }
   }
 
-  async function onStatus(status: ProjectStatus) {
-    await act('status', `/api/projects/${project.id}/status`, 'PATCH', { status });
-  }
-
-  async function onDeleteProject() {
-    if (!await askConfirm('Delete this project and its tasks?')) return;
-    await act('del-project', `/api/projects/${project.id}`, 'DELETE', undefined, () => router.push('/projects'));
-  }
-
-  async function onDeleteTask(id: string) {
-    if (!await askConfirm('Delete this task?')) return;
-    await act('del-' + id, `/api/tasks/${id}`, 'DELETE');
-  }
-
-  async function onSendBack(id: string) {
-    const reason = await askPrompt('Send this task back to be redone. Reason (optional):', '');
-    if (reason === null) return;
-    await act('sb-' + id, `/api/tasks/${id}/send-back`, 'POST', { reason });
-  }
+  const item = (t: TaskRow) => (
+    <TaskItem
+      key={t.id}
+      t={t}
+      people={people}
+      currentUser={currentUser}
+      timer={timers[t.id]}
+      notes={taskNotes[t.id] ?? []}
+      busy={busy !== null && busy.endsWith(t.id)}
+      onToggle={() => onToggle(t)}
+      onAct={(path) => act(`${path}-${t.id}`, `/api/tasks/${t.id}/${path}`, 'POST')}
+      onDelete={async () => {
+        if (await askConfirm('Delete this task?')) await act('del-' + t.id, `/api/tasks/${t.id}`, 'DELETE');
+      }}
+      onSendBack={async () => {
+        const reason = await askPrompt('Send this task back to be redone. Reason (optional):', '');
+        if (reason !== null) await act('sb-' + t.id, `/api/tasks/${t.id}/send-back`, 'POST', { reason });
+      }}
+      onError={setError}
+    />
+  );
 
   return (
-    <>
-      <div className="sub-head">
-        <Link href="/projects" className="btn small ghost back-btn">
-          ‹ Projects
-        </Link>
-        <h1>{project.name}</h1>
-      </div>
-
-      <div className="card">
-        {project.description && <p style={{ marginTop: 0 }}>{project.description}</p>}
-        <div className="progress">
-          <span style={{ width: `${pct}%` }} />
-        </div>
-        <p className="subtle" style={{ margin: '0 0 8px' }}>
-          {done} / {tasks.length} tasks done
-          {project.targetDate ? ` · target ${fmtDate(project.targetDate)}` : ''}
-        </p>
-        {canManage ? (
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label>Status</label>
-            <select value={project.status} onChange={(e) => onStatus(e.target.value as ProjectStatus)} disabled={busy === 'status'}>
-              {(Object.keys(STATUS_LABELS) as ProjectStatus[]).map((s) => (
-                <option key={s} value={s}>
-                  {STATUS_LABELS[s]}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : (
-          <span className="badge neutral">{STATUS_LABELS[project.status]}</span>
-        )}
-        {canManage && (
-          <div className="row-actions" style={{ marginTop: 12, flexWrap: 'wrap' }}>
-            <button className="btn small ghost" disabled={busy !== null} onClick={() => setEditingProject((v) => !v)}>
-              {editingProject ? 'Cancel edit' : 'Edit project'}
-            </button>
-            <button className="btn small ghost danger" disabled={busy === 'del-project'} onClick={onDeleteProject}>
-              Delete project
-            </button>
-          </div>
-        )}
-        {canManage && editingProject && (
-          <div style={{ marginTop: 12 }}>
-            <EditProjectForm project={project} onDone={() => setEditingProject(false)} onError={setError} />
-          </div>
-        )}
-      </div>
-
-      <div className="section-title">
-        Tasks
-        <span className="count-pill">{tasks.length}</span>
-      </div>
-      {!tasks.length && <div className="empty">No tasks yet.</div>}
-      {/* Hidden picker used to capture a photo when completing a proof-required task. */}
-      <input
-        ref={photoInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        style={{ display: 'none' }}
-        onChange={(e) => onPhotoPicked(e.target.files?.[0] ?? null)}
+    <Stack gap={16}>
+      <PageHeader
+        back={<Link href="/projects" aria-label="Back to projects" className={s.back}><ChevronLeft /></Link>}
+        title={project.name}
+        subtitle={project.targetDate ? `Target ${fmtDate(project.targetDate)}` : undefined}
+        actions={
+          canManage ? (
+            <>
+              <IconButton label="Edit project" onClick={() => setEditingProject((v) => !v)}><Pencil /></IconButton>
+              <IconButton
+                label="Delete project"
+                onClick={async () => {
+                  if (await askConfirm('Delete this project and its tasks?')) await act('del-project', `/api/projects/${project.id}`, 'DELETE', undefined, () => router.push('/projects'));
+                }}
+              >
+                <Trash2 />
+              </IconButton>
+            </>
+          ) : undefined
+        }
       />
 
-      {tasks.map((t) => (
-        <div className="card" key={t.id}>
-          {t.sentBack && (
-            <div className="sb-banner">
-              ↩ Sent back{t.sentBack.reason ? `: "${t.sentBack.reason}"` : ''} — please redo.
-            </div>
-          )}
-          <div className={`check-row ${t.done ? 'done' : ''}`}>
-            <input
-              type="checkbox"
-              checked={t.done}
-              disabled={busy === 'toggle-' + t.id}
-              onChange={() => onToggle(t)}
-            />
-            <div className="item-main">
-              <p className="item-title c-title">{t.title}</p>
-              {t.description && <p className="item-sub">{t.description}</p>}
-              <div className="chips">
-                {t.assigneeIds.length ? (
-                  // One chip per person, so it's obvious who else is on the job.
-                  t.assigneeIds.map((id) => (
-                    <span className="chip" key={id}>
-                      {nameById.get(id) ?? 'Someone'}
-                    </span>
-                  ))
-                ) : (
-                  <span className="chip">{t.open ? '🙌 open' : 'Unassigned'}</span>
-                )}
-                {t.dueDate && <span className="chip">due {fmtDate(t.dueDate)}</span>}
-                {t.requirePhoto && !t.done && <span className="chip">📷 proof</span>}
-                {t.done && t.doneAt && <span className="chip">done {fmtDate(t.doneAt)} by {nameById.get(t.doneBy ?? '') ?? 'Unknown'}</span>}
-                {t.done && t.donePhotoId && (
-                  <a href={`/api/attachments/${t.donePhotoId}`} target="_blank" rel="noopener" className="chip-link" style={{ fontSize: 12 }}>
-                    📷 proof
-                  </a>
-                )}
-              </div>
-              {!t.done && timers[t.id] && (
-                <TimerControl
-                  kind="task"
-                  refId={t.id}
-                  running={timers[t.id].running}
-                  startedAt={timers[t.id].startedAt}
-                  totalSec={timers[t.id].totalSec}
-                />
-              )}
-            </div>
-            <div className="row-actions">
-              {t.open && !t.done && !t.assigneeIds.includes(currentUser.id) && (
-                <button className="btn small primary" disabled={busy === 'claim-' + t.id} onClick={() => act('claim-' + t.id, `/api/tasks/${t.id}/claim`, 'POST')}>
-                  Claim
-                </button>
-              )}
-              {t.open && !t.done && t.assigneeIds.includes(currentUser.id) && (
-                <button className="btn small ghost" disabled={busy === 'release-' + t.id} onClick={() => act('release-' + t.id, `/api/tasks/${t.id}/release`, 'POST')}>
-                  Release
-                </button>
-              )}
-              <button
-                className="icon-btn"
-                title="Notes"
-                onClick={() => setNotesOpen((v) => (v === t.id ? null : t.id))}
-              >
-                💬{taskNotes[t.id]?.length ? ` ${taskNotes[t.id].length}` : ''}
-              </button>
-              {canManage && !t.done && (
-                <button
-                  className="icon-btn"
-                  title="Edit task"
-                  disabled={busy !== null}
-                  onClick={() => setEditingTask((v) => (v === t.id ? null : t.id))}
-                >
-                  ✏️
-                </button>
-              )}
-              {canManage && t.done && (
-                <button className="icon-btn" style={{ color: 'var(--overdue)' }} title="Send back" disabled={busy === 'sb-' + t.id} onClick={() => onSendBack(t.id)}>
-                  ↩
-                </button>
-              )}
-              {canManage && (
-                <button className="icon-btn" title="Delete task" disabled={busy === 'del-' + t.id} onClick={() => onDeleteTask(t.id)}>
-                  🗑
-                </button>
-              )}
-            </div>
-          </div>
-
-          {canManage && editingTask === t.id && (
-            <div style={{ marginTop: 10 }}>
-              <EditTaskForm task={t} people={people} onDone={() => setEditingTask(null)} onError={setError} />
-            </div>
-          )}
-
-          {notesOpen === t.id && (
-            <div className="task-notes">
-              <NotesSection
-                parentType="task"
-                parentId={t.id}
-                notes={taskNotes[t.id] ?? []}
-                currentUser={currentUser}
-              />
-            </div>
+      <Card>
+        {project.description && <p className={s.desc}>{project.description}</p>}
+        <span className={s.bar} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${pct}% of tasks done`}>
+          <span className={s.fill} style={{ width: `${pct}%` }} />
+        </span>
+        <div className={s.summary}>
+          <span>{done.length} of {tasks.length} tasks done</span>
+          {canManage ? (
+            <Field label="Status" htmlFor="proj-status">
+              <Select id="proj-status" value={project.status} disabled={busy === 'status'} onChange={(e) => act('status', `/api/projects/${project.id}/status`, 'PATCH', { status: e.target.value as ProjectStatus })}>
+                {(Object.keys(STATUS_LABELS) as ProjectStatus[]).map((st) => <option key={st} value={st}>{STATUS_LABELS[st]}</option>)}
+              </Select>
+            </Field>
+          ) : (
+            <StatusPill tone="info">{STATUS_LABELS[project.status]}</StatusPill>
           )}
         </div>
-      ))}
+        {canManage && editingProject && <EditProjectForm project={project} onDone={() => setEditingProject(false)} onError={setError} />}
+      </Card>
 
-      {canManage && aiEnabled && <SuggestSteps projectId={project.id} onError={setError} />}
+      {error && <Banner tone="danger">{error}</Banner>}
 
-      {canManage && <AddTaskForm projectId={project.id} people={people} onError={setError} />}
+      {/* Hidden picker used to capture a photo when completing a proof-required task. */}
+      <input ref={photoInputRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => onPhotoPicked(e.target.files?.[0] ?? null)} />
 
-      {error && <p className="error-text">{error}</p>}
-    </>
-  );
-}
+      <Card title={<span className={s.titleIcon}>To do <span className={s.count}>{open.length}</span></span>} flush>
+        {open.length ? open.map(item) : <EmptyState title={tasks.length ? 'All done' : 'No tasks yet'}>{canManage && !tasks.length ? 'Add the first one below.' : undefined}</EmptyState>}
+      </Card>
+      {done.length > 0 && (
+        <details className={s.doneList}>
+          <summary>Done ({done.length})</summary>
+          <Card flush>{done.map(item)}</Card>
+        </details>
+      )}
 
-function SuggestSteps({ projectId, onError }: { projectId: string; onError: (m: string | null) => void }) {
-  const router = useRouter();
-  const [steps, setSteps] = useState<{ title: string; description?: string }[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [adding, setAdding] = useState<string | null>(null);
-
-  async function generate() {
-    setLoading(true);
-    onError(null);
-    try {
-      const res = await fetch(`/api/projects/${projectId}/suggest-steps`, { method: 'POST' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        onError(data.error || 'Could not generate suggestions.');
-        return;
-      }
-      setSteps(Array.isArray(data.steps) ? data.steps : []);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function addStep(step: { title: string; description?: string }) {
-    const res = await fetch(`/api/projects/${projectId}/tasks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: step.title, description: step.description || '' }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      onError(data.error || 'Could not add task.');
-      return false;
-    }
-    return true;
-  }
-
-  async function addOne(step: { title: string; description?: string }, index: number) {
-    setAdding(`one-${index}`);
-    onError(null);
-    const ok = await addStep(step);
-    setAdding(null);
-    if (ok) {
-      setSteps((prev) => prev?.filter((_, i) => i !== index) ?? null);
-      router.refresh();
-    }
-  }
-
-  async function addAll() {
-    if (!steps?.length) return;
-    setAdding('all');
-    onError(null);
-    for (const step of steps) {
-      const ok = await addStep(step);
-      if (!ok) break;
-    }
-    setAdding(null);
-    setSteps(null);
-    router.refresh();
-  }
-
-  return (
-    <>
-      <div className="section-title">Plan with AI</div>
-      <div className="card">
-        {!steps ? (
-          <>
-            <p className="subtle" style={{ marginTop: 0 }}>
-              Let Claude suggest a task breakdown from this project&apos;s name and description.
-            </p>
-            <button className="btn block" disabled={loading} onClick={generate}>
-              {loading ? 'Thinking…' : '✨ Suggest steps'}
-            </button>
-          </>
-        ) : steps.length === 0 ? (
-          <p className="subtle" style={{ margin: 0 }}>
-            No suggestions came back. Try adding a description, then generate again.
-          </p>
-        ) : (
-          <>
-            <ul className="suggest-list">
-              {steps.map((s, i) => (
-                <li key={i}>
-                  <div className="item-main">
-                    <p className="s-title">{s.title}</p>
-                    {s.description && <p className="s-desc">{s.description}</p>}
-                  </div>
-                  <button className="btn small primary" disabled={adding !== null} onClick={() => addOne(s, i)}>
-                    {adding === `one-${i}` ? '…' : 'Add'}
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <div className="row-actions" style={{ marginTop: 10, flexWrap: 'wrap' }}>
-              <button className="btn primary" disabled={adding !== null} onClick={addAll}>
-                {adding === 'all' ? 'Adding…' : `Add all ${steps.length}`}
-              </button>
-              <button className="btn ghost" disabled={adding !== null} onClick={() => setSteps(null)}>
-                Discard
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </>
-  );
-}
-
-function AddTaskForm({ projectId, people, onError }: { projectId: string; people: PersonRow[]; onError: (m: string | null) => void }) {
-  const router = useRouter();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
-  const [dueDate, setDueDate] = useState('');
-  const [open, setOpen] = useState(false);
-  const [requirePhoto, setRequirePhoto] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    onError(null);
-    const res = await fetch(`/api/projects/${projectId}/tasks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, description, assigneeIds, dueDate: dueDate || null, open, requirePhoto }),
-    });
-    setLoading(false);
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      onError(data.error || 'Something went wrong.');
-      return;
-    }
-    setTitle('');
-    setDescription('');
-    setDueDate('');
-    setAssigneeIds([]);
-    router.refresh();
-  }
-
-  return (
-    <>
-      <div className="section-title">Add a task</div>
-      <div className="card">
-        <form onSubmit={onSubmit}>
-          <div className="field">
-            <label>Title</label>
-            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g. Frame the walls" />
-          </div>
-          <div className="field">
-            <label>Description</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-          <AssigneePicker people={people} value={assigneeIds} onChange={setAssigneeIds} />
-          <div className="field">
-            <label>Due date (optional)</label>
-            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-          </div>
-          <label className="inline-check" style={{ marginBottom: 8 }}>
-            <input type="checkbox" checked={open} onChange={(e) => setOpen(e.target.checked)} />
-            Leave open for anyone to claim
-          </label>
-          <label className="inline-check" style={{ marginBottom: 12 }}>
-            <input type="checkbox" checked={requirePhoto} onChange={(e) => setRequirePhoto(e.target.checked)} />
-            Require a photo to complete
-          </label>
-          <button type="submit" disabled={loading} className="btn primary block">
-            {loading ? 'Saving…' : '+ Add task'}
-          </button>
-        </form>
-      </div>
-    </>
-  );
-}
-
-/** Edit a project's name, description, and target date in place. */
-function EditProjectForm({
-  project,
-  onDone,
-  onError,
-}: {
-  project: ProjectRow;
-  onDone: () => void;
-  onError: (m: string | null) => void;
-}) {
-  const router = useRouter();
-  const [name, setName] = useState(project.name);
-  const [description, setDescription] = useState(project.description ?? '');
-  const [targetDate, setTargetDate] = useState(project.targetDate ?? '');
-  const [budget, setBudget] = useState(project.budget == null ? '' : String(project.budget));
-  const [saving, setSaving] = useState(false);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    onError(null);
-    const res = await fetch(`/api/projects/${project.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        description,
-        targetDate: targetDate || null,
-        budget: budget.trim() === '' ? null : Number(budget),
-      }),
-    });
-    setSaving(false);
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      onError(data.error || 'Could not save the project.');
-      return;
-    }
-    onDone();
-    router.refresh();
-  }
-
-  return (
-    <form onSubmit={submit}>
-      <div className="field">
-        <label>Name</label>
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
-      </div>
-      <div className="field">
-        <label>Description</label>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
-      </div>
-      <div className="field">
-        <label>Target date (optional)</label>
-        <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
-      </div>
-      <div className="field">
-        <label>Budget (optional)</label>
-        <input
-          type="number"
-          step="0.01"
-          min={0}
-          value={budget}
-          onChange={(e) => setBudget(e.target.value)}
-          placeholder="Leave blank for no budget"
-        />
-      </div>
-      <div className="form-actions">
-        <button type="button" className="btn" onClick={onDone}>
-          Cancel
-        </button>
-        <button type="submit" disabled={saving} className="btn primary">
-          {saving ? 'Saving…' : 'Save project'}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-/** Edit a task's title, description, assignee, due date, and flags. */
-function EditTaskForm({
-  task,
-  people,
-  onDone,
-  onError,
-}: {
-  task: TaskRow;
-  people: PersonRow[];
-  onDone: () => void;
-  onError: (m: string | null) => void;
-}) {
-  const router = useRouter();
-  const [title, setTitle] = useState(task.title);
-  const [description, setDescription] = useState(task.description ?? '');
-  const [assigneeIds, setAssigneeIds] = useState<string[]>(task.assigneeIds);
-  const [dueDate, setDueDate] = useState(task.dueDate ?? '');
-  const [open, setOpen] = useState(task.open);
-  const [requirePhoto, setRequirePhoto] = useState(task.requirePhoto);
-  const [saving, setSaving] = useState(false);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    onError(null);
-    const res = await fetch(`/api/tasks/${task.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title,
-        description,
-        assigneeIds,
-        dueDate: dueDate || null,
-        open,
-        requirePhoto,
-      }),
-    });
-    setSaving(false);
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      onError(data.error || 'Could not save the task.');
-      return;
-    }
-    onDone();
-    router.refresh();
-  }
-
-  return (
-    <form onSubmit={submit}>
-      <div className="field">
-        <label>Title</label>
-        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required />
-      </div>
-      <div className="field">
-        <label>Description</label>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
-      </div>
-      <AssigneePicker people={people} value={assigneeIds} onChange={setAssigneeIds} />
-      <div className="field">
-        <label>Due date (optional)</label>
-        <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-      </div>
-      <label className="inline-check" style={{ marginBottom: 8 }}>
-        <input type="checkbox" checked={open} onChange={(e) => setOpen(e.target.checked)} />
-        Leave open for anyone to claim
-      </label>
-      <label className="inline-check" style={{ marginBottom: 12 }}>
-        <input type="checkbox" checked={requirePhoto} onChange={(e) => setRequirePhoto(e.target.checked)} />
-        Require a photo to complete
-      </label>
-      <div className="form-actions">
-        <button type="button" className="btn" onClick={onDone}>
-          Cancel
-        </button>
-        <button type="submit" disabled={saving} className="btn primary">
-          {saving ? 'Saving…' : 'Save task'}
-        </button>
-      </div>
-    </form>
+      {aiEnabled && can(currentUser, 'ai.use') && <SuggestSteps projectId={project.id} onError={setError} />}
+      {canManage && (
+        <Card title="Add a task">
+          <AddTaskForm projectId={project.id} people={people} onError={setError} />
+        </Card>
+      )}
+    </Stack>
   );
 }

@@ -10,6 +10,7 @@ import { ProjectDetail } from './project-detail';
 import { NotesSection } from '@/app/_components/notes-section';
 import { BudgetSection } from './budget-section';
 import { can } from '@/lib/domain/permissions';
+import s from './project.module.css';
 
 export default async function ProjectDetailPage({ params }: { params: { id: string } }) {
   const user = await getSessionUser();
@@ -35,7 +36,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
   ]);
 
   return (
-    <main className="view">
+    <main className={s.wrap}>
       <ProjectDetail
         project={project}
         tasks={tasks}
