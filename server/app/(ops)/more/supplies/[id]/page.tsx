@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/auth/session';
 import { inventoryById, inventoryLogFor } from '@/lib/data/inventory';
 import { listUsers } from '@/lib/data/users';
 import { SupplyDetail } from './supply-detail';
+import s from './supply.module.css';
 
 export default async function SupplyDetailPage({ params }: { params: { id: string } }) {
   const user = await getSessionUser();
@@ -14,7 +15,7 @@ export default async function SupplyDetailPage({ params }: { params: { id: strin
   const [log, people] = await Promise.all([inventoryLogFor(params.id), listUsers()]);
 
   return (
-    <main className="view">
+    <main className={s.wrap}>
       <SupplyDetail item={item} log={log} people={people} currentUser={user} />
     </main>
   );

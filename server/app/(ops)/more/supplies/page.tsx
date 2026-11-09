@@ -1,84 +1,55 @@
 import Link from 'next/link';
+import { ChevronLeft, Package } from 'lucide-react';
 import { getSessionUser } from '@/lib/auth/session';
-import { listInventory, inventoryValue } from '@/lib/data/inventory';
-import type { InventoryRow } from '@/lib/data/inventory';
-import { AddSupplyCard } from './add-supply-card';
+import { listInventory, inventoryValue, type InventoryRow } from '@/lib/data/inventory';
 import { can } from '@/lib/domain/permissions';
+import { Card, EmptyState, ListRow, PageHeader, StatusPill } from '@/components/ui';
+import { AddSupplyCard } from './add-supply-card';
+import s from './supplies.module.css';
 
 export default async function SuppliesPage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
-  const isManager = can(user, 'supplies.manage');
+  const manages = can(user, 'supplies.manage');
+  const seesMoney = can(user, 'finance.view');
   const items = await listInventory();
-  const low = items.filter((i) => i.qty <= i.reorderAt);
-  const totalValue = inventoryValue(items);
+  const isLow = (i: InventoryRow) => i.qty <= i.reorderAt;
+  const low = items.filter(isLow);
+  const totalValue = seesMoney ? inventoryValue(items) : 0;
 
-  return (
-    <main className="view">
-      <div className="sub-head">
-        <Link href="/more" className="btn small ghost back-btn">
-          ‹ More
-        </Link>
-        <h1>Supplies</h1>
-      </div>
-
-      {totalValue > 0 && (
-        <div className="tiles">
-          <div className="stat-tile">
-            <span className="stat-val">${totalValue.toFixed(0)}</span>
-            <span className="stat-lbl">on-hand value</span>
-          </div>
-          <div className="stat-tile">
-            <span className="stat-val">{items.length}</span>
-            <span className="stat-lbl">item{items.length === 1 ? '' : 's'}</span>
-          </div>
-        </div>
-      )}
-
-      {isManager && <AddSupplyCard />}
-
-      {low.length > 0 && (
-        <>
-          <div className="section-title">
-            ⚠️ Reorder list<span className="count-pill">{low.length}</span>
-          </div>
-          {low.map((i) => (
-            <SupplyCard key={i.id} item={i} />
-          ))}
-        </>
-      )}
-
-      <div className="section-title">
-        All supplies<span className="count-pill">{items.length}</span>
-      </div>
-      {!items.length ? <div className="empty">No inventory yet.</div> : items.map((i) => <SupplyCard key={i.id} item={i} />)}
-    </main>
+  const row = (i: InventoryRow) => (
+    <ListRow
+      key={i.id}
+      href={`/more/supplies/${i.id}`}
+      lead={<Package />}
+      title={i.name}
+      meta={`${i.category} · reorder at ${i.reorderAt} ${i.unit}${seesMoney && i.unitCost != null ? ` · $${i.unitCost.toFixed(2)}/${i.unit}` : ''}`}
+      trail={
+        <span className={s.qty}>
+          {isLow(i) && <StatusPill tone="overdue">Low</StatusPill>}
+          <strong>{i.qty}</strong> {i.unit}
+        </span>
+      }
+    />
   );
-}
 
-function SupplyCard({ item }: { item: InventoryRow }) {
-  const low = item.qty <= item.reorderAt;
   return (
-    <Link href={`/more/supplies/${item.id}`} className="card tap">
-      <div className="item">
-        <span className={`left-rail ${low ? 'overdue' : 'upcoming'}`} />
-        <div className="item-main">
-          <p className="item-title">{item.name}</p>
-          <p className="item-sub">
-            {item.category} · reorder at {item.reorderAt} {item.unit}
-            {item.unitCost != null && ` · $${item.unitCost.toFixed(2)}/${item.unit}`}
-          </p>
-          {low && (
-            <div className="item-badges">
-              <span className="badge overdue">Low — reorder</span>
-            </div>
-          )}
-        </div>
-        <div className="inv-qty">
-          {item.qty}
-          <span>{item.unit}</span>
-        </div>
-      </div>
-    </Link>
+    <main className={s.wrap}>
+      <PageHeader
+        back={<Link href="/farm" aria-label="Back to farm" className={s.back}><ChevronLeft /></Link>}
+        title="Supplies"
+        subtitle={`${items.length} item${items.length === 1 ? '' : 's'}${totalValue > 0 ? ` · $${totalValue.toFixed(0)} on hand` : ''}`}
+      />
+      <p className={s.tip}>Tip: the (+) button logs supplies used from any screen, in two taps.</p>
+      {low.length > 0 && (
+        <Card title={`Reorder (${low.length})`} flush>
+          {low.map(row)}
+        </Card>
+      )}
+      <Card title="All supplies" flush>
+        {items.length ? items.map(row) : <EmptyState icon={<Package />} title="No supplies yet">{manages ? 'Add feed, fuel, seed and parts below.' : undefined}</EmptyState>}
+      </Card>
+      {manages && <AddSupplyCard />}
+    </main>
   );
 }
