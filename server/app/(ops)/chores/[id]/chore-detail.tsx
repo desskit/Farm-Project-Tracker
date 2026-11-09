@@ -2,6 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Camera, ChevronLeft, Flame, Hand, Image as ImageIcon, Pencil, Trash2, Undo2 } from 'lucide-react';
 import type { ChoreRow, ChoreCompletionRow } from '@/lib/data/chores';
 import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
@@ -9,24 +10,24 @@ import type { Bucket } from '@/lib/domain/dashboard';
 import { fmtDate } from '@/lib/domain/dates';
 import { preparePhoto } from '@/lib/client/photo';
 import { submitQueued } from '@/lib/client/outbox';
+import { useMutation } from '@/lib/client/mutate';
 import { TimerControl } from '@/app/_components/timer-control';
-import { ChoreForm, type ChorePayload } from '../chore-form';
 import { can } from '@/lib/domain/permissions';
+import { AvatarStack, Banner, Button, Card, Field, IconButton, Input, PageHeader, Stack, StatusPill, type Tone } from '@/components/ui';
 import { useDialogs } from '@/components/ui/dialogs';
+import { ChoreForm, type ChorePayload } from '../chore-form';
+import s from './chore-detail.module.css';
+
+const BUCKET: Record<Bucket, { tone: Tone; label: string }> = {
+  overdue: { tone: 'overdue', label: 'Overdue' },
+  today: { tone: 'today', label: 'Due today' },
+  upcoming: { tone: 'upcoming', label: 'Coming up' },
+  later: { tone: 'neutral', label: 'Not due soon' },
+};
 
 export function ChoreDetail({
-  chore,
-  completions,
-  streak,
-  people,
-  currentUser,
-  scheduleLabel,
-  outOfSeason,
-  bucket,
-  dueLabel,
-  timerRunning,
-  timerStartedAt,
-  timerTotalSec,
+  chore, completions, streak, people, currentUser, scheduleLabel, outOfSeason, bucket, dueLabel,
+  timerRunning, timerStartedAt, timerTotalSec,
 }: {
   chore: ChoreRow;
   completions: ChoreCompletionRow[];
@@ -44,44 +45,25 @@ export function ChoreDetail({
 }) {
   const { confirm: askConfirm, prompt: askPrompt } = useDialogs();
   const router = useRouter();
+  const action = useMutation();
   const isManager = can(currentUser, 'work.manage');
   const nameById = new Map(people.map((p) => [p.id, p.name]));
+  const onIt = chore.assigneeIds.includes(currentUser.id);
   const [editing, setEditing] = useState(false);
   const [notes, setNotes] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [queuedMsg, setQueuedMsg] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [completing, setCompleting] = useState(false);
 
   const stepsRemaining = chore.steps.length > 0 && checked.size < chore.steps.length;
 
-  async function request(url: string, method: string, body?: unknown): Promise<boolean> {
-    setError(null);
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error || 'Something went wrong.');
-      return false;
-    }
-    return true;
-  }
-
   async function onComplete(e: FormEvent) {
     e.preventDefault();
-    if (stepsRemaining) {
-      setError('Tick every checklist step first.');
-      return;
-    }
-    if (chore.requirePhoto && !photo) {
-      setError('A photo is required to complete this chore.');
-      return;
-    }
-    setBusy('complete');
+    if (stepsRemaining) return setError('Tick every checklist step first.');
+    if (chore.requirePhoto && !photo) return setError('A photo is required to complete this chore.');
+    setCompleting(true);
     setError(null);
     setQueuedMsg(null);
     // Resize (but don't upload) up front so the photo can ride along in the
@@ -90,9 +72,8 @@ export function ChoreDetail({
     try {
       if (photo) prepared = await preparePhoto(photo);
     } catch (err) {
-      setBusy(null);
-      setError(err instanceof Error ? err.message : 'Could not read that photo.');
-      return;
+      setCompleting(false);
+      return setError(err instanceof Error ? err.message : 'Could not read that photo.');
     }
     const r = await submitQueued({
       url: `/api/chores/${chore.id}/complete`,
@@ -101,46 +82,36 @@ export function ChoreDetail({
       photo: prepared,
       photoField: 'photoId',
     });
-    setBusy(null);
-    if (!r.ok && !r.queued) {
-      setError(r.error);
-      return;
-    }
+    setCompleting(false);
+    if (!r.ok && !r.queued) return setError(r.error);
     setNotes('');
     setPhoto(null);
     setChecked(new Set());
     if (r.ok) router.refresh();
-    else setQueuedMsg('Saved on this device — it will sync when you\u2019re back online.');
-  }
-
-  async function act(key: string, url: string, method: string, body?: unknown, then?: () => void) {
-    setBusy(key);
-    const ok = await request(url, method, body);
-    setBusy(null);
-    if (ok) (then ?? (() => router.refresh()))();
+    else setQueuedMsg('Saved on this device — it will sync when you’re back online.');
   }
 
   async function onDelete() {
-    if (!await askConfirm('Delete this chore and its history?')) return;
-    await act('delete', `/api/chores/${chore.id}`, 'DELETE', undefined, () => router.push('/chores'));
+    if (!(await askConfirm('Delete this chore and its history?'))) return;
+    const res = await fetch(`/api/chores/${chore.id}`, { method: 'DELETE' });
+    if (res.ok) router.push('/chores');
+    else setError((await res.json().catch(() => ({}))).error || 'Could not delete.');
   }
 
   async function onSendBack(completionId: string) {
     const reason = await askPrompt('Send this work back to be redone. Reason (optional):', '');
     if (reason === null) return;
-    await act('sendback-' + completionId, `/api/chore-completions/${completionId}/send-back`, 'POST', { reason });
+    await action.run({ url: `/api/chore-completions/${completionId}/send-back`, body: { reason }, label: `Sent back ${chore.name}` });
   }
 
   if (editing) {
     return (
-      <>
-        <div className="sub-head">
-          <button className="btn small ghost back-btn" onClick={() => setEditing(false)}>
-            ‹ Cancel
-          </button>
-          <h1>Edit chore</h1>
-        </div>
-        <div className="card">
+      <Stack>
+        <PageHeader
+          back={<IconButton label="Cancel editing" onClick={() => setEditing(false)}><ChevronLeft /></IconButton>}
+          title="Edit chore"
+        />
+        <Card>
           <ChoreForm
             people={people}
             initial={chore}
@@ -151,191 +122,152 @@ export function ChoreDetail({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
               });
-              if (!res.ok) {
-                const data = await res.json().catch(() => ({}));
-                return data.error || 'Something went wrong.';
-              }
+              if (!res.ok) return (await res.json().catch(() => ({}))).error || 'Something went wrong.';
               setEditing(false);
               router.refresh();
               return null;
             }}
           />
-        </div>
-      </>
+        </Card>
+      </Stack>
     );
   }
 
+  const status = BUCKET[bucket];
   return (
-    <>
-      <div className="sub-head">
-        <Link href="/chores" className="btn small ghost back-btn">
-          ‹ Chores
-        </Link>
-        <h1>{chore.name}</h1>
-      </div>
+    <Stack gap={16}>
+      <PageHeader
+        back={<Link href="/chores" aria-label="Back to chores" className={s.back}><ChevronLeft /></Link>}
+        title={chore.name}
+        subtitle={scheduleLabel}
+        actions={
+          isManager ? (
+            <>
+              <IconButton label="Edit chore" onClick={() => setEditing(true)}><Pencil /></IconButton>
+              <IconButton label="Delete chore" onClick={onDelete}><Trash2 /></IconButton>
+            </>
+          ) : undefined
+        }
+      />
 
       {chore.sentBack && (
-        <div className="sb-banner">
-          ↩ Sent back{chore.sentBack.reason ? `: "${chore.sentBack.reason}"` : ''} — please redo.
-        </div>
+        <Banner tone="warn" title="Sent back — please redo">
+          {chore.sentBack.reason || 'No reason given.'}
+        </Banner>
       )}
 
-      <div className="card">
-        <p className="subtle" style={{ margin: 0 }}>
-          {scheduleLabel}
-        </p>
-        <div className="item-badges">
+      <Card>
+        <div className={s.facts}>
           {chore.done ? (
-            <span className="badge">✓ Completed</span>
+            <StatusPill tone="done">Completed</StatusPill>
+          ) : outOfSeason ? (
+            <StatusPill tone="neutral">Out of season</StatusPill>
           ) : (
-            <>
-              <span className={`badge ${badgeClass(bucket)}`}>{bucketLabel(bucket)}</span>
-              <span className="chip">Due {dueLabel}</span>
-            </>
+            <StatusPill tone={status.tone}>{status.label} · {dueLabel}</StatusPill>
           )}
-          {chore.assigneeIds.length ? (
-            // One chip per person, so it's obvious who else is on the job.
-            chore.assigneeIds.map((id) => (
-              <span className="chip" key={id}>
-                {nameById.get(id) ?? 'Someone'}
-              </span>
-            ))
-          ) : (
-            <span className="chip">{chore.open ? '🙌 open' : 'Unassigned'}</span>
-          )}
-          {outOfSeason && <span className="chip">💤 out of season</span>}
-          {chore.requirePhoto && <span className="chip">📷 photo required</span>}
+          {chore.requirePhoto && <span className={s.flag}><Camera aria-hidden /> photo needed</span>}
+          {streak >= 2 && <span className={s.streak}><Flame aria-hidden /> {streak}-day streak</span>}
         </div>
-        {streak >= 2 && (
-          <p style={{ color: 'var(--brand)', fontWeight: 700, margin: '10px 0 0' }}>🔥 {streak}-day streak</p>
-        )}
-
-        <div className="row-actions" style={{ marginTop: 12, flexWrap: 'wrap' }}>
-          {chore.open && !chore.assigneeIds.includes(currentUser.id) && (
-            <button className="btn small primary" disabled={busy === 'claim'} onClick={() => act('claim', `/api/chores/${chore.id}/claim`, 'POST')}>
-              Claim
-            </button>
-          )}
-          {chore.open && chore.assigneeIds.includes(currentUser.id) && (
-            <button className="btn small ghost" disabled={busy === 'release'} onClick={() => act('release', `/api/chores/${chore.id}/release`, 'POST')}>
-              Release
-            </button>
-          )}
-          {isManager && (
+        <div className={s.people}>
+          {chore.assigneeIds.length ? (
             <>
-              <button className="btn small ghost" onClick={() => setEditing(true)}>
-                Edit
-              </button>
-              <button className="btn small ghost danger" disabled={busy === 'delete'} onClick={onDelete}>
-                Delete
-              </button>
+              <AvatarStack names={chore.assigneeIds.map((id) => nameById.get(id) ?? 'Someone')} max={4} />
+              <span>{chore.assigneeIds.map((id) => nameById.get(id) ?? 'Someone').join(', ')}</span>
             </>
+          ) : (
+            <span className={s.muted}>{chore.open ? 'Up for grabs' : 'Nobody assigned'}</span>
+          )}
+        </div>
+        <div className={s.actions}>
+          {chore.open && !onIt && can(currentUser, 'work.claim') && (
+            <Button size="sm" icon={<Hand />} loading={action.busy} onClick={() => action.run({ url: `/api/chores/${chore.id}/claim`, label: `Took ${chore.name}` })}>
+              Take it
+            </Button>
+          )}
+          {chore.open && onIt && (
+            <Button size="sm" variant="secondary" loading={action.busy} onClick={() => action.run({ url: `/api/chores/${chore.id}/release`, label: `Stepped off ${chore.name}` })}>
+              Step off
+            </Button>
           )}
         </div>
         {!chore.done && (
-          <TimerControl
-            kind="chore"
-            refId={chore.id}
-            running={timerRunning}
-            startedAt={timerStartedAt}
-            totalSec={timerTotalSec}
-          />
+          <TimerControl kind="chore" refId={chore.id} running={timerRunning} startedAt={timerStartedAt} totalSec={timerTotalSec} />
         )}
-      </div>
+        {action.error && <Banner tone="danger">{action.error}</Banner>}
+      </Card>
 
       {!chore.done && (
-        <>
-          <div className="section-title">Complete</div>
-          <div className="card">
-        <form onSubmit={onComplete}>
-          {chore.steps.length > 0 && (
-            <div className="field">
-              <label>Checklist — tick each step</label>
-              {chore.steps.map((step, i) => (
-                <label className="inline-check" key={i} style={{ marginBottom: 6 }}>
-                  <input
-                    type="checkbox"
-                    checked={checked.has(i)}
-                    onChange={() =>
-                      setChecked((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(i)) next.delete(i);
-                        else next.add(i);
-                        return next;
-                      })
-                    }
-                  />
-                  {step}
+        <Card title="Mark it done">
+          <form onSubmit={onComplete}>
+            <Stack>
+              {chore.steps.length > 0 && (
+                <fieldset className={s.steps}>
+                  <legend className={s.legend}>
+                    Checklist · {checked.size} of {chore.steps.length}
+                  </legend>
+                  {chore.steps.map((step, i) => (
+                    <label className={s.step} key={i}>
+                      <input
+                        type="checkbox"
+                        checked={checked.has(i)}
+                        onChange={() =>
+                          setChecked((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(i)) next.delete(i);
+                            else next.add(i);
+                            return next;
+                          })
+                        }
+                      />
+                      <span>{step}</span>
+                    </label>
+                  ))}
+                </fieldset>
+              )}
+              {chore.requirePhoto && (
+                <label className={s.photo}>
+                  <Camera aria-hidden />
+                  {photo ? photo.name : 'Take or choose a photo (required)'}
+                  <input type="file" accept="image/*" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
                 </label>
-              ))}
-            </div>
-          )}
-          {chore.requirePhoto && (
-            <div className="field">
-              <label>📷 Photo proof (required)</label>
-              <input type="file" accept="image/*" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
-            </div>
-          )}
-          <div className="field">
-            <label>Note (optional)</label>
-            <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </div>
-          <button type="submit" disabled={busy === 'complete'} className="btn primary block">
-            {busy === 'complete' ? 'Saving…' : 'Mark done'}
-          </button>
-        </form>
-        {error && <p className="error-text">{error}</p>}
-        {queuedMsg && <p style={{ color: 'var(--brand)', fontWeight: 600 }}>{queuedMsg}</p>}
-          </div>
-        </>
+              )}
+              <Field label="Note (optional)" htmlFor="chore-note">
+                <Input id="chore-note" value={notes} onChange={(e) => setNotes(e.target.value)} />
+              </Field>
+              {error && <Banner tone="danger">{error}</Banner>}
+              {queuedMsg && <Banner tone="ok">{queuedMsg}</Banner>}
+              <Button type="submit" block loading={completing} disabled={stepsRemaining || (chore.requirePhoto && !photo)}>
+                Mark done
+              </Button>
+            </Stack>
+          </form>
+        </Card>
       )}
 
-      <div className="section-title">
-        History
-        <span className="count-pill">{completions.length}</span>
-      </div>
-      <div className="card">
+      <Card title={<span className={s.histTitle}>History <span className={s.count}>{completions.length}</span></span>} flush>
         {!completions.length ? (
-          <p className="subtle" style={{ margin: 0 }}>
-            Never completed yet.
-          </p>
+          <p className={s.empty}>Never completed yet.</p>
         ) : (
           completions.map((c) => (
-            <div className="hist-row" key={c.id}>
-              <span>
+            <div className={s.hist} key={c.id}>
+              <div className={s.histMain}>
                 <strong>{fmtDate(c.date)}</strong> · {nameById.get(c.completedBy ?? '') ?? 'Unknown'}
-                {c.notes ? ` · ${c.notes}` : ''}
-                {c.photoId && (
-                  <>
-                    {' '}
-                    <a href={`/api/attachments/${c.photoId}`} target="_blank" rel="noopener" className="chip-link">
-                      📷 proof
-                    </a>
-                  </>
-                )}
-              </span>
+                {c.notes && <div className={s.muted}>{c.notes}</div>}
+              </div>
+              {c.photoId && (
+                <a href={`/api/attachments/${c.photoId}`} target="_blank" rel="noopener" className={s.proof} aria-label="View photo proof">
+                  <ImageIcon aria-hidden />
+                </a>
+              )}
               {isManager && (
-                <button className="icon-btn" style={{ color: 'var(--overdue)' }} title="Send back" disabled={busy === 'sendback-' + c.id} onClick={() => onSendBack(c.id)}>
-                  ↩
-                </button>
+                <IconButton label="Send back to redo" onClick={() => onSendBack(c.id)}>
+                  <Undo2 />
+                </IconButton>
               )}
             </div>
           ))
         )}
-      </div>
-    </>
+      </Card>
+    </Stack>
   );
-}
-
-function bucketLabel(b: Bucket): string {
-  if (b === 'overdue') return 'Overdue';
-  if (b === 'today') return 'Due today';
-  if (b === 'upcoming') return 'Coming up';
-  return 'Not due soon';
-}
-function badgeClass(b: Bucket): string {
-  if (b === 'overdue') return 'overdue';
-  if (b === 'today') return 'today';
-  if (b === 'upcoming') return 'upcoming';
-  return 'neutral';
 }

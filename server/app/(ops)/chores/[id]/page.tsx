@@ -7,6 +7,7 @@ import { describeSchedule, isActiveSeason } from '@/lib/domain/recurrence';
 import { bucketForDate } from '@/lib/domain/dashboard';
 import { relativeLabel, todayISO } from '@/lib/domain/dates';
 import { ChoreDetail } from './chore-detail';
+import s from './chore-page.module.css';
 
 export default async function ChoreDetailPage({ params }: { params: { id: string } }) {
   const user = await getSessionUser();
@@ -24,7 +25,7 @@ export default async function ChoreDetailPage({ params }: { params: { id: string
   ]);
 
   return (
-    <main className="view">
+    <main className={s.wrap}>
       <ChoreDetail
         chore={chore}
         completions={completions}
