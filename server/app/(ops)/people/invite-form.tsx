@@ -1,7 +1,10 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { UserPlus } from 'lucide-react';
 import { ASSIGNABLE_ROLES, ROLE_BLURB, ROLE_LABEL, audienceOf, isRole } from '@/lib/domain/permissions';
+import { Banner, Button, Card, Field, Input, Select, Stack } from '@/components/ui';
+import { InviteLink } from './person-row';
 
 export function InviteForm() {
   const router = useRouter();
@@ -9,96 +12,49 @@ export function InviteForm() {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('worker');
   const [error, setError] = useState<string | null>(null);
-  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
-  const [emailed, setEmailed] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [result, setResult] = useState<{ url: string; emailed: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setLoading(true);
+    setBusy(true);
     setError(null);
-    setInviteUrl(null);
-    setCopied(false);
-    const res = await fetch('/api/admin/users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, role }),
-    });
+    setResult(null);
+    const res = await fetch('/api/admin/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, role }) });
     const data = await res.json().catch(() => ({}));
-    setLoading(false);
-    if (!res.ok) {
-      setError(data.error || 'Something went wrong.');
-      return;
-    }
-    setInviteUrl(data.inviteUrl);
-    setEmailed(!!data.emailed);
+    setBusy(false);
+    if (!res.ok) return setError(data.error || 'Something went wrong.');
+    setResult({ url: data.inviteUrl, emailed: !!data.emailed });
     setName('');
     setEmail('');
     router.refresh();
   }
 
   return (
-    <div className="card">
+    <Card title="Invite someone">
       <form onSubmit={onSubmit}>
-        <div className="field">
-          <label>Name</label>
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
-        </div>
-        <div className="field">
-          <label>Email</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </div>
-        <div className="field">
-          <label>Role</label>
-          <select value={role} onChange={(e) => setRole(e.target.value)}>
-            {ASSIGNABLE_ROLES.map((r) => (
-              <option key={r} value={r}>{ROLE_LABEL[r]}</option>
-            ))}
-          </select>
-          {isRole(role) && (
-            <p className="subtle" style={{ marginTop: 6 }}>
-              {ROLE_BLURB[role]}
-              {audienceOf(role) === 'guest' ? ' After inviting, set when their access ends under Access.' : ''}
-            </p>
+        <Stack>
+          <Field label="Name" htmlFor="inv-name"><Input id="inv-name" value={name} onChange={(e) => setName(e.target.value)} required /></Field>
+          <Field label="Email" htmlFor="inv-email"><Input id="inv-email" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></Field>
+          <Field
+            label="Role"
+            htmlFor="inv-role"
+            hint={isRole(role) ? `${ROLE_BLURB[role]}${audienceOf(role) === 'guest' ? ' After inviting, set when their access ends under Access.' : ''}` : undefined}
+          >
+            <Select id="inv-role" value={role} onChange={(e) => setRole(e.target.value)}>
+              {ASSIGNABLE_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+            </Select>
+          </Field>
+          {error && <Banner tone="danger">{error}</Banner>}
+          <Button type="submit" block icon={<UserPlus />} loading={busy}>Add & invite</Button>
+          {result && (
+            <Banner tone={result.emailed ? 'ok' : 'info'} title={result.emailed ? 'Invite emailed' : 'Invite link'}>
+              {result.emailed ? 'They’ll get a link to set their password. Here it is too, if you’d rather send it yourself:' : 'Email isn’t set up (or the send failed), so send them this link:'}
+              <InviteLink url={result.url} />
+            </Banner>
           )}
-        </div>
-        {error && <p className="error-text">{error}</p>}
-        <button type="submit" disabled={loading} className="btn primary block">
-          {loading ? 'Adding…' : '+ Add & invite'}
-        </button>
+        </Stack>
       </form>
-
-      {inviteUrl && (
-        <div className="notice" style={{ marginTop: 12 }}>
-          {emailed ? (
-            <>
-              <strong>✅ Invite emailed.</strong> They&apos;ll get a link to set their password. Here it is too, in case
-              you&apos;d rather send it yourself:
-            </>
-          ) : (
-            <>
-              <strong>Invite link</strong> — email isn&apos;t configured (or the send failed), so copy this and send it
-              to them:
-            </>
-          )}
-          <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
-            <code style={{ wordBreak: 'break-all', flex: 1 }}>{inviteUrl}</code>
-            <button
-              type="button"
-              className="btn small"
-              onClick={() => {
-                navigator.clipboard?.writeText(inviteUrl).then(
-                  () => setCopied(true),
-                  () => setCopied(false),
-                );
-              }}
-            >
-              {copied ? 'Copied' : 'Copy'}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+    </Card>
   );
 }

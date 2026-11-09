@@ -1,16 +1,19 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Copy, Eye, Mail, Power, Trash2 } from 'lucide-react';
 import type { PersonRow as Person } from '@/lib/data/users';
 import { ASSIGNABLE_ROLES, ROLE_LABEL } from '@/lib/domain/permissions';
-import { AccessPanel } from './access-panel';
+import { Banner, Button, Select, StatusPill } from '@/components/ui';
 import { useDialogs } from '@/components/ui/dialogs';
+import { AccessPanel } from './access-panel';
+import s from './people.module.css';
 
 /**
- * Admin controls for one person: change role, resend a pending invite, or
- * remove them. The server refuses to demote/remove the last admin and to
- * remove your own account, so those cases surface as errors rather than
- * being hidden here.
+ * Admin controls for one person: role, preview, resend a pending invite,
+ * deactivate / reactivate, delete, and their access. The server refuses to
+ * demote/remove the last admin and to remove your own account, so those
+ * cases surface as errors rather than being hidden here.
  */
 export function PersonRow({ person, isSelf }: { person: Person; isSelf: boolean }) {
   const { confirm: askConfirm } = useDialogs();
@@ -20,194 +23,131 @@ export function PersonRow({ person, isSelf }: { person: Person; isSelf: boolean 
   const [resent, setResent] = useState<{ emailed: boolean; url: string } | null>(null);
   const [needsForce, setNeedsForce] = useState(false);
 
-  async function onRole(role: string) {
-    setBusy('role');
+  async function call(key: string, url: string, method: string, body?: unknown): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
+    setBusy(key);
     setError(null);
-    const res = await fetch(`/api/admin/users/${person.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role }),
-    });
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body !== undefined ? JSON.stringify(body) : undefined });
+    const data = await res.json().catch(() => ({}));
     setBusy(null);
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error || 'Could not change role.');
-      return;
-    }
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  async function onRole(role: string) {
+    const r = await call('role', `/api/admin/users/${person.id}`, 'PATCH', { role });
+    if (!r.ok) return setError(String(r.data.error || 'Could not change role.'));
     router.refresh();
   }
 
   async function onPreview() {
-    setBusy('preview');
-    setError(null);
-    const res = await fetch('/api/preview/start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: person.id }),
-    });
-    if (!res.ok) {
-      setBusy(null);
-      setError((await res.json().catch(() => ({}))).error || 'Could not start the preview.');
-      return;
-    }
+    const r = await call('preview', '/api/preview/start', 'POST', { userId: person.id });
+    if (!r.ok) return setError(String(r.data.error || 'Could not start the preview.'));
     window.location.href = '/'; // full load, so every screen picks up their view
   }
 
   async function onResend() {
-    setBusy('resend');
-    setError(null);
     setResent(null);
-    const res = await fetch(`/api/admin/users/${person.id}/invite`, { method: 'POST' });
-    const data = await res.json().catch(() => ({}));
-    setBusy(null);
-    if (!res.ok) {
-      setError(data.error || 'Could not resend the invite.');
-      return;
-    }
-    setResent({ emailed: !!data.emailed, url: data.inviteUrl });
+    const r = await call('resend', `/api/admin/users/${person.id}/invite`, 'POST');
+    if (!r.ok) return setError(String(r.data.error || 'Could not resend the invite.'));
+    setResent({ emailed: !!r.data.emailed, url: String(r.data.inviteUrl) });
   }
 
   async function onSetActive(active: boolean) {
-    if (
-      !active &&
-      !await askConfirm(
-        `Deactivate ${person.name}? They'll be signed out and can't log in, but all their history is kept. You can turn them back on any time.`,
-      )
-    ) {
-      return;
-    }
-    setBusy('active');
-    setError(null);
-    const res = await fetch(`/api/admin/users/${person.id}/active`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ active }),
-    });
-    setBusy(null);
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error || 'Could not update this account.');
-      return;
-    }
+    if (!active && !(await askConfirm(`Deactivate ${person.name}? They'll be signed out and can't log in, but all their history is kept. You can turn them back on any time.`))) return;
+    const r = await call('active', `/api/admin/users/${person.id}/active`, 'PATCH', { active });
+    if (!r.ok) return setError(String(r.data.error || 'Could not update this account.'));
     router.refresh();
   }
 
   async function onRemove(force = false) {
-    if (!force && !await askConfirm(`Remove ${person.name}? They immediately lose access to the farm.`)) return;
-    setBusy('remove');
-    setError(null);
-    const res = await fetch(`/api/admin/users/${person.id}${force ? '?force=1' : ''}`, { method: 'DELETE' });
-    const data = await res.json().catch(() => ({}));
-    setBusy(null);
-    if (res.status === 409) {
+    if (!force && !(await askConfirm(`Remove ${person.name}? They immediately lose access to the farm.`))) return;
+    const r = await call('remove', `/api/admin/users/${person.id}${force ? '?force=1' : ''}`, 'DELETE');
+    if (r.status === 409) {
       // Removal would destroy rent/time records — surface exactly what's lost.
-      setError(data.error || 'Removing this person would delete some records.');
-      setNeedsForce(true);
-      return;
+      setError(String(r.data.error || 'Removing this person would delete some records.'));
+      return setNeedsForce(true);
     }
-    if (!res.ok) {
-      setError(data.error || 'Could not remove this person.');
-      return;
-    }
+    if (!r.ok) return setError(String(r.data.error || 'Could not remove this person.'));
     router.refresh();
   }
 
   return (
-    <div className="card" style={person.active ? undefined : { opacity: 0.72 }}>
-      <div className="item">
-        <span className="who-avatar sm">{(person.name || '?').charAt(0)}</span>
-        <div className="item-main">
-          <p className="item-title">
+    <article className={`${s.person} ${person.active ? '' : s.inactive}`}>
+      <div className={s.head}>
+        <span className={s.avatar} aria-hidden>{(person.name || '?').charAt(0)}</span>
+        <div className={s.main}>
+          <div className={s.name}>
             {person.name}
-            {isSelf && <span className="chip" style={{ marginLeft: 8 }}>you</span>}
-          </p>
-          <p className="item-sub">{person.email}</p>
+            {isSelf && <span className={s.you}>you</span>}
+          </div>
+          <div className={s.email}>{person.email}</div>
         </div>
-        {!person.active ? (
-          <span className="badge neutral">deactivated</span>
-        ) : (
-          person.pending && <span className="badge today">invite pending</span>
-        )}
+        {!person.active ? <StatusPill tone="neutral">Deactivated</StatusPill> : person.pending && <StatusPill tone="today">Invite pending</StatusPill>}
       </div>
 
-      <div className="row-actions" style={{ marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <select
+      <div className={s.controls}>
+        <Select
           value={person.role}
           disabled={busy !== null || !person.active}
           onChange={(e) => onRole(e.target.value)}
           aria-label={`Role for ${person.name}`}
-          style={{ maxWidth: 140 }}
+          className={s.roleSelect}
         >
           {(ASSIGNABLE_ROLES.includes(person.role) ? ASSIGNABLE_ROLES : [...ASSIGNABLE_ROLES, person.role]).map((r) => (
             <option key={r} value={r}>{ROLE_LABEL[r]}</option>
           ))}
-        </select>
+        </Select>
         {!isSelf && person.active && (
-          <button className="btn small ghost" disabled={busy !== null} onClick={onPreview} title="See the app as they do, read-only, for up to an hour">
-            {busy === 'preview' ? 'Opening…' : '👁 Preview as'}
-          </button>
+          <Button size="sm" variant="ghost" icon={<Eye />} loading={busy === 'preview'} disabled={busy !== null} onClick={onPreview} title="See the app as they do, read-only, for up to an hour">
+            Preview as
+          </Button>
         )}
         {person.active && person.pending && (
-          <button className="btn small ghost" disabled={busy !== null} onClick={onResend}>
-            {busy === 'resend' ? 'Sending…' : '✉️ Resend invite'}
-          </button>
+          <Button size="sm" variant="ghost" icon={<Mail />} loading={busy === 'resend'} disabled={busy !== null} onClick={onResend}>Resend invite</Button>
         )}
         {!isSelf &&
           (person.active ? (
-            <button className="btn small ghost" disabled={busy !== null} onClick={() => onSetActive(false)}>
-              {busy === 'active' ? 'Working…' : 'Deactivate'}
-            </button>
+            <Button size="sm" variant="ghost" icon={<Power />} loading={busy === 'active'} disabled={busy !== null} onClick={() => onSetActive(false)}>Deactivate</Button>
           ) : (
-            <button className="btn small primary" disabled={busy !== null} onClick={() => onSetActive(true)}>
-              {busy === 'active' ? 'Working…' : 'Reactivate'}
-            </button>
+            <Button size="sm" icon={<Power />} loading={busy === 'active'} disabled={busy !== null} onClick={() => onSetActive(true)}>Reactivate</Button>
           ))}
         {!isSelf && !person.active && (
-          <button className="btn small ghost danger" disabled={busy !== null} onClick={() => onRemove(false)}>
-            Delete permanently
-          </button>
+          <Button size="sm" variant="ghost" icon={<Trash2 />} loading={busy === 'remove' && !needsForce} disabled={busy !== null} onClick={() => onRemove(false)}>Delete permanently</Button>
         )}
       </div>
 
-      <AccessPanel person={person} isSelf={isSelf} />
-
       {needsForce && (
-        <div className="notice" style={{ marginTop: 10 }}>
-          <div className="row-actions" style={{ flexWrap: 'wrap' }}>
-            <button className="btn small ghost danger" disabled={busy !== null} onClick={() => onRemove(true)}>
-              {busy === 'remove' ? 'Removing…' : 'Delete anyway'}
-            </button>
-            <button
-              className="btn small ghost"
-              disabled={busy !== null}
-              onClick={() => {
-                setNeedsForce(false);
-                setError(null);
-              }}
-            >
-              Keep them
-            </button>
-          </div>
+        <div className={s.controls}>
+          <Button size="sm" variant="danger" loading={busy === 'remove'} disabled={busy !== null} onClick={() => onRemove(true)}>Delete anyway</Button>
+          <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => { setNeedsForce(false); setError(null); }}>Keep them</Button>
         </div>
       )}
 
       {resent && (
-        <div className="notice" style={{ marginTop: 10 }}>
-          {resent.emailed ? (
-            <>
-              <strong>✅ Invite resent</strong> to {person.email}.
-            </>
-          ) : (
-            <>
-              <strong>New invite link</strong> — email isn&apos;t configured, so send this along:
-              <div style={{ marginTop: 6 }}>
-                <code style={{ wordBreak: 'break-all' }}>{resent.url}</code>
-              </div>
-            </>
-          )}
-        </div>
+        <Banner tone={resent.emailed ? 'ok' : 'info'} title={resent.emailed ? 'Invite resent' : 'New invite link'}>
+          {resent.emailed ? `Sent to ${person.email}.` : 'Email isn’t set up, so send this link yourself:'}
+          {!resent.emailed && <InviteLink url={resent.url} />}
+        </Banner>
       )}
-      {error && <p className="error-text">{error}</p>}
-    </div>
+      {error && <Banner tone="danger">{error}</Banner>}
+
+      <AccessPanel person={person} isSelf={isSelf} />
+    </article>
+  );
+}
+
+export function InviteLink({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <span className={s.link}>
+      <code>{url}</code>
+      <Button
+        size="sm"
+        variant="secondary"
+        icon={<Copy />}
+        onClick={() => navigator.clipboard?.writeText(url).then(() => setCopied(true), () => setCopied(false))}
+      >
+        {copied ? 'Copied' : 'Copy'}
+      </Button>
+    </span>
   );
 }
