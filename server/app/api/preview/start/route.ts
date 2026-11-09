@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       path: '/',
       maxAge: Math.floor(PREVIEW_MS / 1000),
     });
-    await logActivity(real.id, `started previewing the app as ${target.name}`);
+    await logActivity(real.id, `started previewing the app as ${target.name}`, { audience: 'system.admin' });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return errorResponse(e);

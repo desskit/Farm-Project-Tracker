@@ -444,6 +444,10 @@ export const activity = sqliteTable('activity', {
   ts: integer('ts').notNull().default(now),
   userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
   text: text('text').notNull(),
+  /** Capability needed to see this entry (null = anyone on the farm). */
+  audience: text('audience'),
+  /** Where the entry links to, e.g. /chores/abc. */
+  href: text('href'),
 }, (t) => ({
   tsIdx: index('activity_ts_idx').on(t.ts),
 }));

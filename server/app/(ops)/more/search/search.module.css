@@ -1,0 +1,3 @@
+.search { position: relative; display: block; }
+.search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--c-text-muted); pointer-events: none; }
+.search input { padding-left: 38px; }

@@ -1,0 +1,9 @@
+.dowRow { margin-bottom: 6px; }
+.day { margin-top: var(--space-4); border-top: 1px solid var(--c-border); padding-top: var(--space-3); }
+.dayTitle { margin: 0 0 var(--space-2); font-size: var(--text-md); display: flex; align-items: center; gap: var(--space-2); }
+.count { font-size: var(--text-xs); color: var(--c-text-muted); background: var(--c-surface-2); border-radius: var(--r-pill); padding: 1px 8px; }
+.muted { margin: 0; color: var(--c-text-muted); font-size: var(--text-sm); }
+.item { display: flex; align-items: center; gap: var(--space-3); min-height: 48px; color: inherit; text-decoration: none; }
+.item + .item { border-top: 1px solid var(--c-border); }
+.dot { display: inline-block; flex: none; }
+.itemTitle { flex: 1; min-width: 0; }

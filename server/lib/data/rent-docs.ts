@@ -105,7 +105,7 @@ export async function addRentDoc(
   });
   // Deliberately vague: the activity feed is farm-wide, and which paperwork a
   // renter filed isn't everyone's business.
-  await logActivity(user.id, 'filed a rental document');
+  await logActivity(user.id, 'filed a rental document', { audience: 'finance.view', href: '/more/rent' });
   publishChange('rent');
 }
 

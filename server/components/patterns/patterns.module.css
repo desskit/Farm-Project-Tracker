@@ -30,3 +30,28 @@
 .dropzone svg { width: 18px; height: 18px; }
 .dropzone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .docFields { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3); }
+.screen { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--gutter) calc(var(--nav-h) + var(--space-8)); display: grid; gap: var(--space-4); align-content: start; }
+.screenWide { max-width: 1040px; }
+.backLink { display: grid; place-items: center; width: var(--tap); height: var(--tap); color: var(--c-text); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3); }
+.tile { display: grid; gap: 2px; padding: var(--space-3) var(--space-4); background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-lg); color: var(--c-text); text-decoration: none; }
+.tileVal { font-size: var(--text-xl); font-weight: 800; }
+.tileLbl { color: var(--c-text-muted); font-size: var(--text-sm); }
+.tileBad .tileVal { color: var(--c-danger); }
+.tileWarn .tileVal { color: var(--c-warn); }
+.tileGood .tileVal { color: var(--c-ok); }
+.rowsMeta { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; white-space: normal; }
+.center { text-align: center; display: grid; justify-items: center; gap: var(--space-3); padding-top: var(--space-10); }
+.chipsNav { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 var(--space-3);
+  border-radius: var(--r-pill); border: 1px solid var(--c-border-strong); background: var(--c-surface);
+  color: var(--c-text); text-decoration: none; font-weight: 600; font-size: var(--text-sm);
+}
+.chipOn { background: var(--c-primary); border-color: var(--c-primary); color: var(--c-on-primary); }
+.chipN { font-size: var(--text-xs); opacity: .75; }
+.kv { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); min-height: 48px; }
+.kv + .kv { border-top: 1px solid var(--c-border); }
+.kvLabel { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: var(--space-2); }
+.kvLabel svg { width: 16px; height: 16px; color: var(--c-text-muted); flex: none; }
+.big { font-size: var(--text-2xl); font-weight: 800; }

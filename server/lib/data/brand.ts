@@ -27,6 +27,6 @@ export async function setBrand(user: SessionUser, brand: unknown): Promise<Brand
   if (!can(user, 'system.admin')) throw new DataError('Only an admin can change the brand.', 403);
   if (!isBrandId(brand)) throw new DataError('Unknown brand.', 400);
   await setSetting(BRAND_SETTING_KEY, brand);
-  await logActivity(user.id, `switched the app brand to ${brand}`);
+  await logActivity(user.id, `switched the app brand to ${brand}`, { audience: 'system.admin' });
   return brand;
 }

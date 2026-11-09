@@ -3,6 +3,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { fmtDate } from '@/lib/domain/dates';
 import type { CalendarItem, CalendarKind } from '@/lib/data/calendar';
+import s from './calendar.module.css';
 
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const KIND_LABEL: Record<CalendarKind, string> = { chore: 'Chore', maintenance: 'Upkeep', task: 'Task', rent: 'Rent' };
@@ -36,7 +37,7 @@ export function CalendarView({
 
   return (
     <>
-      <div className="cal-grid" style={{ marginBottom: 6 }}>
+      <div className={`cal-grid ${s.dowRow}`}>
         {DOW.map((d, i) => (
           <div className="cal-dow" key={i}>
             {d}
@@ -68,23 +69,16 @@ export function CalendarView({
       </div>
 
       {selected && (
-        <div style={{ marginTop: 14 }}>
-          <div className="section-title" style={{ marginTop: 0 }}>
-            {fmtDate(selected)}
-            <span className="count-pill">{selectedItems.length}</span>
-          </div>
+        <div className={s.day}>
+          <h3 className={s.dayTitle}>{fmtDate(selected)} <span className={s.count}>{selectedItems.length}</span></h3>
           {selectedItems.length === 0 ? (
-            <p className="subtle" style={{ margin: 0 }}>
-              Nothing scheduled.
-            </p>
+            <p className={s.muted}>Nothing scheduled.</p>
           ) : (
             selectedItems.map((it) => (
-              <Link href={it.href} key={`${it.kind}-${it.id}`} className="hist-row" style={{ textDecoration: 'none', color: 'inherit' }}>
-                <span>
-                  <span className={`cal-dot ${it.kind}`} style={{ display: 'inline-block', marginRight: 8 }} />
-                  {it.title}
-                </span>
-                <span className="subtle">{KIND_LABEL[it.kind]}</span>
+              <Link href={it.href} key={`${it.kind}-${it.id}`} className={s.item}>
+                <span className={`cal-dot ${it.kind} ${s.dot}`} />
+                <span className={s.itemTitle}>{it.title}</span>
+                <span className={s.muted}>{KIND_LABEL[it.kind]}</span>
               </Link>
             ))
           )}

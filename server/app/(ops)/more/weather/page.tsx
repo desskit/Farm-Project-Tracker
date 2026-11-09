@@ -1,4 +1,7 @@
-import Link from 'next/link';
+import { CloudSun } from 'lucide-react';
+import { Card, EmptyState } from '@/components/ui';
+import { Screen } from '@/components/patterns/screen';
+import t from '../time/time.module.css';
 import { getSessionUser } from '@/lib/auth/session';
 import { getWeather, dayFire, weatherEmoji } from '@/lib/data/weather';
 import { WeatherControls } from './weather-controls';
@@ -21,21 +24,14 @@ export default async function WeatherPage() {
   const ago = w.fetchedAt ? Math.round((Date.now() - w.fetchedAt) / 3600000) : null;
 
   return (
-    <main className="view">
-      <div className="sub-head">
-        <Link href="/more" className="btn small ghost back-btn">
-          ‹ More
-        </Link>
-        <h1>Weather</h1>
-      </div>
+    <Screen title="Weather" subtitle="7-day forecast and estimated fire danger" back="/more">
 
       {!w.lat || !w.forecast ? (
-        <div className="card">
-          <p className="item-title">🌤️ Weather</p>
-          <p className="subtle">
-            {isManager ? 'Set your farm location for a 7-day forecast.' : 'A manager needs to set the farm location.'}
-          </p>
-        </div>
+        <Card>
+          <EmptyState icon={<CloudSun />} title="No forecast yet">
+            {isManager ? 'Set your farm location below for a 7-day forecast.' : 'A manager needs to set the farm location.'}
+          </EmptyState>
+        </Card>
       ) : (
         <div className="card wx-card">
           <div className="wx-head">
@@ -72,9 +68,7 @@ export default async function WeatherPage() {
               </span>
             </div>
           )}
-          <p className="subtle" style={{ marginTop: 6 }}>
-            {ago != null ? `Updated ${ago === 0 ? 'just now' : `${ago}h ago`}` : ''}
-          </p>
+          <p className={t.muted}>{ago != null ? `Updated ${ago === 0 ? 'just now' : `${ago}h ago`}` : ''}</p>
         </div>
       )}
 
@@ -84,10 +78,10 @@ export default async function WeatherPage() {
         current={{ lat: w.lat, lon: w.lon, label: w.label }}
       />
 
-      <p className="subtle" style={{ marginTop: 12 }}>
+      <p className={t.muted}>
         Fire danger is an estimate from temperature, humidity, and wind — not an official warning. Check local
         authorities for red-flag warnings and burn bans.
       </p>
-    </main>
+    </Screen>
   );
 }

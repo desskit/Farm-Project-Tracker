@@ -8,7 +8,7 @@ import { errorResponse } from '@/lib/api/errors';
 export async function POST() {
   try {
     const admin = await requireAdmin();
-    await logActivity(admin.id, 'viewed the vault recovery key');
+    await logActivity(admin.id, 'viewed the vault recovery key', { audience: 'system.admin' });
     return NextResponse.json(
       { key: exportKey(), fingerprint: keyFingerprint(), file: process.env.VAULT_KEY ? null : keyFilePath() },
       { headers: { 'Cache-Control': 'no-store' } },

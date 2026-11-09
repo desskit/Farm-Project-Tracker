@@ -87,7 +87,7 @@ export async function createRequest(
     urgent: !!data.urgent,
     photoId: data.photoId || null,
   });
-  await logActivity(user.id, `sent a maintenance request: "${title}"`);
+  await logActivity(user.id, `sent a maintenance request: "${title}"`, { audience: 'requests.manage', href: `/requests/${id}` });
   const managers = (await recipientsWith('requests.manage')).map((m) => m.id);
   await pushRequest(user.id, managers, {
     title: data.urgent ? 'Urgent request' : 'New request',

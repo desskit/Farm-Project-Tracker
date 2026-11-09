@@ -87,7 +87,7 @@ export async function adjustStock(user: SessionUser, id: string, delta: number, 
   const qty = it.qty + d;
   await db.update(inventory).set({ qty }).where(eq(inventory.id, id));
   await db.insert(inventoryLog).values({ id: uid('il'), itemId: id, delta: d, reason: reason || '', userId: user.id, date: todayISO() });
-  await logActivity(user.id, `${d > 0 ? 'restocked' : 'used'} ${Math.abs(d)} ${it.unit} of ${it.name}`);
+  await logActivity(user.id, `${d > 0 ? 'restocked' : 'used'} ${Math.abs(d)} ${it.unit} of ${it.name}`, { href: `/more/supplies/${id}` });
   // Only on the adjustment that crosses the line, so a shelf that sits low
   // doesn't nag on every draw.
   if (qty <= it.reorderAt && it.qty > it.reorderAt) {

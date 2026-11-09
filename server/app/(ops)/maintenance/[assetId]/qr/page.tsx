@@ -5,6 +5,7 @@ import { getSessionUser } from '@/lib/auth/session';
 import { assetById } from '@/lib/data/maintenance';
 import { qrSvg } from '@/lib/qr';
 import { PrintButton } from './print-button';
+import q from './qr.module.css';
 
 export default async function AssetQrPage({ params }: { params: { assetId: string } }) {
   const user = await getSessionUser();
@@ -31,18 +32,16 @@ export default async function AssetQrPage({ params }: { params: { assetId: strin
 
       <div className="card qr-card">
         <p className="qr-name">{asset.name}</p>
-        <p className="subtle" style={{ marginTop: 0 }}>
-          {asset.category}
-        </p>
+        <p className={q.muted}>{asset.category}</p>
         {/* SVG comes from our own server-side generator, not user input. */}
         <div className="qr-img" dangerouslySetInnerHTML={{ __html: svg }} />
         <p className="qr-url">{url}</p>
-        <p className="subtle no-print" style={{ marginBottom: 0 }}>
+        <p className={`no-print ${q.muted}`}>
           Print this and stick it on the equipment — scanning it opens this asset&apos;s upkeep page.
         </p>
       </div>
 
-      <div className="no-print" style={{ marginTop: 12 }}>
+      <div className={`no-print ${q.print}`}>
         <PrintButton />
       </div>
     </main>

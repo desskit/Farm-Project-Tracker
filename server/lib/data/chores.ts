@@ -86,7 +86,7 @@ export async function addChore(user: SessionUser, data: ChoreInput): Promise<Cho
     steps: Array.isArray(data.steps) ? data.steps.filter(Boolean) : [],
   });
   await setChoreAssignees(id, data.assigneeIds ?? []);
-  await logActivity(user.id, `added chore "${data.name.trim()}"`);
+  await logActivity(user.id, `added chore "${data.name.trim()}"`, { href: `/chores/${id}` });
   await pushAssigned(user.id, data.assigneeIds ?? [], 'chore', data.name.trim(), `/chores/${id}`);
   return (await choreById(id))!;
 }
@@ -188,7 +188,7 @@ export async function completeChore(
     db.update(chores).set(advance).where(eq(chores.id, id)),
   ]);
   await stopTimersFor('chore', id); // completing the work stops any running clock
-  await logActivity(user.id, `completed chore "${chore.name}"`);
+  await logActivity(user.id, `completed chore "${chore.name}"`, { href: `/chores/${id}` });
 }
 
 export async function claimChore(user: SessionUser, id: string): Promise<void> {
@@ -234,7 +234,7 @@ export async function sendBackChoreCompletion(user: SessionUser, completionId: s
     const patch: Partial<typeof chores.$inferInsert> = { sentBack, done: false };
     if (chore.nextDue > today) patch.nextDue = today;
     await db.update(chores).set(patch).where(eq(chores.id, chore.id));
-    await logActivity(user.id, `sent back chore "${chore.name}"`);
+    await logActivity(user.id, `sent back chore "${chore.name}"`, { href: `/chores/${chore.id}` });
     await pushSentBack(user.id, comp.completedBy, chore.name, `/chores/${chore.id}`, reason);
   }
 }

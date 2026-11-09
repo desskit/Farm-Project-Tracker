@@ -1,4 +1,5 @@
 'use client';
+import w from './weather.module.css';
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -70,8 +71,8 @@ export function WeatherControls({
   }
 
   return (
-    <div style={{ marginTop: 12 }}>
-      <div className="row-actions" style={{ flexWrap: 'wrap' }}>
+    <div className={w.wrap}>
+      <div className={w.row}>
         {hasLocation && (
           <button className="btn small" disabled={busy} onClick={refresh}>
             {busy ? 'Refreshing…' : '↻ Refresh forecast'}
@@ -86,11 +87,11 @@ export function WeatherControls({
       {error && <p className="error-text">{error}</p>}
 
       {open && isManager && (
-        <div className="card" style={{ marginTop: 10 }}>
+        <div className={`card ${w.card}`}>
           <div className="notice">
             Used only to fetch your local forecast from open-meteo.com (no API key, no account).
           </div>
-          <button type="button" className="btn block" style={{ marginBottom: 10 }} onClick={useMyLocation}>
+          <button type="button" className={`btn block ${w.locate}`} onClick={useMyLocation}>
             📍 Use my current location
           </button>
           <form onSubmit={saveLocation}>

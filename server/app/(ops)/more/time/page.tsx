@@ -1,4 +1,9 @@
-import Link from 'next/link';
+import { ListChecks, Repeat, Timer, Wrench } from 'lucide-react';
+import { Card, EmptyState } from '@/components/ui';
+import { Screen } from '@/components/patterns/screen';
+import { FilterChips } from '@/components/patterns/filter-chips';
+import s from '@/components/patterns/patterns.module.css';
+import t from './time.module.css';
 import { getSessionUser } from '@/lib/auth/session';
 import { timeReport } from '@/lib/data/time-report';
 import { fmtDur, todayISO, addDays } from '@/lib/domain/dates';
@@ -11,7 +16,7 @@ const PERIODS: { key: Period; label: string; days: number | null }[] = [
   { key: 'all', label: 'All time', days: null },
 ];
 
-const KIND_ICON: Record<string, string> = { chore: '🔁', task: '☑️', maintenance: '🔧' };
+const KIND_ICON: Record<string, React.ReactNode> = { chore: <Repeat />, task: <ListChecks />, maintenance: <Wrench /> };
 
 export default async function TimeReportPage({ searchParams }: { searchParams: { period?: string } }) {
   const user = await getSessionUser();
@@ -26,63 +31,33 @@ export default async function TimeReportPage({ searchParams }: { searchParams: {
   const report = await timeReport(from, today, isManager ? undefined : user.id);
 
   return (
-    <main className="view">
-      <div className="sub-head">
-        <Link href="/more" className="btn small ghost back-btn">
-          ‹ More
-        </Link>
-        <h1>{isManager ? 'Time report' : 'My hours'}</h1>
-      </div>
-
-      <div className="segmented">
-        {PERIODS.map((p) => (
-          <Link key={p.key} href={`/more/time?period=${p.key}`} className={period === p.key ? 'active' : ''}>
-            {p.label}
-          </Link>
-        ))}
-      </div>
-
-      <div className="card champ" style={{ marginTop: 12 }}>
-        <span className="champ-emoji">⏱</span>
-        <div>
-          <p className="champ-name">{fmtDur(report.totalSeconds)}</p>
-          <p className="subtle" style={{ margin: 0 }}>
-            total logged · {def.label.toLowerCase()}
-          </p>
-        </div>
-      </div>
-
+    <Screen title={isManager ? 'Time report' : 'My hours'} back="/more">
+      <FilterChips label="Period" items={PERIODS.map((p) => ({ href: `/more/time?period=${p.key}`, label: p.label, on: period === p.key }))} />
+      <Card>
+        <span className={s.big}>{fmtDur(report.totalSeconds)}</span>
+        <p className={t.muted}>total logged · {def.label.toLowerCase()}</p>
+      </Card>
       {report.totalSeconds === 0 ? (
-        <div className="empty">No time logged in this period. Start a timer on a chore, task, or upkeep item.</div>
+        <Card><EmptyState icon={<Timer />} title="No time logged">Start a timer on a chore, task or upkeep item.</EmptyState></Card>
       ) : (
         <>
           {isManager && (
-            <>
-              <div className="section-title">By person</div>
-              <div className="card">
-                {report.byPerson.map((p) => (
-                  <div className="hist-row" key={p.userId}>
-                    <span>{p.name}</span>
-                    <strong>{fmtDur(p.seconds)}</strong>
-                  </div>
-                ))}
-              </div>
-            </>
+            <Card title="By person" flush>
+              {report.byPerson.map((p) => (
+                <div className={s.kv} key={p.userId}><span className={s.kvLabel}>{p.name}</span><strong>{fmtDur(p.seconds)}</strong></div>
+              ))}
+            </Card>
           )}
-
-          <div className="section-title">By item</div>
-          <div className="card">
+          <Card title="By item" flush>
             {report.byItem.map((it) => (
-              <div className="hist-row" key={`${it.kind}-${it.refId}`}>
-                <span>
-                  {KIND_ICON[it.kind] ?? '•'} {it.label}
-                </span>
+              <div className={s.kv} key={`${it.kind}-${it.refId}`}>
+                <span className={s.kvLabel}>{KIND_ICON[it.kind]}{it.label}</span>
                 <strong>{fmtDur(it.seconds)}</strong>
               </div>
             ))}
-          </div>
+          </Card>
         </>
       )}
-    </main>
+    </Screen>
   );
 }

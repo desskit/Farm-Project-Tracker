@@ -1,4 +1,6 @@
-import Link from 'next/link';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ButtonLink, Card } from '@/components/ui';
+import { Screen } from '@/components/patterns/screen';
 import { getSessionUser } from '@/lib/auth/session';
 import { calendarItems, type CalendarItem } from '@/lib/data/calendar';
 import { currentMonthKey, shiftMonthKey, monthLabel, todayISO } from '@/lib/domain/dates';
@@ -27,26 +29,15 @@ export default async function CalendarPage({ searchParams }: { searchParams: { m
   for (const it of items) (byDate[it.date] ??= []).push(it);
 
   return (
-    <main className="view">
-      <div className="sub-head">
-        <Link href="/more" className="btn small ghost back-btn">
-          ‹ More
-        </Link>
-        <h1>Calendar</h1>
-      </div>
-
-      <div className="card">
+    <Screen title="Calendar" subtitle="What's due, day by day" back="/more">
+      <Card>
         <div className="cal-nav">
-          <Link href={`/more/calendar?m=${shiftMonthKey(mk, -1)}`} className="btn small ghost" aria-label="Previous month">
-            ‹
-          </Link>
+          <ButtonLink href={`/more/calendar?m=${shiftMonthKey(mk, -1)}`} size="sm" variant="ghost" aria-label="Previous month"><ChevronLeft /></ButtonLink>
           <strong>{monthLabel(mk)}</strong>
-          <Link href={`/more/calendar?m=${shiftMonthKey(mk, 1)}`} className="btn small ghost" aria-label="Next month">
-            ›
-          </Link>
+          <ButtonLink href={`/more/calendar?m=${shiftMonthKey(mk, 1)}`} size="sm" variant="ghost" aria-label="Next month"><ChevronRight /></ButtonLink>
         </div>
         <CalendarView monthKey={mk} itemsByDate={byDate} today={todayISO()} />
-      </div>
-    </main>
+      </Card>
+    </Screen>
   );
 }

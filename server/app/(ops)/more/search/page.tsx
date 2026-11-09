@@ -1,16 +1,13 @@
 'use client';
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useState, type ReactNode } from 'react';
+import { ClipboardList, ListChecks, Package, Repeat, Search as SearchIcon, Tractor, User, Wrench } from 'lucide-react';
 import type { SearchResult } from '@/lib/data/search';
+import { Card, EmptyState, Input, ListRow, Skeleton, Stack } from '@/components/ui';
+import { Screen } from '@/components/patterns/screen';
+import s from './search.module.css';
 
-const KIND_ICON: Record<string, string> = {
-  chore: '🔁',
-  asset: '🚜',
-  maintenance: '🔧',
-  project: '📋',
-  task: '☑️',
-  inventory: '📦',
-  person: '🧑‍🌾',
+const KIND_ICON: Record<string, ReactNode> = {
+  chore: <Repeat />, asset: <Tractor />, maintenance: <Wrench />, project: <ClipboardList />, task: <ListChecks />, inventory: <Package />, person: <User />,
 };
 
 export default function SearchPage() {
@@ -41,38 +38,18 @@ export default function SearchPage() {
   }, [q]);
 
   return (
-    <main className="view">
-      <div className="sub-head">
-        <Link href="/more" className="btn small ghost back-btn">
-          ‹ More
-        </Link>
-        <h1>Search</h1>
-      </div>
-
-      <div className="field">
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search chores, projects, equipment, supplies…"
-          autoFocus
-          autoComplete="off"
-        />
-      </div>
-
-      {loading && <p className="subtle">Searching…</p>}
-      {!loading && searched && results.length === 0 && <div className="empty">No matches for “{q.trim()}”.</div>}
-
-      {results.map((r) => (
-        <Link href={r.href} key={`${r.kind}-${r.id}`} className="card search-hit">
-          <span className="search-ico">{KIND_ICON[r.kind] ?? '•'}</span>
-          <div className="item-main">
-            <p className="item-title">{r.title}</p>
-            <p className="item-sub">{r.sub}</p>
-          </div>
-          <span className="search-chev">›</span>
-        </Link>
-      ))}
-    </main>
+    <Screen title="Search" back="/more">
+      <label className={s.search}>
+        <SearchIcon aria-hidden />
+        <Input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Chores, projects, equipment, supplies…" autoFocus autoComplete="off" aria-label="Search" />
+      </label>
+      {loading && <Card><Stack gap={8}><Skeleton h={16} w="60%" /><Skeleton h={12} w="40%" /></Stack></Card>}
+      {!loading && searched && results.length === 0 && <Card><EmptyState title={`No matches for “${q.trim()}”`} /></Card>}
+      {!loading && results.length > 0 && (
+        <Card flush>
+          {results.map((r) => <ListRow key={`${r.kind}-${r.id}`} href={r.href} lead={KIND_ICON[r.kind]} title={r.title} meta={r.sub} />)}
+        </Card>
+      )}
+    </Screen>
   );
 }

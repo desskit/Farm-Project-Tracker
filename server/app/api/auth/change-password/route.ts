@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     const token = cookies().get(SESSION_COOKIE)?.value;
     if (token) await db.delete(sessions).where(and(eq(sessions.userId, user.id), ne(sessions.id, hashToken(token))));
 
-    await logActivity(user.id, 'changed their password');
+    await logActivity(user.id, 'changed their password', { audience: 'people.manage' });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return errorResponse(e);

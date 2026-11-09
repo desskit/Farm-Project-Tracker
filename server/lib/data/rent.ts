@@ -136,7 +136,7 @@ export async function markRentPaid(user: SessionUser, chargeId: string, note?: s
       reminderSentOn: null,
     })
     .where(eq(rentCharges.id, chargeId));
-  await logActivity(user.id, `marked rent paid (${c.month})`);
+  await logActivity(user.id, `marked rent paid (${c.month})`, { audience: 'finance.view', href: '/more/rent' });
 }
 
 export async function verifyRent(user: SessionUser, chargeId: string): Promise<void> {
@@ -150,7 +150,7 @@ export async function verifyRent(user: SessionUser, chargeId: string): Promise<v
     patch.markedBy = user.id;
   }
   await db.update(rentCharges).set(patch).where(eq(rentCharges.id, chargeId));
-  await logActivity(user.id, `verified rent (${c.month})`);
+  await logActivity(user.id, `verified rent (${c.month})`, { audience: 'finance.view', href: '/more/rent' });
 }
 
 export async function reopenRent(user: SessionUser, chargeId: string): Promise<void> {

@@ -101,7 +101,7 @@ export async function addProject(user: SessionUser, data: ProjectInput): Promise
     budget: data.budget ?? null,
     createdBy: user.id,
   });
-  await logActivity(user.id, `created project "${data.name.trim()}"`);
+  await logActivity(user.id, `created project "${data.name.trim()}"`, { href: `/projects/${id}` });
   return (await getProject(id))!;
 }
 export async function updateProject(user: SessionUser, id: string, data: Partial<ProjectInput>): Promise<ProjectRow> {
@@ -219,7 +219,7 @@ export async function toggleTask(user: SessionUser, taskId: string, photoId?: st
     .where(eq(projectTasks.id, taskId));
   if (done) {
     await stopTimersFor('task', taskId); // finishing the task stops any running clock
-    await logActivity(user.id, `completed task "${t.title}"`);
+    await logActivity(user.id, `completed task "${t.title}"`, { href: `/projects/${t.projectId}` });
   } else {
     publishChange('task');
   }

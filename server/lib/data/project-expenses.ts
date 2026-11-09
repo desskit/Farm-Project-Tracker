@@ -111,7 +111,7 @@ export async function addExpense(
     userId: user.id,
     photoId: data.photoId || null,
   });
-  await logActivity(user.id, `logged $${amount.toFixed(2)} on a project`);
+  await logActivity(user.id, `logged $${amount.toFixed(2)} on a project`, { audience: 'finance.view' });
   publishChange('project');
 }
 

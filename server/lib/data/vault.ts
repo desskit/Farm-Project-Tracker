@@ -174,7 +174,7 @@ export async function deleteEntry(viewer: SessionUser, id: string): Promise<void
   if (e.ownerId !== viewer.id && !can(viewer, 'people.manage')) throw new DataError('Only the person who added it, or an admin, can delete it.', 403);
   await db.delete(vaultEntries).where(eq(vaultEntries.id, id));
   await log(null, e.title, viewer.id, 'delete');
-  if (e.ownerId !== viewer.id) await logActivity(viewer.id, `deleted a vault entry ("${e.title}")`);
+  if (e.ownerId !== viewer.id) await logActivity(viewer.id, `deleted a vault entry ("${e.title}")`, { audience: 'people.manage' });
 }
 
 /** Who opened an entry and when: for its owner and admins. */
@@ -220,7 +220,7 @@ export async function saveGroup(viewer: SessionUser, data: { id?: string; name: 
     db.delete(vaultGroupMembers).where(eq(vaultGroupMembers.groupId, id)),
     ...memberIds.map((u) => db.insert(vaultGroupMembers).values({ groupId: id, userId: u })),
   ]);
-  await logActivity(viewer.id, `${data.id ? 'updated' : 'created'} the sharing group "${name}"`);
+  await logActivity(viewer.id, `${data.id ? 'updated' : 'created'} the sharing group "${name}"`, { audience: 'people.manage' });
   return id;
 }
 
@@ -228,5 +228,5 @@ export async function deleteGroup(viewer: SessionUser, id: string): Promise<void
   assertGroupAdmin(viewer);
   // Entries shared only with this group become visible to their owner only.
   await db.delete(vaultGroups).where(eq(vaultGroups.id, id));
-  await logActivity(viewer.id, 'deleted a sharing group');
+  await logActivity(viewer.id, 'deleted a sharing group', { audience: 'people.manage' });
 }

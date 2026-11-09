@@ -1,19 +1,14 @@
-import Link from 'next/link';
+import { SearchX } from 'lucide-react';
+import { ButtonLink, EmptyState } from '@/components/ui';
+import s from '@/components/patterns/patterns.module.css';
 
-/** Branded 404 — also what notFound() renders for a missing chore/asset/project. */
+/** Branded 404 — also what notFound() renders for a missing (or hidden) chore, asset or project. */
 export default function NotFound() {
   return (
-    <main className="view">
-      <div className="empty" style={{ marginTop: 40 }}>
-        <p style={{ fontSize: 32, margin: 0 }}>🌾</p>
-        <p className="item-title" style={{ marginTop: 8 }}>Not found</p>
-        <p className="subtle">That page doesn&apos;t exist, or the item was deleted.</p>
-        <div className="row-actions" style={{ justifyContent: 'center', marginTop: 14 }}>
-          <Link href="/" className="btn primary">
-            Back to Today
-          </Link>
-        </div>
-      </div>
+    <main className={s.screen}>
+      <EmptyState icon={<SearchX />} title="Not found" action={<ButtonLink href="/">Back to Today</ButtonLink>}>
+        That page doesn&apos;t exist, was deleted, or isn&apos;t shared with you.
+      </EmptyState>
     </main>
   );
 }

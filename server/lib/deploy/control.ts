@@ -101,6 +101,6 @@ export async function requestUpdate(user: SessionUser): Promise<DeployStatus> {
   // The watcher only checks that this file exists; its contents are a note
   // for anyone looking at the folder, never read or run.
   await writeFile(path.join(dir, 'request'), `requested by ${user.id}\n`, { mode: 0o666 });
-  await logActivity(user.id, 'asked the server to update');
+  await logActivity(user.id, 'asked the server to update', { audience: 'system.admin' });
   return deployStatus();
 }

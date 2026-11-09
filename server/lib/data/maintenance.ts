@@ -237,7 +237,7 @@ export async function logService(
     await db.batch([logInsert, itemUpdate]);
   }
   await stopTimersFor('maintenance', itemId); // finishing the service stops any running clock
-  await logActivity(user.id, `logged "${item.name}"${asset ? ` on ${asset.name}` : ''}`);
+  await logActivity(user.id, `logged "${item.name}"${asset ? ` on ${asset.name}` : ''}`, { href: `/maintenance/${item.assetId}` });
 }
 
 export async function sendBackService(user: SessionUser, logId: string, reason?: string): Promise<void> {

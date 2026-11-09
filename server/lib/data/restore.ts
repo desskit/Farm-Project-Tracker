@@ -163,6 +163,6 @@ export async function restoreBackup(admin: SessionUser, backup: Backup): Promise
     counts.taskAssignees = taskLinks.length;
   });
 
-  await logActivity(admin.id, 'restored farm data from a backup');
+  await logActivity(admin.id, 'restored farm data from a backup', { audience: 'system.admin' });
   return counts;
 }

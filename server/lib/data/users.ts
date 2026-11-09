@@ -103,8 +103,7 @@ export async function setUserCap(actorId: string, targetId: string, cap: Cap, al
   }
   await logActivity(
     actorId,
-    `${allow === null ? 'reset' : allow ? 'allowed' : 'removed'} “${CAP_LABEL[cap]}” for ${target[0].name}`,
-  );
+    `${allow === null ? 'reset' : allow ? 'allowed' : 'removed'} “${CAP_LABEL[cap]}” for ${target[0].name}`, { audience: 'people.manage', href: '/people' });
 }
 
 /**
@@ -123,8 +122,7 @@ export async function setAccessExpiry(actorId: string, targetId: string, expires
   }
   await logActivity(
     actorId,
-    expiresAt === null ? `removed the end date on ${target[0].name}'s access` : `set ${target[0].name}'s access to end ${new Date(expiresAt).toLocaleDateString()}`,
-  );
+    expiresAt === null ? `removed the end date on ${target[0].name}'s access` : `set ${target[0].name}'s access to end ${new Date(expiresAt).toLocaleDateString()}`, { audience: 'people.manage', href: '/people' });
 }
 
 /**
