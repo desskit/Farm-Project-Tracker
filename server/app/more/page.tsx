@@ -1,6 +1,6 @@
 import {
   Activity, Bell, CalendarDays, CloudSun, Database, KeyRound, LockKeyhole, MessageSquareWarning, Package, Search,
-  Timer, Tractor, Trophy, Users, UserCog, Wallet, Receipt,
+  Timer, Tractor, Trophy, Users, UserCog, Wallet, Receipt, ShieldCheck,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { getSessionUser } from '@/lib/auth/session';
@@ -43,11 +43,12 @@ export default async function MorePage() {
   const admin: Row[] = [];
   if (can(user, 'people.manage')) {
     admin.push({ href: '/people', icon: <UserCog />, label: 'People', sub: 'Invite & manage access' });
-    admin.push({ href: '/more/access', icon: <LockKeyhole />, label: 'Who sees what', sub: 'Permissions by role' });
+    admin.push({ href: '/more/access', icon: <ShieldCheck />, label: 'Who sees what', sub: 'Permissions by role' });
   }
   if (can(user, 'system.admin')) admin.push({ href: '/more/data', icon: <Database />, label: 'Server & data', sub: 'Updates, backups, export' });
 
   const me: Row[] = [
+    ...(can(user, 'vault.use') ? [{ href: '/vault', icon: <LockKeyhole />, label: 'Passwords & codes', sub: can(user, 'vault.create') ? 'Shared logins, Wi-Fi, gate codes' : 'Codes shared with you' }] : []),
     { href: '/more/account', icon: <KeyRound />, label: 'Account', sub: 'Password & sign-in' },
     { href: '/more/notifications', icon: <Bell />, label: 'Notifications', sub: 'Digests & push' },
   ];

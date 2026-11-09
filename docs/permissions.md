@@ -24,6 +24,8 @@ by default as shown. Admins can see this table in the app at More → Who sees w
 | Invite people and change access (`people.manage`) | ✓ | — | — | — | — | — |
 | Backups, server updates and settings (`system.admin`) | ✓ | — | — | — | — | — |
 | Use AI suggestions (`ai.use`) | ✓ | ✓ | off\* | — | — | — |
+| See passwords & codes shared with them (`vault.use`) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Store and share their own passwords & codes (`vault.create`) | ✓ | ✓ | ✓ | ✓ | — | — |
 
 ## Roles
 

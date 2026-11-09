@@ -47,6 +47,8 @@ export const CAPS = [
   'people.manage',
   'system.admin',
   'ai.use',
+  'vault.use',
+  'vault.create',
 ] as const;
 export type Cap = (typeof CAPS)[number];
 
@@ -67,6 +69,8 @@ export const CAP_LABEL: Record<Cap, string> = {
   'people.manage': 'Invite people and change access',
   'system.admin': 'Backups, server updates and settings',
   'ai.use': 'Use AI suggestions',
+  'vault.use': 'See passwords & codes shared with them',
+  'vault.create': 'Store and share their own passwords & codes',
 };
 
 /** true = always; 'on'/'off' = per-person switch defaulting on/off; false = never. */
@@ -91,6 +95,8 @@ const MATRIX: Record<Cap, Row> = {
   'people.manage':    [true, false,  false, false, false, false],
   'system.admin':     [true, false,  false, false, false, false],
   'ai.use':           [true, true,   'off', false, false, false],
+  'vault.use':        [true, true,   true,  true,  true,  true],
+  'vault.create':     [true, true,   true,  true,  false, false],
 };
 
 /** How a role holds a capability: always, switchable (default on/off), or never. */

@@ -488,3 +488,70 @@ export const requestComments = sqliteTable('request_comments', {
 }, (t) => ({
   requestIdx: index('request_comments_request_idx').on(t.requestId, t.ts),
 }));
+
+/* ---------------- password & code vault ---------------- */
+/**
+ * Who can see an entry, chosen by its owner:
+ *  private  – only the owner (admins can't open it either);
+ *  groups   – the owner and members of the chosen vault groups;
+ *  farm     – everyone with farm access;
+ *  everyone – everyone who can sign in, renters included (e.g. the gate code).
+ */
+export type VaultVisibility = 'private' | 'groups' | 'farm' | 'everyone';
+
+/** Sharing groups, managed by admins ("Family", "Crew", "Gate codes"). */
+export const vaultGroups = sqliteTable('vault_groups', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description').notNull().default(''),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at').notNull().default(now),
+});
+
+export const vaultGroupMembers = sqliteTable('vault_group_members', {
+  groupId: text('group_id').notNull().references(() => vaultGroups.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.groupId, t.userId] }),
+  userIdx: index('vault_group_members_user_idx').on(t.userId),
+}));
+
+/**
+ * One stored login or code. Username, secret and notes are encrypted at rest
+ * (AES-256-GCM, lib/vault/crypto.ts) with a key kept outside the database
+ * and its backups; title and website stay readable so lists can be searched.
+ */
+export const vaultEntries = sqliteTable('vault_entries', {
+  id: text('id').primaryKey(),
+  ownerId: text('owner_id').references(() => users.id, { onDelete: 'set null' }),
+  title: text('title').notNull(),
+  url: text('url').notNull().default(''),
+  usernameEnc: text('username_enc').notNull().default(''),
+  secretEnc: text('secret_enc').notNull(),
+  notesEnc: text('notes_enc').notNull().default(''),
+  visibility: text('visibility').$type<VaultVisibility>().notNull().default('private'),
+  createdAt: integer('created_at').notNull().default(now),
+  updatedAt: integer('updated_at').notNull().default(now),
+}, (t) => ({
+  ownerIdx: index('vault_entries_owner_idx').on(t.ownerId),
+}));
+
+export const vaultEntryGroups = sqliteTable('vault_entry_groups', {
+  entryId: text('entry_id').notNull().references(() => vaultEntries.id, { onDelete: 'cascade' }),
+  groupId: text('group_id').notNull().references(() => vaultGroups.id, { onDelete: 'cascade' }),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.entryId, t.groupId] }),
+  groupIdx: index('vault_entry_groups_group_idx').on(t.groupId),
+}));
+
+/** Every time a secret is shown, copied or changed — who, what, when. */
+export const vaultAccessLog = sqliteTable('vault_access_log', {
+  id: text('id').primaryKey(),
+  entryId: text('entry_id').references(() => vaultEntries.id, { onDelete: 'set null' }),
+  entryTitle: text('entry_title').notNull(),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  action: text('action').$type<'reveal' | 'create' | 'update' | 'delete'>().notNull(),
+  ts: integer('ts').notNull().default(now),
+}, (t) => ({
+  entryIdx: index('vault_access_log_entry_idx').on(t.entryId, t.ts),
+}));

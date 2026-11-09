@@ -1,4 +1,4 @@
-import { FileText, MessageSquareWarning, Wallet } from 'lucide-react';
+import { FileText, KeyRound, MessageSquareWarning, Wallet } from 'lucide-react';
 import type { SessionUser } from '@/lib/auth/session';
 import { rentChargesForMonth, rentAssignmentFor } from '@/lib/data/rent';
 import { rentDocCountFor } from '@/lib/data/rent-docs';
@@ -63,6 +63,7 @@ export async function PortalHome({ user }: { user: SessionUser }) {
           />
         )}
         <ListRow href="/more/rent" lead={<Wallet />} title="Rent & payments" meta="This month and past months" />
+        {can(user, 'vault.use') && <ListRow href="/vault" lead={<KeyRound />} title="Codes" meta="Gate codes and Wi-Fi shared with you" />}
       </Card>
     </main>
   );
