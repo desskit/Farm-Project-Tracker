@@ -52,6 +52,9 @@ export const CAPS = [
   'animals.view',
   'animals.log',
   'animals.manage',
+  'land.view',
+  'land.log',
+  'land.manage',
 ] as const;
 export type Cap = (typeof CAPS)[number];
 
@@ -77,6 +80,9 @@ export const CAP_LABEL: Record<Cap, string> = {
   'animals.view': 'See the animals',
   'animals.log': 'Log eggs, milk, treatments, weights and births',
   'animals.manage': 'Add animals and groups, record sales, plan breeding',
+  'land.view': 'See the garden, pastures and orchard',
+  'land.log': 'Log harvests, plantings, sprays and grazing moves',
+  'land.manage': 'Lay out beds and paddocks, plan plantings',
 };
 
 /** true = always; 'on'/'off' = per-person switch defaulting on/off; false = never. */
@@ -106,6 +112,9 @@ const MATRIX: Record<Cap, Row> = {
   'animals.view':     [true, true,   true,  true,  'off', false],
   'animals.log':      [true, true,   true,  true,  'off', false],
   'animals.manage':   [true, true,   'on',  'off', false, false],
+  'land.view':        [true, true,   true,  true,  'off', false],
+  'land.log':         [true, true,   true,  true,  'off', false],
+  'land.manage':      [true, true,   'on',  'off', false, false],
 };
 
 /** How a role holds a capability: always, switchable (default on/off), or never. */

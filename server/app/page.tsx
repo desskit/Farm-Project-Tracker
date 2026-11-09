@@ -1,9 +1,10 @@
 import Link from 'next/link';
-import { AlertTriangle, Baby, Egg, Hand, ShieldAlert, MessageSquareWarning, Package, Users, Wallet, Wrench } from 'lucide-react';
+import { AlertTriangle, Baby, Egg, Hand, ShieldAlert, Sprout, Wheat, MessageSquareWarning, Package, Users, Wallet, Wrench } from 'lucide-react';
 import { getSessionUser } from '@/lib/auth/session';
 import { getDashboard, type DashboardItem } from '@/lib/data/dashboard';
 import { farmCards, upForGrabs } from '@/lib/data/today';
 import { livestockAlerts } from '@/lib/data/livestock';
+import { landAlerts } from '@/lib/data/land';
 import { can } from '@/lib/domain/permissions';
 import { addDays, fmtDate, relativeLabel, todayISO } from '@/lib/domain/dates';
 import { ButtonLink, Card, EmptyState, ListRow, PageHeader } from '@/components/ui';
@@ -39,11 +40,12 @@ export default async function TodayPage({ searchParams }: { searchParams: { scop
 
   // "Everything due" view for people who can see all the farm's work.
   const everything = searchParams.scope === 'all' && can(user, 'work.viewAll');
-  const [mine, grabs, cards, animals] = await Promise.all([
+  const [mine, grabs, cards, animals, land] = await Promise.all([
     getDashboard(user, everything ? 'all' : 'mine'),
     everything ? Promise.resolve([]) : upForGrabs(user),
     everything ? Promise.resolve(null) : farmCards(user),
     everything || !can(user, 'animals.view') ? Promise.resolve(null) : livestockAlerts(todayISO(), 7),
+    everything || !can(user, 'land.view') ? Promise.resolve(null) : landAlerts(todayISO(), 2),
   ]);
   const total = mine.overdue.length + mine.today.length + mine.upcoming.length;
 
@@ -65,6 +67,7 @@ export default async function TodayPage({ searchParams }: { searchParams: { scop
 
       {cards && <FarmToday cards={cards} />}
       {animals && <AnimalsToday a={animals} />}
+      {land && <LandToday l={land} />}
 
       {total === 0 ? (
         <Card>
@@ -121,6 +124,24 @@ function AnimalsToday({ a }: { a: Awaited<ReturnType<typeof livestockAlerts>> })
           title={`${w.groupName}: withholding`}
           meta={[w.milkUntil && `milk/eggs until ${fmtDate(w.milkUntil)}`, w.meatUntil && `meat until ${fmtDate(w.meatUntil)}`, w.what].filter(Boolean).join(' · ')}
         />
+      ))}
+    </Card>
+  );
+}
+
+/** Ready to pick, due to sow, and where not to pick yet. */
+function LandToday({ l }: { l: Awaited<ReturnType<typeof landAlerts>> }) {
+  if (!l.ready.length && !l.toSow.length && !l.sprays.length) return null;
+  return (
+    <Card title="Garden & land" action={<ButtonLink href="/farm/land" size="sm" variant="ghost">Open</ButtonLink>} flush>
+      {l.ready.slice(0, 6).map((p) => (
+        <ListRow key={p.id} href={`/farm/land/${p.unitId}`} lead={<Wheat />} title={`${p.crop} — ${p.unitName}`} meta={`Ready ${relativeLabel(p.ready)}`} />
+      ))}
+      {l.toSow.slice(0, 4).map((p) => (
+        <ListRow key={p.id} href={`/farm/land/${p.unitId}`} lead={<Sprout />} title={`Sow ${p.crop} — ${p.unitName}`} meta={relativeLabel(p.sownOn)} />
+      ))}
+      {l.sprays.map((x) => (
+        <ListRow key={x.id} href={`/farm/land/${x.unitId}`} lead={<ShieldAlert />} title={`${x.unitName}: don’t harvest`} meta={`Until ${fmtDate(x.until)} · ${x.what}`} />
       ))}
     </Card>
   );

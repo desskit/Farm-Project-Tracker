@@ -586,6 +586,9 @@ export const animalGroups = sqliteTable('animal_groups', {
   kind: text('kind').$type<AnimalGroupKind>().notNull().default('herd'),
   headCount: integer('head_count').notNull().default(0),
   location: text('location').notNull().default(''),
+  /** Where they are now when that's a paddock/field we track; set by grazing moves. */
+  landUnitId: text('land_unit_id').references(() => landUnits.id, { onDelete: 'set null' }),
+  movedOn: text('moved_on'),
   notes: text('notes').notNull().default(''),
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
   createdAt: integer('created_at').notNull().default(now),
@@ -662,4 +665,111 @@ export const productionLogs = sqliteTable('production_logs', {
 }, (t) => ({
   groupIdx: index('production_logs_group_idx').on(t.groupId, t.kind, t.date),
   dateIdx: index('production_logs_date_idx').on(t.kind, t.date),
+}));
+
+/* ---------------- land ---------------- */
+
+export type LandKind = 'garden' | 'bed' | 'pasture' | 'paddock' | 'orchard' | 'field' | 'other';
+
+/** A piece of ground; beds sit in gardens and paddocks in pastures. */
+export const landUnits = sqliteTable('land_units', {
+  id: text('id').primaryKey(),
+  parentId: text('parent_id'),
+  kind: text('kind').$type<LandKind>().notNull(),
+  name: text('name').notNull(),
+  area: real('area'),
+  areaUnit: text('area_unit').$type<'sqft' | 'acre'>().notNull().default('sqft'),
+  /** Paddocks: days of rest wanted between grazings. */
+  restDays: integer('rest_days').notNull().default(30),
+  notes: text('notes').notNull().default(''),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at').notNull().default(now),
+}, (t) => ({
+  parentIdx: index('land_units_parent_idx').on(t.parentId),
+}));
+
+export type PlantingStatus = 'planned' | 'growing' | 'harvested' | 'failed';
+
+export const plantings = sqliteTable('plantings', {
+  id: text('id').primaryKey(),
+  unitId: text('unit_id').notNull().references(() => landUnits.id, { onDelete: 'cascade' }),
+  crop: text('crop').notNull(),
+  variety: text('variety').notNull().default(''),
+  method: text('method').$type<'seed' | 'transplant'>().notNull().default('seed'),
+  sownOn: text('sown_on').notNull(),
+  daysToMaturity: integer('days_to_maturity'),
+  expectedHarvest: text('expected_harvest'),
+  status: text('status').$type<PlantingStatus>().notNull().default('planned'),
+  inventoryId: text('inventory_id').references(() => inventory.id, { onDelete: 'set null' }),
+  seedQty: real('seed_qty'),
+  /** Plantings sown together as a succession share this id. */
+  series: text('series'),
+  notes: text('notes').notNull().default(''),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => ({
+  unitIdx: index('plantings_unit_idx').on(t.unitId, t.status),
+  readyIdx: index('plantings_ready_idx').on(t.status, t.expectedHarvest),
+}));
+
+/** Trees, bushes, canes, asparagus — things that stay put for years. */
+export const perennials = sqliteTable('perennials', {
+  id: text('id').primaryKey(),
+  unitId: text('unit_id').notNull().references(() => landUnits.id, { onDelete: 'cascade' }),
+  crop: text('crop').notNull(),
+  variety: text('variety').notNull().default(''),
+  count: integer('count').notNull().default(1),
+  plantedOn: text('planted_on'),
+  notes: text('notes').notNull().default(''),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+}, (t) => ({
+  unitIdx: index('perennials_unit_idx').on(t.unitId),
+}));
+
+export const harvests = sqliteTable('harvests', {
+  id: text('id').primaryKey(),
+  unitId: text('unit_id').notNull().references(() => landUnits.id, { onDelete: 'cascade' }),
+  plantingId: text('planting_id').references(() => plantings.id, { onDelete: 'set null' }),
+  perennialId: text('perennial_id').references(() => perennials.id, { onDelete: 'set null' }),
+  crop: text('crop').notNull(),
+  date: text('date').notNull(),
+  amount: real('amount').notNull(),
+  unit: text('unit').notNull().default('lb'),
+  notes: text('notes').notNull().default(''),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => ({
+  unitIdx: index('harvests_unit_idx').on(t.unitId, t.date),
+  dateIdx: index('harvests_date_idx').on(t.date),
+}));
+
+export type LandEventType = 'amend' | 'spray' | 'prune' | 'irrigate' | 'mow' | 'soil_test' | 'note';
+
+export const landEvents = sqliteTable('land_events', {
+  id: text('id').primaryKey(),
+  unitId: text('unit_id').notNull().references(() => landUnits.id, { onDelete: 'cascade' }),
+  type: text('type').$type<LandEventType>().notNull(),
+  date: text('date').notNull(),
+  inventoryId: text('inventory_id').references(() => inventory.id, { onDelete: 'set null' }),
+  qtyUsed: real('qty_used'),
+  /** Sprays: first day harvest is allowed again (pre-harvest interval). */
+  phiUntil: text('phi_until'),
+  cost: real('cost'),
+  notes: text('notes').notNull().default(''),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at').notNull().default(now),
+}, (t) => ({
+  unitIdx: index('land_events_unit_idx').on(t.unitId, t.date),
+  phiIdx: index('land_events_phi_idx').on(t.phiUntil),
+}));
+
+export const grazingMoves = sqliteTable('grazing_moves', {
+  id: text('id').primaryKey(),
+  groupId: text('group_id').notNull().references(() => animalGroups.id, { onDelete: 'cascade' }),
+  fromUnitId: text('from_unit_id').references(() => landUnits.id, { onDelete: 'set null' }),
+  toUnitId: text('to_unit_id').references(() => landUnits.id, { onDelete: 'set null' }),
+  movedOn: text('moved_on').notNull(),
+  notes: text('notes').notNull().default(''),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => ({
+  fromIdx: index('grazing_moves_from_idx').on(t.fromUnitId, t.movedOn),
+  groupIdx: index('grazing_moves_group_idx').on(t.groupId, t.movedOn),
 }));

@@ -44,7 +44,7 @@ export function resetEmail(name: string, url: string): string {
 }
 
 /** Animal lines for the digest (births due, withdrawals, eggs) — plain strings, escaped here. */
-export type DigestExtras = { animals?: string[] };
+export type DigestExtras = { animals?: string[]; land?: string[] };
 
 export function digestEmail(name: string, b: DashboardBuckets, extras: DigestExtras = {}): string {
   const section = (title: string, items: DashboardBuckets['overdue']) =>
@@ -61,6 +61,7 @@ export function digestEmail(name: string, b: DashboardBuckets, extras: DigestExt
     ${section('⚠️ Overdue', b.overdue)}
     ${section('Due today', b.today)}
     ${section('Coming up (7 days)', b.upcoming)}
+    ${extras.land?.length ? `<h3 style="margin:16px 0 6px;font-size:15px">Garden &amp; land</h3><ul style="margin:0;padding-left:18px">${extras.land.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>` : ''}
     ${extras.animals?.length ? `<h3 style="margin:16px 0 6px;font-size:15px">Animals</h3><ul style="margin:0;padding-left:18px">${extras.animals.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>` : ''}`);
 }
 

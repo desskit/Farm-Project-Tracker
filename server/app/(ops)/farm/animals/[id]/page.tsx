@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import { getSessionUser } from '@/lib/auth/session';
 import { groupDetail, listGroups } from '@/lib/data/livestock';
 import { listInventory } from '@/lib/data/inventory';
+import { grazeableUnits } from '@/lib/data/land';
+import { MoveGroupCard } from '../../land/[id]/unit-client';
 import { DataError } from '@/lib/data/errors';
 import { can } from '@/lib/domain/permissions';
 import { SPECIES, type ProductKind } from '@/lib/domain/livestock';
@@ -19,9 +21,11 @@ export default async function GroupPage({ params }: { params: { id: string } }) 
   });
   const manage = can(user, 'animals.manage');
   const log = can(user, 'animals.log');
-  const [supplies, groups] = await Promise.all([
+  const moves = can(user, 'land.log');
+  const [supplies, groups, paddocks] = await Promise.all([
     log ? listInventory() : Promise.resolve([]),
     manage ? listGroups() : Promise.resolve([]),
+    moves ? grazeableUnits() : Promise.resolve([]),
   ]);
   const { group, species } = d;
   const info = SPECIES[species];
@@ -63,6 +67,10 @@ export default async function GroupPage({ params }: { params: { id: string } }) 
           canManage={manage}
           today={today}
         />
+      )}
+
+      {moves && paddocks.length > 0 && (
+        <MoveGroupCard groupId={group.id} current={group.landUnitId} movedOn={group.movedOn} units={paddocks} today={today} />
       )}
 
       <CareCard groupId={group.id} groupName={group.name} chores={d.care} canAdd={can(user, 'work.manage')} />

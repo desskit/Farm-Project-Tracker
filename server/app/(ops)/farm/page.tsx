@@ -1,8 +1,9 @@
 import { notFound } from 'next/navigation';
-import { Package, PawPrint, Tractor, Wrench } from 'lucide-react';
+import { Package, PawPrint, Sprout, Tractor, Wrench } from 'lucide-react';
 import { getSessionUser } from '@/lib/auth/session';
 import { lowStockItems } from '@/lib/data/inventory';
 import { listGroups } from '@/lib/data/livestock';
+import { landAlerts } from '@/lib/data/land';
 import { can } from '@/lib/domain/permissions';
 import { Card, ListRow, PageHeader, StatusPill } from '@/components/ui';
 import s from './farm.module.css';
@@ -16,10 +17,11 @@ export default async function FarmPage() {
   const low = can(user, 'supplies.use') ? (await lowStockItems()).length : 0;
   const herds = can(user, 'animals.view') ? await listGroups() : null;
   const head = herds?.reduce((n, g) => n + g.headCount, 0) ?? 0;
+  const land = can(user, 'land.view') ? await landAlerts() : null;
 
   return (
     <main className={s.wrap}>
-      <PageHeader title="Farm" subtitle="Animals, supplies, equipment and what keeps them running" />
+      <PageHeader title="Farm" subtitle="Animals, land, supplies and equipment" />
       <Card flush>
         {herds && (
           <ListRow
@@ -27,6 +29,15 @@ export default async function FarmPage() {
             lead={<PawPrint />}
             title="Animals"
             meta={herds.length ? `${head} head in ${herds.length} ${herds.length === 1 ? 'group' : 'groups'}` : 'Herds, flocks, eggs and health'}
+          />
+        )}
+        {land && (
+          <ListRow
+            href="/farm/land"
+            lead={<Sprout />}
+            title="Land"
+            meta="Garden, orchard, pasture and fields"
+            trail={land.ready.length > 0 ? <StatusPill tone="done">{land.ready.length} ready</StatusPill> : undefined}
           />
         )}
         {can(user, 'supplies.use') && (

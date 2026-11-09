@@ -14,9 +14,10 @@ import { canSeeWork } from '@/lib/domain/scope';
 import { choreAssigneeIdsFor, taskAssigneeIdsFor } from './assignees';
 import { upkeepWithStatus } from './upkeep-status';
 import { livestockAlerts } from './livestock';
+import { landAlerts } from './land';
 import { todayISO } from '@/lib/domain/dates';
 
-export type CalendarKind = 'chore' | 'maintenance' | 'task' | 'rent' | 'animals';
+export type CalendarKind = 'chore' | 'maintenance' | 'task' | 'rent' | 'animals' | 'land';
 export type CalendarItem = { date: string; kind: CalendarKind; id: string; title: string; href: string };
 
 export async function calendarItems(viewer: SessionUser, fromISO: string, toISO: string): Promise<CalendarItem[]> {
@@ -100,6 +101,14 @@ export async function calendarItems(viewer: SessionUser, fromISO: string, toISO:
         if (d && within(d)) out.push({ date: d, kind: 'animals', id: `${w.id}-${what}`, title: `${w.groupName}: ${what}`, href: `/farm/animals/${w.groupId}` });
       }
     }
+  }
+
+  if (can(viewer, 'land.view')) {
+    const days = Math.max(0, Math.round((Date.parse(toISO) - Date.parse(fromISO)) / 86400000));
+    const l = await landAlerts(fromISO, days);
+    for (const p of l.ready) if (within(p.ready)) out.push({ date: p.ready, kind: 'land', id: p.id, title: `${p.crop} ready · ${p.unitName}`, href: `/farm/land/${p.unitId}` });
+    for (const p of l.toSow) if (within(p.sownOn)) out.push({ date: p.sownOn, kind: 'land', id: `sow-${p.id}`, title: `Sow ${p.crop} · ${p.unitName}`, href: `/farm/land/${p.unitId}` });
+    for (const x of l.sprays) if (within(x.until)) out.push({ date: x.until, kind: 'land', id: `phi-${x.id}`, title: `${x.unitName}: OK to harvest`, href: `/farm/land/${x.unitId}` });
   }
 
   return out.sort((a, b) => (a.date < b.date ? -1 : 1));
