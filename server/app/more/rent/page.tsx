@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { ChevronLeft } from 'lucide-react';
+import { PageHeader } from '@/components/ui';
+import s from './rent.module.css';
 import { getSessionUser } from '@/lib/auth/session';
 import { rentChargesForMonth, rentSummary, rentAssignmentFor } from '@/lib/data/rent';
 import { listRentDocs, docCountsByRenter } from '@/lib/data/rent-docs';
@@ -39,16 +42,12 @@ export default async function RentPage() {
   const nameById = new Map(people.map((p) => [p.id, p.name]));
 
   return (
-    <main className="view">
-      <div className="sub-head">
-        <Link href="/more" className="btn small ghost back-btn">
-          ‹ More
-        </Link>
-        <h1>Rent</h1>
-      </div>
-      <p className="subtle" style={{ marginTop: -8, marginBottom: 12 }}>
-        {monthLabel(mk)}
-      </p>
+    <main className={s.wrap}>
+      <PageHeader
+        back={<Link href={can(user, 'farm.view') ? '/more' : '/'} aria-label="Back" className={s.back}><ChevronLeft /></Link>}
+        title="Rent"
+        subtitle={monthLabel(mk)}
+      />
 
       <RentView
         charges={charges}
@@ -59,9 +58,9 @@ export default async function RentPage() {
       />
 
       {showDocs && (
-        <>
-          <div className="section-title">Rental documents</div>
-          <p className="subtle" style={{ marginTop: -4, marginBottom: 10 }}>
+        <section className={s.section} id="documents-section">
+          <h2>Rental documents</h2>
+          <p className={s.docsIntro}>
             {isManager
               ? 'Leases, deposits, inspections, and insurance — kept with the renter, not the month. Only that renter and managers can open them.'
               : 'Your lease and related paperwork. Only you and a farm manager can open these.'}
@@ -76,7 +75,7 @@ export default async function RentPage() {
               showHeading={isManager}
             />
           ))}
-        </>
+        </section>
       )}
     </main>
   );
