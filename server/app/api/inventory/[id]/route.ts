@@ -10,6 +10,8 @@ const schema = z.object({
   unit: z.string().optional(),
   reorderAt: z.number().optional(),
   unitCost: z.number().nonnegative().nullable().optional(),
+  meatWithdrawalDays: z.number().int().min(0).max(1000).nullable().optional(),
+  milkWithdrawalDays: z.number().int().min(0).max(1000).nullable().optional(),
   notes: z.string().optional(),
 });
 

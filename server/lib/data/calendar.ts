@@ -13,9 +13,10 @@ import { can } from '@/lib/domain/permissions';
 import { canSeeWork } from '@/lib/domain/scope';
 import { choreAssigneeIdsFor, taskAssigneeIdsFor } from './assignees';
 import { upkeepWithStatus } from './upkeep-status';
+import { livestockAlerts } from './livestock';
 import { todayISO } from '@/lib/domain/dates';
 
-export type CalendarKind = 'chore' | 'maintenance' | 'task' | 'rent';
+export type CalendarKind = 'chore' | 'maintenance' | 'task' | 'rent' | 'animals';
 export type CalendarItem = { date: string; kind: CalendarKind; id: string; title: string; href: string };
 
 export async function calendarItems(viewer: SessionUser, fromISO: string, toISO: string): Promise<CalendarItem[]> {
@@ -85,6 +86,19 @@ export async function calendarItems(viewer: SessionUser, fromISO: string, toISO:
     if (c.status !== 'verified' && c.dueDate && within(c.dueDate)) {
       const title = c.userId === viewer.id ? 'Your rent' : `Rent · ${nameById.get(c.userId) ?? 'someone'}`;
       out.push({ date: c.dueDate, kind: 'rent', id: c.id, title, href: '/more/rent' });
+    }
+  }
+
+  if (can(viewer, 'animals.view')) {
+    const days = Math.max(0, Math.round((Date.parse(toISO) - Date.parse(fromISO)) / 86400000));
+    const a = await livestockAlerts(fromISO, days);
+    for (const b of a.births) {
+      if (within(b.dueOn)) out.push({ date: b.dueOn, kind: 'animals', id: b.id, title: `${b.dam ?? b.groupName} due (around)`, href: `/farm/animals/${b.groupId}` });
+    }
+    for (const w of a.withdrawals) {
+      for (const [d, what] of [[w.milkUntil, 'milk/eggs OK'], [w.meatUntil, 'meat OK']] as const) {
+        if (d && within(d)) out.push({ date: d, kind: 'animals', id: `${w.id}-${what}`, title: `${w.groupName}: ${what}`, href: `/farm/animals/${w.groupId}` });
+      }
     }
   }
 

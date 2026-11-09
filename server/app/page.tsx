@@ -1,10 +1,11 @@
 import Link from 'next/link';
-import { AlertTriangle, Hand, MessageSquareWarning, Package, Users, Wallet, Wrench } from 'lucide-react';
+import { AlertTriangle, Baby, Egg, Hand, ShieldAlert, MessageSquareWarning, Package, Users, Wallet, Wrench } from 'lucide-react';
 import { getSessionUser } from '@/lib/auth/session';
 import { getDashboard, type DashboardItem } from '@/lib/data/dashboard';
 import { farmCards, upForGrabs } from '@/lib/data/today';
+import { livestockAlerts } from '@/lib/data/livestock';
 import { can } from '@/lib/domain/permissions';
-import { relativeLabel } from '@/lib/domain/dates';
+import { addDays, fmtDate, relativeLabel, todayISO } from '@/lib/domain/dates';
 import { ButtonLink, Card, EmptyState, ListRow, PageHeader } from '@/components/ui';
 import { WorkItemRow } from '@/components/patterns/work-item-row';
 import { ClaimButton } from '@/components/patterns/work-buttons';
@@ -38,10 +39,11 @@ export default async function TodayPage({ searchParams }: { searchParams: { scop
 
   // "Everything due" view for people who can see all the farm's work.
   const everything = searchParams.scope === 'all' && can(user, 'work.viewAll');
-  const [mine, grabs, cards] = await Promise.all([
+  const [mine, grabs, cards, animals] = await Promise.all([
     getDashboard(user, everything ? 'all' : 'mine'),
     everything ? Promise.resolve([]) : upForGrabs(user),
     everything ? Promise.resolve(null) : farmCards(user),
+    everything || !can(user, 'animals.view') ? Promise.resolve(null) : livestockAlerts(todayISO(), 7),
   ]);
   const total = mine.overdue.length + mine.today.length + mine.upcoming.length;
 
@@ -62,6 +64,7 @@ export default async function TodayPage({ searchParams }: { searchParams: { scop
       {!everything && <WeatherWidget />}
 
       {cards && <FarmToday cards={cards} />}
+      {animals && <AnimalsToday a={animals} />}
 
       {total === 0 ? (
         <Card>
@@ -90,6 +93,36 @@ export default async function TodayPage({ searchParams }: { searchParams: { scop
         </Card>
       )}
     </main>
+  );
+}
+
+/** Eggs so far, births close, and anything that mustn't be sold or eaten yet. */
+function AnimalsToday({ a }: { a: Awaited<ReturnType<typeof livestockAlerts>> }) {
+  if (!a.eggs && !a.births.length && !a.withdrawals.length) return null;
+  const soon = addDays(todayISO(), 7);
+  return (
+    <Card title="Animals" action={<ButtonLink href="/farm/animals" size="sm" variant="ghost">Open</ButtonLink>} flush>
+      {a.eggs && (
+        <ListRow
+          href="/farm/animals"
+          lead={<Egg />}
+          title={`${a.eggs.today} eggs today`}
+          meta={`${a.eggs.thisWeek} this week${a.eggs.pct != null ? ` (${a.eggs.pct >= 0 ? '+' : ''}${a.eggs.pct}% on last week)` : ''}`}
+        />
+      )}
+      {a.births.filter((b) => b.dueOn <= soon).map((b) => (
+        <ListRow key={b.id} href={`/farm/animals/${b.groupId}`} lead={<Baby />} title={`${b.dam ?? b.groupName} due ${relativeLabel(b.dueOn)}`} meta={`Around ${fmtDate(b.dueOn)} · ${b.groupName}`} />
+      ))}
+      {a.withdrawals.map((w) => (
+        <ListRow
+          key={w.id}
+          href={`/farm/animals/${w.groupId}`}
+          lead={<ShieldAlert />}
+          title={`${w.groupName}: withholding`}
+          meta={[w.milkUntil && `milk/eggs until ${fmtDate(w.milkUntil)}`, w.meatUntil && `meat until ${fmtDate(w.meatUntil)}`, w.what].filter(Boolean).join(' · ')}
+        />
+      ))}
+    </Card>
   );
 }
 

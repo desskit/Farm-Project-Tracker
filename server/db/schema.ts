@@ -26,6 +26,7 @@ export type Schedule = {
   season?: { start: string; end: string };
 };
 
+export type ChoreLinkType = 'animal_group';
 export type SentBack = { by: string; at: number; reason: string; worker: string | null } | null;
 
 const now = sql`(unixepoch() * 1000)`;
@@ -135,7 +136,11 @@ export const chores = sqliteTable('chores', {
   sentBack: text('sent_back', { mode: 'json' }).$type<SentBack>(),
   // One-time ('once') chores are marked done on completion instead of rolling to a next date.
   done: integer('done', { mode: 'boolean' }).notNull().default(false),
+  /** Recurring care tied to something on the farm, e.g. ('animal_group', id). */
+  linkType: text('link_type').$type<ChoreLinkType>(),
+  linkId: text('link_id'),
 }, (t) => ({
+  linkIdx: index('chores_link_idx').on(t.linkType, t.linkId),
   nextDueIdx: index('chores_next_due_idx').on(t.done, t.nextDue),
 }));
 
@@ -317,6 +322,9 @@ export const inventory = sqliteTable('inventory', {
   notes: text('notes').notNull().default(''),
   /** What one `unit` costs, for on-hand value and consumption spend. Null = unpriced. */
   unitCost: real('unit_cost'),
+  /** Days after a treatment with this before meat / milk & eggs are safe to use. */
+  meatWithdrawalDays: integer('meat_withdrawal_days'),
+  milkWithdrawalDays: integer('milk_withdrawal_days'),
 });
 
 export const inventoryLog = sqliteTable('inventory_log', {
@@ -558,4 +566,100 @@ export const vaultAccessLog = sqliteTable('vault_access_log', {
   ts: integer('ts').notNull().default(now),
 }, (t) => ({
   entryIdx: index('vault_access_log_entry_idx').on(t.entryId, t.ts),
+}));
+
+/* ---------------- livestock ---------------- */
+
+export type AnimalGroupKind = 'herd' | 'flock' | 'litter' | 'pen';
+export type AnimalSex = 'female' | 'male' | 'unknown';
+export type AnimalStatus = 'active' | 'sold' | 'dead';
+
+/**
+ * A herd, flock, litter or pen. Location lives here only — a lone horse is a
+ * group of one. `head_count` is the number of animals, whether or not each has
+ * its own record; it only moves through events (birth, purchase, death, sale).
+ */
+export const animalGroups = sqliteTable('animal_groups', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  species: text('species').notNull(),
+  kind: text('kind').$type<AnimalGroupKind>().notNull().default('herd'),
+  headCount: integer('head_count').notNull().default(0),
+  location: text('location').notNull().default(''),
+  notes: text('notes').notNull().default(''),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at').notNull().default(now),
+});
+
+export const animals = sqliteTable('animals', {
+  id: text('id').primaryKey(),
+  groupId: text('group_id').notNull().references(() => animalGroups.id, { onDelete: 'cascade' }),
+  tag: text('tag').notNull().default(''),
+  name: text('name').notNull().default(''),
+  sex: text('sex').$type<AnimalSex>().notNull().default('unknown'),
+  breed: text('breed').notNull().default(''),
+  birthDate: text('birth_date'),
+  damId: text('dam_id'),
+  sireId: text('sire_id'),
+  status: text('status').$type<AnimalStatus>().notNull().default('active'),
+  notes: text('notes').notNull().default(''),
+}, (t) => ({
+  groupIdx: index('animals_group_idx').on(t.groupId, t.status),
+}));
+
+export type AnimalEventType = 'treatment' | 'vaccination' | 'weight' | 'birth' | 'death' | 'sale' | 'purchase' | 'note';
+
+export const animalEvents = sqliteTable('animal_events', {
+  id: text('id').primaryKey(),
+  groupId: text('group_id').notNull().references(() => animalGroups.id, { onDelete: 'cascade' }),
+  animalId: text('animal_id').references(() => animals.id, { onDelete: 'cascade' }),
+  type: text('type').$type<AnimalEventType>().notNull(),
+  date: text('date').notNull(),
+  /** Signed change to the group's head count this event made (0 for most). */
+  countDelta: integer('count_delta').notNull().default(0),
+  inventoryId: text('inventory_id').references(() => inventory.id, { onDelete: 'set null' }),
+  qtyUsed: real('qty_used'),
+  weight: real('weight'),
+  cost: real('cost'),
+  meatUntil: text('meat_until'),
+  milkUntil: text('milk_until'),
+  notes: text('notes').notNull().default(''),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at').notNull().default(now),
+}, (t) => ({
+  groupIdx: index('animal_events_group_idx').on(t.groupId, t.date),
+  animalIdx: index('animal_events_animal_idx').on(t.animalId),
+  withdrawalIdx: index('animal_events_withdrawal_idx').on(t.meatUntil, t.milkUntil),
+}));
+
+export type BreedingStatus = 'bred' | 'confirmed' | 'born' | 'failed';
+
+export const breedings = sqliteTable('breedings', {
+  id: text('id').primaryKey(),
+  groupId: text('group_id').notNull().references(() => animalGroups.id, { onDelete: 'cascade' }),
+  damId: text('dam_id').references(() => animals.id, { onDelete: 'set null' }),
+  sire: text('sire').notNull().default(''),
+  bredOn: text('bred_on').notNull(),
+  dueOn: text('due_on'),
+  status: text('status').$type<BreedingStatus>().notNull().default('bred'),
+  notes: text('notes').notNull().default(''),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => ({
+  dueIdx: index('breedings_due_idx').on(t.status, t.dueOn),
+  groupIdx: index('breedings_group_idx').on(t.groupId),
+}));
+
+export type ProductKind = 'eggs' | 'milk' | 'wool';
+
+export const productionLogs = sqliteTable('production_logs', {
+  id: text('id').primaryKey(),
+  groupId: text('group_id').notNull().references(() => animalGroups.id, { onDelete: 'cascade' }),
+  kind: text('kind').$type<ProductKind>().notNull(),
+  date: text('date').notNull(),
+  amount: real('amount').notNull(),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  notes: text('notes').notNull().default(''),
+}, (t) => ({
+  groupIdx: index('production_logs_group_idx').on(t.groupId, t.kind, t.date),
+  dateIdx: index('production_logs_date_idx').on(t.kind, t.date),
 }));

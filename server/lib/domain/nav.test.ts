@@ -15,7 +15,7 @@ describe('navigation', () => {
     expect(primaryNav({ role: 'manager' }).at(-1)?.label).toBe('More');
   });
   it('only offers creating work to people who manage it', () => {
-    expect(quickActions({ role: 'worker' }).map((a) => a.key)).toEqual(['supplies', 'upkeep']);
+    expect(quickActions({ role: 'worker' }).map((a) => a.key)).toEqual(['supplies', 'animals', 'upkeep']);
     expect(quickActions({ role: 'manager' }).map((a) => a.key)).toContain('chore');
   });
   it('matches the active tab by path', () => {

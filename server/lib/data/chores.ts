@@ -10,7 +10,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { chores, choreCompletions } from '@/db/schema';
-import type { Schedule, SentBack } from '@/db/schema';
+import type { ChoreLinkType, Schedule, SentBack } from '@/db/schema';
 import { uid } from '@/lib/ids';
 import { nextOccurrenceAfter } from '@/lib/domain/recurrence';
 import { todayISO, addDays } from '@/lib/domain/dates';
@@ -70,6 +70,8 @@ export type ChoreInput = {
   requirePhoto?: boolean;
   open?: boolean;
   steps?: string[];
+  /** Care tied to an animal group etc.; set when created from that page. */
+  link?: { type: ChoreLinkType; id: string } | null;
 };
 
 export async function addChore(user: SessionUser, data: ChoreInput): Promise<ChoreRow> {
@@ -84,6 +86,8 @@ export async function addChore(user: SessionUser, data: ChoreInput): Promise<Cho
     requirePhoto: !!data.requirePhoto,
     open: !!data.open,
     steps: Array.isArray(data.steps) ? data.steps.filter(Boolean) : [],
+    linkType: data.link?.type ?? null,
+    linkId: data.link?.id ?? null,
   });
   await setChoreAssignees(id, data.assigneeIds ?? []);
   await logActivity(user.id, `added chore "${data.name.trim()}"`, { href: `/chores/${id}` });

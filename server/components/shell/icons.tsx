@@ -1,6 +1,6 @@
 import {
   Boxes, CalendarCheck, ClipboardList, FileText, Home, LayoutGrid, ListChecks, MessageSquareWarning, MoreHorizontal,
-  Package, Plus, Repeat, StickyNote, Timer, Tractor, User, Wallet, Wrench, type LucideIcon,
+  Package, PawPrint, Plus, Repeat, StickyNote, Timer, Tractor, User, Wallet, Wrench, type LucideIcon,
 } from 'lucide-react';
 import type { IconName } from '@/lib/domain/nav';
 
@@ -22,5 +22,6 @@ export const ICONS: Record<IconName, LucideIcon> = {
   rent: Wallet,
   docs: FileText,
   requests: MessageSquareWarning,
+  animals: PawPrint,
 };
 export { Boxes, CalendarCheck };

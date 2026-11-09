@@ -42,6 +42,7 @@ export const CHANGE_AUDIENCE: Record<string, Cap> = {
   note: 'farm.view',
   timer: 'farm.view',
   activity: 'farm.view',
+  animals: 'animals.view',
   all: 'farm.view',
   // 'request' goes to everyone: each person refetches only their own.
 };

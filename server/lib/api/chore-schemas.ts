@@ -20,7 +20,10 @@ const choreFields = z.object({
   steps: z.array(z.string()).optional(),
 });
 
-export const createChoreSchema = z.preprocess(foldLegacyAssignee, choreFields);
+export const createChoreSchema = z.preprocess(
+  foldLegacyAssignee,
+  choreFields.extend({ link: z.object({ type: z.enum(['animal_group']), id: z.string().max(64) }).nullable().optional() }),
+);
 
 export const updateChoreSchema = z.preprocess(
   foldLegacyAssignee,

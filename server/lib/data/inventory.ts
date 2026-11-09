@@ -30,7 +30,7 @@ export async function lowStockItems(): Promise<InventoryRow[]> {
   return (await listInventory()).filter((i) => i.qty <= i.reorderAt);
 }
 
-export type InventoryInput = { name: string; category?: string; unit?: string; qty?: number; reorderAt?: number; notes?: string; unitCost?: number | null };
+export type InventoryInput = { name: string; category?: string; unit?: string; qty?: number; reorderAt?: number; notes?: string; unitCost?: number | null; meatWithdrawalDays?: number | null; milkWithdrawalDays?: number | null };
 
 /** What the shelf is worth: on-hand quantity priced at unit cost. */
 export function inventoryValue(items: InventoryRow[]): number {
@@ -66,6 +66,8 @@ export async function updateInventoryItem(user: SessionUser, id: string, data: P
   if (data.unit != null) patch.unit = data.unit || 'count';
   if (data.reorderAt != null) patch.reorderAt = Number(data.reorderAt) || 0;
   if (data.unitCost !== undefined) patch.unitCost = data.unitCost != null ? Number(data.unitCost) : null;
+  if (data.meatWithdrawalDays !== undefined) patch.meatWithdrawalDays = data.meatWithdrawalDays;
+  if (data.milkWithdrawalDays !== undefined) patch.milkWithdrawalDays = data.milkWithdrawalDays;
   await db.update(inventory).set(patch).where(eq(inventory.id, id));
   publishChange('inventory');
   return (await inventoryById(id))!;

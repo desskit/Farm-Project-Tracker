@@ -127,7 +127,10 @@ function EditSupplyForm({ item, onDone }: { item: InventoryRow; onDone: () => vo
   const [f, setF] = useState({
     name: item.name, category: item.category, unit: item.unit, reorderAt: String(item.reorderAt),
     unitCost: item.unitCost == null ? '' : String(item.unitCost), notes: item.notes,
+    meatWithdrawalDays: item.meatWithdrawalDays == null ? '' : String(item.meatWithdrawalDays),
+    milkWithdrawalDays: item.milkWithdrawalDays == null ? '' : String(item.milkWithdrawalDays),
   });
+  const days = (v: string) => (v.trim() === '' ? null : Math.max(0, Math.floor(Number(v))));
   const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -139,7 +142,10 @@ function EditSupplyForm({ item, onDone }: { item: InventoryRow; onDone: () => vo
     const res = await fetch(`/api/inventory/${item.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...f, reorderAt: Number(f.reorderAt) || 0, unitCost: f.unitCost.trim() === '' ? null : Number(f.unitCost) }),
+      body: JSON.stringify({
+        ...f, reorderAt: Number(f.reorderAt) || 0, unitCost: f.unitCost.trim() === '' ? null : Number(f.unitCost),
+        meatWithdrawalDays: days(f.meatWithdrawalDays), milkWithdrawalDays: days(f.milkWithdrawalDays),
+      }),
     });
     setBusy(false);
     if (!res.ok) return setErr((await res.json().catch(() => ({}))).error || 'Could not save changes.');
@@ -157,6 +163,12 @@ function EditSupplyForm({ item, onDone }: { item: InventoryRow; onDone: () => vo
           <Field label="Reorder at" htmlFor="es-re"><Input id="es-re" type="number" step="any" min={0} inputMode="decimal" value={f.reorderAt} onChange={(e) => set({ reorderAt: e.target.value })} /></Field>
           <Field label="Cost per unit" htmlFor="es-cost" hint="For on-hand value and spending.">
             <Input id="es-cost" type="number" step="0.01" min={0} inputMode="decimal" value={f.unitCost} onChange={(e) => set({ unitCost: e.target.value })} />
+          </Field>
+          <Field label="Meat withdrawal (days)" htmlFor="es-meat" hint="For animal medicines; filled in when it’s used.">
+            <Input id="es-meat" type="number" min={0} inputMode="numeric" value={f.meatWithdrawalDays} onChange={(e) => set({ meatWithdrawalDays: e.target.value })} />
+          </Field>
+          <Field label="Milk / egg withdrawal (days)" htmlFor="es-milk">
+            <Input id="es-milk" type="number" min={0} inputMode="numeric" value={f.milkWithdrawalDays} onChange={(e) => set({ milkWithdrawalDays: e.target.value })} />
           </Field>
         </div>
         <Field label="Notes" htmlFor="es-notes"><Textarea id="es-notes" value={f.notes} onChange={(e) => set({ notes: e.target.value })} rows={2} /></Field>

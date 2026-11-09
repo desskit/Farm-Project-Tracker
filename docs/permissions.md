@@ -26,6 +26,9 @@ by default as shown. Admins can see this table in the app at More → Who sees w
 | Use AI suggestions (`ai.use`) | ✓ | ✓ | off\* | — | — | — |
 | See passwords & codes shared with them (`vault.use`) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Store and share their own passwords & codes (`vault.create`) | ✓ | ✓ | ✓ | ✓ | — | — |
+| See the animals (`animals.view`) | ✓ | ✓ | ✓ | ✓ | off\* | — |
+| Log eggs, milk, treatments, weights and births (`animals.log`) | ✓ | ✓ | ✓ | ✓ | off\* | — |
+| Add animals and groups, record sales, plan breeding (`animals.manage`) | ✓ | ✓ | on\* | off\* | — | — |
 
 ## Roles
 
