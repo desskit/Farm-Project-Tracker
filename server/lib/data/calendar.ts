@@ -12,6 +12,8 @@ import type { SessionUser } from '@/lib/auth/session';
 import { can } from '@/lib/domain/permissions';
 import { canSeeWork } from '@/lib/domain/scope';
 import { choreAssigneeIdsFor, taskAssigneeIdsFor } from './assignees';
+import { upkeepWithStatus } from './upkeep-status';
+import { todayISO } from '@/lib/domain/dates';
 
 export type CalendarKind = 'chore' | 'maintenance' | 'task' | 'rent';
 export type CalendarItem = { date: string; kind: CalendarKind; id: string; title: string; href: string };
@@ -60,6 +62,14 @@ export async function calendarItems(viewer: SessionUser, fromISO: string, toISO:
   for (const m of maintRows) {
     if (m.intervalType === 'calendar' && m.nextDueDate && within(m.nextDueDate)) {
       out.push({ date: m.nextDueDate, kind: 'maintenance', id: m.id, title: m.name, href: `/maintenance/${m.assetId}` });
+    }
+  }
+  // Meter-based upkeep has no date; show anything due or close to it on today.
+  const today = todayISO();
+  if (within(today)) {
+    for (const u of await upkeepWithStatus()) {
+      if (u.status.mode !== 'usage' || u.status.bucket === 'later') continue;
+      out.push({ date: today, kind: 'maintenance', id: u.id, title: `${u.name} · ${u.status.detail}`, href: `/maintenance/${u.assetId}` });
     }
   }
 

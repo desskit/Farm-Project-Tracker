@@ -12,6 +12,8 @@ import { pruneOrphanAttachments } from '@/lib/data/attachment-access';
 import { reconcileChoreDueDates } from '@/lib/data/reconcile';
 import { runBackup } from '@/lib/backup';
 import { runRentReminders } from './rent-reminders';
+import { runUpkeepAlerts } from './upkeep-alerts';
+import { getWeather, refreshForecast } from '@/lib/data/weather';
 
 const g = globalThis as unknown as { __fptCronStarted?: boolean };
 
@@ -76,6 +78,18 @@ export function startCron(): void {
         // eslint-disable-next-line no-console
         console.error('[cron] rent reminders failed', e);
       });
+  });
+  // Upkeep coming due: one push to managers each morning (07:10), once per due point.
+  cron.schedule('10 7 * * *', () => {
+    runUpkeepAlerts()
+      .then((r) => r.announced && console.log(`[cron] upkeep alerts: ${r.announced} item(s)`))
+      .catch((e) => console.error('[cron] upkeep alerts failed', e));
+  });
+  // Keep the forecast fresh without anyone pressing refresh: every 3 hours.
+  cron.schedule('25 */3 * * *', () => {
+    getWeather()
+      .then((w) => (w.lat != null ? refreshForecast() : null))
+      .catch((e) => console.error('[cron] weather refresh failed', e));
   });
   // Catch up immediately at boot too, in case the server was off overnight.
   reconcileChoreDueDates().catch(() => {});

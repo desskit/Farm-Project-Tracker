@@ -129,3 +129,13 @@ export async function pushRequest(
 ): Promise<void> {
   await notify(userIds, actorId, payload);
 }
+
+/** Upkeep that has just come due, as one summary push. */
+export async function pushUpkeepDue(userIds: string[], names: string[]): Promise<void> {
+  if (!names.length) return;
+  await notify(userIds, null, {
+    title: names.length === 1 ? 'Upkeep due' : `${names.length} upkeep items due`,
+    body: names.slice(0, 4).join(', ') + (names.length > 4 ? ` +${names.length - 4} more` : ''),
+    url: '/maintenance',
+  });
+}

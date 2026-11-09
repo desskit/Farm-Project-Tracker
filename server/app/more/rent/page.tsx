@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { ChevronLeft } from 'lucide-react';
-import { PageHeader } from '@/components/ui';
+import { ChevronLeft, History } from 'lucide-react';
+import { ButtonLink, PageHeader } from '@/components/ui';
 import s from './rent.module.css';
 import { getSessionUser } from '@/lib/auth/session';
 import { rentChargesForMonth, rentSummary, rentAssignmentFor } from '@/lib/data/rent';
@@ -47,6 +47,7 @@ export default async function RentPage() {
         back={<Link href={can(user, 'farm.view') ? '/more' : '/'} aria-label="Back" className={s.back}><ChevronLeft /></Link>}
         title="Rent"
         subtitle={monthLabel(mk)}
+        actions={<ButtonLink href="/more/rent/history" size="sm" variant="ghost" icon={<History />}>History</ButtonLink>}
       />
 
       <RentView
