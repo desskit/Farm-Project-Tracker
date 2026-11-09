@@ -1,0 +1,30 @@
+.wrap { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--gutter) calc(var(--nav-h) + var(--space-8)); display: grid; gap: var(--space-4); }
+.back { display: grid; place-items: center; width: var(--tap); height: var(--tap); color: var(--c-text); }
+.muted { color: var(--c-text-muted); font-size: var(--text-sm); margin: 0; }
+.notes { margin: var(--space-2) 0 0; white-space: pre-wrap; }
+.row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.every { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3); align-items: end; }
+.unit { min-height: var(--tap); display: flex; align-items: center; color: var(--c-text-muted); }
+.inlineForm { margin-top: var(--space-2); padding-top: var(--space-3); border-top: 1px solid var(--c-border); }
+.readingForm { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: var(--space-2); }
+.readingForm > span { grid-column: 1 / -1; }
+.readings { margin-top: var(--space-3); border-top: 1px solid var(--c-border); }
+
+.item { padding: var(--space-3) var(--space-4); display: grid; gap: var(--space-2); }
+.item + .item { border-top: 1px solid var(--c-border); }
+.itemHead { display: flex; align-items: flex-start; gap: var(--space-2); }
+.itemMain { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.itemName { font-weight: 700; }
+.itemTools { display: flex; }
+.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px var(--space-2); }
+.flag { display: inline-flex; align-items: center; gap: 3px; font-size: var(--text-xs); color: var(--c-text-muted); }
+.flag svg { width: 13px; height: 13px; }
+.logs { border-top: 1px dashed var(--c-border); }
+.log { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; font-size: var(--text-sm); }
+.log + .log { border-top: 1px solid var(--c-border); }
+.logMain { flex: 1; min-width: 0; }
+.proof { display: grid; place-items: center; width: var(--tap); height: var(--tap); color: var(--c-primary); }
+.proof svg { width: 18px; height: 18px; }
+.photo { position: relative; display: flex; align-items: center; gap: var(--space-2); min-height: 56px; padding: 0 var(--space-3); border: 2px dashed var(--c-border-strong); border-radius: var(--r-md); color: var(--c-primary); font-weight: 600; cursor: pointer; }
+.photo svg { width: 20px; height: 20px; }
+.photo input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }

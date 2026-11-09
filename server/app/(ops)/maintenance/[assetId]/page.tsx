@@ -16,6 +16,7 @@ import { listUsers } from '@/lib/data/users';
 import { AssetDetail } from './asset-detail';
 import { AssetDocs } from './asset-docs';
 import { NotesSection } from '@/app/_components/notes-section';
+import s from './asset.module.css';
 
 export default async function AssetDetailPage({ params }: { params: { assetId: string } }) {
   const user = await getSessionUser();
@@ -46,7 +47,7 @@ export default async function AssetDetailPage({ params }: { params: { assetId: s
   ]);
 
   return (
-    <main className="view">
+    <main className={s.wrap}>
       <AssetDetail
         asset={asset}
         items={itemsWithLogs}
