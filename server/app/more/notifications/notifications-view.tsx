@@ -1,6 +1,9 @@
 'use client';
 import { useState } from 'react';
+import { BellRing, Mail } from 'lucide-react';
 import type { Prefs } from '@/lib/data/prefs';
+import { Banner, Button, Card, Field, Select, Stack, Switch } from '@/components/ui';
+import s from './notifications.module.css';
 
 function urlBase64ToUint8Array(base64: string): Uint8Array {
   const padding = '='.repeat((4 - (base64.length % 4)) % 4);
@@ -120,108 +123,63 @@ export function NotificationsView({
     }
   }
 
+  const hours = Array.from({ length: 24 }, (_, h) => ({ h, label: h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM` }));
   return (
-    <>
+    <Stack gap={16}>
       {!emailReady && !pushReady && (
-        <div className="notice">
-          Email and push aren&apos;t configured on the server yet (SMTP / VAPID env). Your preferences are still saved
-          and take effect once an admin turns those on.
-        </div>
+        <Banner tone="info">Email and push aren’t set up on the server yet. Your choices are saved and take effect once they are.</Banner>
       )}
 
-      <div className="card">
-        <div className="field">
-          <label>Email digest</label>
-          <select value={prefs.email} onChange={(e) => save({ ...prefs, email: e.target.value as Prefs['email'] })}>
-            <option value="off">Off</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly (Mondays)</option>
-          </select>
-        </div>
-        <div className="field">
-          <label>Digest time</label>
-          <select value={prefs.digestHour} onChange={(e) => save({ ...prefs, digestHour: Number(e.target.value) })}>
-            {Array.from({ length: 24 }, (_, h) => (
-              <option key={h} value={h}>
-                {h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`}
-              </option>
-            ))}
-          </select>
-        </div>
-        <label className="inline-check">
-          <input type="checkbox" checked={prefs.push} onChange={(e) => save({ ...prefs, push: e.target.checked })} />
-          Daily push summary
-        </label>
-        <label className="inline-check" style={{ marginTop: 10 }}>
-          <input
-            type="checkbox"
+      <Card title="What you get" action={<span className={s.saved}>{saving ? 'Saving…' : saved ? 'Saved ✓' : ''}</span>}>
+        <Stack>
+          <div className={s.two}>
+            <Field label="Email digest" htmlFor="pref-email">
+              <Select id="pref-email" value={prefs.email} onChange={(e) => save({ ...prefs, email: e.target.value as Prefs['email'] })}>
+                <option value="off">Off</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly (Mondays)</option>
+              </Select>
+            </Field>
+            <Field label="Digest time" htmlFor="pref-hour">
+              <Select id="pref-hour" value={prefs.digestHour} onChange={(e) => save({ ...prefs, digestHour: Number(e.target.value) })}>
+                {hours.map(({ h, label }) => <option key={h} value={h}>{label}</option>)}
+              </Select>
+            </Field>
+          </div>
+          <Switch label="Daily push summary" hint="What's overdue and due today, at your digest time." checked={prefs.push} onChange={(v) => save({ ...prefs, push: v })} />
+          <Switch
+            label="Push as things happen"
+            hint="Work assigned to you, work sent back, someone joining your job, low supplies, request updates."
             checked={prefs.eventPush}
-            onChange={(e) => save({ ...prefs, eventPush: e.target.checked })}
+            onChange={(v) => save({ ...prefs, eventPush: v })}
           />
-          Push as things happen
-        </label>
-        <p className="subtle" style={{ margin: '6px 0 0' }}>
-          Work assigned to you, work sent back for a redo, someone joining a job you&apos;re on, and supplies running
-          low.
-        </p>
-        <p className="subtle" style={{ marginTop: 8 }}>
-          {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Changes save automatically.'}
-        </p>
-      </div>
+        </Stack>
+      </Card>
+
+      <Card title="This device">
+        <Stack>
+          <p className={s.muted}>Turn on push on each phone you want alerts on. Add the app to your home screen first for the best results.</p>
+          <Button block icon={<BellRing />} loading={pushBusy} onClick={enablePush}>Enable push on this device</Button>
+          {pushMsg && <Banner tone="info">{pushMsg}</Banner>}
+          {isAdmin && (
+            <>
+              <p className={s.muted}>{pushReady ? 'Send yourself a test notification to check the server’s push setup.' : 'Push keys aren’t set up on this server, so no push will send.'}</p>
+              <Button variant="secondary" block disabled={!pushReady} loading={pushTestBusy} onClick={sendTestPush}>Send test push</Button>
+              {pushTestMsg && <Banner tone={pushTestMsg.ok ? 'ok' : 'danger'}>{pushTestMsg.text}</Banner>}
+            </>
+          )}
+        </Stack>
+      </Card>
 
       {isAdmin && (
-        <>
-          <div className="section-title">Email delivery</div>
-          <div className="card">
-            <p className="subtle" style={{ marginTop: 0 }}>
-              {emailReady
-                ? 'Send yourself a test message to confirm SMTP is working.'
-                : 'SMTP isn’t configured on this server, so invites, resets, and digests won’t send.'}
-            </p>
-            <button className="btn block" disabled={!emailReady || testBusy} onClick={sendTestEmail}>
-              {testBusy ? 'Sending…' : '✉️ Send test email'}
-            </button>
-            {testMsg && (
-              <p className={testMsg.ok ? undefined : 'error-text'} style={testMsg.ok ? { color: 'var(--brand)', fontWeight: 600 } : undefined}>
-                {testMsg.text}
-              </p>
-            )}
-          </div>
-        </>
+        <Card title="Email delivery">
+          <Stack>
+            <p className={s.muted}>{emailReady ? 'Send yourself a test message to check email is working.' : 'Email isn’t set up on this server, so invites, resets and digests won’t send.'}</p>
+            <Button variant="secondary" block icon={<Mail />} disabled={!emailReady} loading={testBusy} onClick={sendTestEmail}>Send test email</Button>
+            {testMsg && <Banner tone={testMsg.ok ? 'ok' : 'danger'}>{testMsg.text}</Banner>}
+          </Stack>
+        </Card>
       )}
-
-      <div className="section-title">This device</div>
-      <div className="card">
-        <p className="subtle" style={{ marginTop: 0 }}>
-          Enable push on each device you want alerts on (install the app to your home screen first for the best
-          experience).
-        </p>
-        <button className="btn primary block" disabled={pushBusy} onClick={enablePush}>
-          {pushBusy ? 'Enabling…' : '🔔 Enable push on this device'}
-        </button>
-        {pushMsg && <p className="subtle" style={{ marginTop: 8 }}>{pushMsg}</p>}
-
-        {isAdmin && (
-          <>
-            <p className="subtle" style={{ marginTop: 14 }}>
-              {pushReady
-                ? 'Send yourself a test notification to confirm the server’s VAPID setup.'
-                : 'VAPID keys aren’t configured on this server, so no push will send.'}
-            </p>
-            <button className="btn block" disabled={!pushReady || pushTestBusy} onClick={sendTestPush}>
-              {pushTestBusy ? 'Sending…' : '🔔 Send test push'}
-            </button>
-            {pushTestMsg && (
-              <p
-                className={pushTestMsg.ok ? undefined : 'error-text'}
-                style={pushTestMsg.ok ? { color: 'var(--brand)', fontWeight: 600 } : undefined}
-              >
-                {pushTestMsg.text}
-              </p>
-            )}
-          </>
-        )}
-      </div>
-    </>
+    </Stack>
   );
 }

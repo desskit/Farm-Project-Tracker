@@ -1,37 +1,33 @@
 import Link from 'next/link';
+import { ChevronLeft } from 'lucide-react';
 import { getSessionUser } from '@/lib/auth/session';
-import { ChangePasswordForm } from './change-password-form';
 import { LogoutButton } from '@/app/_components/logout-button';
-import { ROLE_LABEL } from '@/lib/domain/permissions';
+import { ROLE_BLURB, ROLE_LABEL } from '@/lib/domain/permissions';
+import { Card, PageHeader } from '@/components/ui';
+import { ChangePasswordForm } from './change-password-form';
+import s from './account.module.css';
 
 export default async function AccountPage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
 
   return (
-    <main className="view">
-      <div className="sub-head">
-        <Link href="/more" className="btn small ghost back-btn">
-          ‹ More
-        </Link>
-        <h1>Account</h1>
-      </div>
-
-      <div className="card who-card">
-        <span className="who-avatar">{(user.name || '?').charAt(0)}</span>
-        <div className="who-main">
-          <p className="who-name">{user.name}</p>
-          <p className="who-role">
-            {ROLE_LABEL[user.role]} · {user.email}
-          </p>
+    <main className={s.wrap}>
+      <PageHeader back={<Link href="/more" aria-label="Back" className={s.back}><ChevronLeft /></Link>} title="Account" />
+      <Card>
+        <div className={s.who}>
+          <span className={s.avatar} aria-hidden>{(user.name || '?').charAt(0)}</span>
+          <div className={s.main}>
+            <strong>{user.name}</strong>
+            <span className={s.muted}>{user.email}</span>
+            <span className={s.muted}>{ROLE_LABEL[user.role]} — {ROLE_BLURB[user.role]}</span>
+          </div>
         </div>
-        <LogoutButton className="btn small ghost" />
-      </div>
-
-      <div className="section-title">Change password</div>
-      <div className="card">
+        <div className={s.signout}><LogoutButton className="btn small ghost" /></div>
+      </Card>
+      <Card title="Change password">
         <ChangePasswordForm />
-      </div>
+      </Card>
     </main>
   );
 }

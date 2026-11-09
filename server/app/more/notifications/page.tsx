@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { ChevronLeft } from 'lucide-react';
+import { PageHeader } from '@/components/ui';
+import s from './notifications.module.css';
 import { getSessionUser } from '@/lib/auth/session';
 import { getPrefs } from '@/lib/data/prefs';
 import { emailConfigured } from '@/lib/notify/email';
@@ -12,13 +15,8 @@ export default async function NotificationsPage() {
   const prefs = await getPrefs(user.id);
 
   return (
-    <main className="view">
-      <div className="sub-head">
-        <Link href="/more" className="btn small ghost back-btn">
-          ‹ More
-        </Link>
-        <h1>Notifications</h1>
-      </div>
+    <main className={s.wrap}>
+      <PageHeader back={<Link href="/more" aria-label="Back" className={s.back}><ChevronLeft /></Link>} title="Notifications" />
       <NotificationsView
         prefs={prefs}
         emailReady={emailConfigured()}
