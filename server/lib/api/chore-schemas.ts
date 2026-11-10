@@ -18,6 +18,7 @@ const choreFields = z.object({
   requirePhoto: z.boolean().optional(),
   open: z.boolean().optional(),
   steps: z.array(z.string()).optional(),
+  rotate: z.boolean().optional(),
   supplies: z.array(z.object({ inventoryId: z.string().max(64), qty: z.number().positive().max(1e6) })).max(20).optional(),
 });
 

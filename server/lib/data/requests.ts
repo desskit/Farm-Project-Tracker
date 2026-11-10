@@ -17,6 +17,7 @@ import { assertOwnUpload } from './attachment-access';
 import { logActivity } from './activity';
 import { DataError } from './errors';
 import { activeLeaseFor } from './rentals';
+import { findMentions } from '@/lib/domain/mentions';
 
 export const REQUEST_STATUS_LABEL: Record<RequestStatus, string> = {
   open: 'Open',
@@ -141,5 +142,11 @@ export async function addRequestComment(user: SessionUser, id: string, body: str
       ? (await recipientsWith('requests.manage')).map((m) => m.id)
       : [found.request.createdBy].filter((x): x is string => !!x);
   await pushRequest(user.id, to, { title: 'New reply on a request', body: `${user.name}: ${text.slice(0, 120)}`, url: `/requests/${id}` });
+  // "@Name" also reaches a handler who wouldn't otherwise hear about this reply.
+  if (text.includes('@')) {
+    const handlers = await recipientsWith('requests.manage');
+    const named = findMentions(text, handlers).filter((x) => x !== user.id && !to.includes(x));
+    if (named.length) await pushRequest(user.id, named, { title: `${user.name} mentioned you`, body: text.slice(0, 140), url: `/requests/${id}` });
+  }
   publishChange('request');
 }

@@ -86,7 +86,7 @@ export function TaskItem({
       {editing && <EditTaskForm task={t} people={people} onDone={() => setEditing(false)} onError={onError} />}
       {notesOpen && (
         <div className={s.notes}>
-          <NotesSection parentType="task" parentId={t.id} notes={notes} currentUser={currentUser} />
+          <NotesSection parentType="task" parentId={t.id} notes={notes} currentUser={currentUser} mentionNames={people.filter((p) => p.active).map((p) => p.name)} />
         </div>
       )}
     </div>

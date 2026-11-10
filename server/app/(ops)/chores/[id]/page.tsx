@@ -2,6 +2,10 @@ import { notFound } from 'next/navigation';
 import { getSessionUser } from '@/lib/auth/session';
 import { choreForViewer, choreCompletionsFor, choreStreak, choreSuppliesFor } from '@/lib/data/chores';
 import { listInventory } from '@/lib/data/inventory';
+import { listNotes } from '@/lib/data/notes';
+import { guidesFor, listGuides } from '@/lib/data/guides';
+import { GuidesCard } from '@/app/_components/guides-card';
+import { NotesSection } from '@/app/_components/notes-section';
 import { can } from '@/lib/domain/permissions';
 import { activeTimerFor, totalSeconds } from '@/lib/data/timers';
 import { listUsers } from '@/lib/data/users';
@@ -18,7 +22,7 @@ export default async function ChoreDetailPage({ params }: { params: { id: string
   const chore = await choreForViewer(user, params.id);
   if (!chore) notFound();
 
-  const [completions, streak, people, timer, timerTotal, supplies, inv] = await Promise.all([
+  const [completions, streak, people, timer, timerTotal, supplies, inv, notes, guides, allGuides] = await Promise.all([
     choreCompletionsFor(params.id),
     choreStreak(params.id),
     listUsers(),
@@ -26,6 +30,9 @@ export default async function ChoreDetailPage({ params }: { params: { id: string
     totalSeconds('chore', params.id),
     choreSuppliesFor(params.id),
     can(user, 'work.manage') ? listInventory() : Promise.resolve([]),
+    listNotes('chore', params.id),
+    guidesFor('chore', params.id),
+    can(user, 'work.manage') ? listGuides() : Promise.resolve([]),
   ]);
 
   return (
@@ -46,6 +53,8 @@ export default async function ChoreDetailPage({ params }: { params: { id: string
         supplies={supplies}
         supplyOptions={inv.map((i) => ({ id: i.id, name: i.name, unit: i.unit }))}
       />
+      <GuidesCard parentType="chore" parentId={chore.id} linked={guides} all={allGuides.map((g) => ({ id: g.id, title: g.title, summary: g.summary }))} canManage={can(user, 'work.manage')} />
+      <NotesSection parentType="chore" parentId={chore.id} notes={notes} currentUser={user} mentionNames={people.filter((p) => p.active).map((p) => p.name)} />
     </main>
   );
 }

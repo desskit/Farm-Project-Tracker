@@ -13,7 +13,7 @@ import { OutboxBar } from './_components/outbox-bar';
 import { PwaRegister } from './_components/pwa-register';
 import { PreviewBanner } from './_components/preview-banner';
 import { activeTimersForUser } from '@/lib/data/timers';
-import { currentBrand, currentThemePref } from '@/lib/data/brand';
+import { currentBrand, currentThemePref, currentTextPref } from '@/lib/data/brand';
 import { brandInfo } from '@/lib/domain/brand';
 
 export const metadata: Metadata = {
@@ -45,11 +45,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const timers = user ? await activeTimersForUser(user.id) : [];
   const brand = await currentBrand();
   const theme = currentThemePref();
+  const text = currentTextPref();
 
   return (
     // Set server-side from the setting and cookie, so the first paint is
     // already in the right colors (no flash).
-    <html lang="en" data-brand={brand} data-theme={theme === 'system' ? undefined : theme}>
+    <html lang="en" data-brand={brand} data-theme={theme === 'system' ? undefined : theme} data-text={text === 'large' ? 'lg' : undefined}>
       <body className={user ? 'has-rail' : undefined} data-user-id={user?.id}>
         <DialogsProvider>
         <PwaRegister />

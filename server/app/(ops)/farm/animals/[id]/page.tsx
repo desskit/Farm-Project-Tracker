@@ -3,6 +3,8 @@ import { getSessionUser } from '@/lib/auth/session';
 import { groupDetail, listGroups } from '@/lib/data/livestock';
 import { listInventory } from '@/lib/data/inventory';
 import { grazeableUnits, grazingAdvice } from '@/lib/data/land';
+import { guidesFor, listGuides } from '@/lib/data/guides';
+import { GuidesCard } from '@/app/_components/guides-card';
 import { MoveGroupCard } from '../../land/[id]/unit-client';
 import { DataError } from '@/lib/data/errors';
 import { can } from '@/lib/domain/permissions';
@@ -73,6 +75,8 @@ export default async function GroupPage({ params }: { params: { id: string } }) 
       {moves && paddocks.length > 0 && (
         <MoveGroupCard groupId={group.id} current={group.landUnitId} movedOn={group.movedOn} units={paddocks} today={today} advice={advice.find((a) => a.groupId === group.id) ?? null} />
       )}
+
+      <GuidesCard parentType="animal_group" parentId={group.id} linked={await guidesFor('animal_group', group.id)} all={can(user, 'work.manage') ? (await listGuides()).map((g) => ({ id: g.id, title: g.title, summary: g.summary })) : []} canManage={can(user, 'work.manage')} />
 
       <CareCard groupId={group.id} groupName={group.name} species={species} chores={d.care} canAdd={can(user, 'work.manage')} />
 

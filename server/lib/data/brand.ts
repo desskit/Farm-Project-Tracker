@@ -3,7 +3,7 @@ import 'server-only';
 import { requestCache } from '@/lib/request-cache';
 import { cookies } from 'next/headers';
 import { getSetting, setSetting } from './settings';
-import { BRAND_SETTING_KEY, DEFAULT_BRAND, THEME_COOKIE, isBrandId, parseThemePref, type BrandId, type ThemePref } from '@/lib/domain/brand';
+import { BRAND_SETTING_KEY, DEFAULT_BRAND, TEXT_COOKIE, THEME_COOKIE, isBrandId, parseTextPref, parseThemePref, type BrandId, type TextPref, type ThemePref } from '@/lib/domain/brand';
 import type { SessionUser } from '@/lib/auth/session';
 import { logActivity } from './activity';
 import { DataError } from './errors';
@@ -18,6 +18,10 @@ export const currentBrand = requestCache(async (): Promise<BrandId> => {
     return DEFAULT_BRAND; // never let a bad setting take the whole app down
   }
 });
+
+export function currentTextPref(): TextPref {
+  return parseTextPref(cookies().get(TEXT_COOKIE)?.value);
+}
 
 export function currentThemePref(): ThemePref {
   return parseThemePref(cookies().get(THEME_COOKIE)?.value);

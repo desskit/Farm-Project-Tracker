@@ -20,7 +20,7 @@ import 'server-only';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import {
-  assetDocs, attachments, choreCompletions, inspectionPhotos, maintenanceLogs, maintenanceRequests, notes, projectExpenses, projectTasks, rentDocs,
+  assetDocs, attachments, choreCompletions, guidePhotos, inspectionPhotos, maintenanceLogs, maintenanceRequests, notes, projectExpenses, projectTasks, rentDocs,
 } from '@/db/schema';
 import type { SessionUser } from '@/lib/auth/session';
 import { can } from '@/lib/domain/permissions';
@@ -29,7 +29,7 @@ import { DataError } from './errors';
 type Ref = { kind: 'rent'; renterId: string } | { kind: 'request'; createdBy: string | null } | { kind: 'expense' } | { kind: 'inspection' } | { kind: 'farm' };
 
 async function referencesTo(id: string): Promise<Ref[]> {
-  const [rent, expense, completion, log, assetDoc, task, note, request, inspection] = await Promise.all([
+  const [rent, expense, completion, log, assetDoc, task, note, request, inspection, guide] = await Promise.all([
     db.select({ userId: rentDocs.userId }).from(rentDocs).where(eq(rentDocs.attachmentId, id)),
     db.select({ id: projectExpenses.id }).from(projectExpenses).where(eq(projectExpenses.photoId, id)),
     db.select({ id: choreCompletions.id }).from(choreCompletions).where(eq(choreCompletions.photoId, id)),
@@ -39,13 +39,14 @@ async function referencesTo(id: string): Promise<Ref[]> {
     db.select({ id: notes.id }).from(notes).where(eq(notes.photoId, id)),
     db.select({ createdBy: maintenanceRequests.createdBy }).from(maintenanceRequests).where(eq(maintenanceRequests.photoId, id)),
     db.select({ id: inspectionPhotos.inspectionId }).from(inspectionPhotos).where(eq(inspectionPhotos.attachmentId, id)),
+    db.select({ id: guidePhotos.guideId }).from(guidePhotos).where(eq(guidePhotos.attachmentId, id)),
   ]);
   return [
     ...rent.map((r) => ({ kind: 'rent' as const, renterId: r.userId })),
     ...request.map((r) => ({ kind: 'request' as const, createdBy: r.createdBy })),
     ...expense.map(() => ({ kind: 'expense' as const })),
     ...inspection.map(() => ({ kind: 'inspection' as const })),
-    ...[...completion, ...log, ...assetDoc, ...task, ...note].map(() => ({ kind: 'farm' as const })),
+    ...[...completion, ...log, ...assetDoc, ...task, ...note, ...guide].map(() => ({ kind: 'farm' as const })),
   ];
 }
 

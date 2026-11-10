@@ -6,6 +6,8 @@ import { ROLE_BLURB, ROLE_LABEL } from '@/lib/domain/permissions';
 import { Card, PageHeader } from '@/components/ui';
 import { ChangePasswordForm } from './change-password-form';
 import { CalendarLink } from './calendar-link';
+import { Appearance } from './appearance';
+import { currentTextPref, currentThemePref } from '@/lib/data/brand';
 import { hasCalendarToken } from '@/lib/data/calendar-feed';
 import s from './account.module.css';
 
@@ -29,6 +31,9 @@ export default async function AccountPage() {
       </Card>
       <Card title="Change password">
         <ChangePasswordForm />
+      </Card>
+      <Card title="Appearance">
+        <Appearance theme={currentThemePref()} text={currentTextPref()} />
       </Card>
       <Card title="Calendar on your phone">
         <CalendarLink exists={await hasCalendarToken(user.id)} />

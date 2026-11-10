@@ -1,4 +1,4 @@
-import { Activity, Bell, Building2, CalendarDays, CloudSun, Database, FileSpreadsheet, KeyRound, LockKeyhole, MessageSquareWarning, Package, Receipt, Search, ShieldCheck, Timer, Tractor, Trophy, UserCog, Users, Wallet } from 'lucide-react';
+import { Activity, Bell, BookOpen, Building2, CalendarDays, CloudSun, Database, FileSpreadsheet, KeyRound, LockKeyhole, Megaphone, MessageSquareWarning, Package, Phone, Receipt, Search, ShieldCheck, Timer, Tractor, Trophy, UserCog, Users, Wallet } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { getSessionUser } from '@/lib/auth/session';
 import { lowStockItems } from '@/lib/data/inventory';
@@ -29,6 +29,9 @@ export default async function MorePage() {
     farm.push({ href: '/more/leaderboard', icon: <Trophy />, label: 'Leaderboard', sub: 'Points & streaks' });
     farm.push({ href: '/more/weather', icon: <CloudSun />, label: 'Weather', sub: 'Forecast & fire danger' });
     farm.push({ href: '/more/activity', icon: <Activity />, label: 'Activity', sub: 'Recent history' });
+    farm.push({ href: '/more/guides', icon: <BookOpen />, label: 'How-to guides', sub: 'Step-by-step instructions' });
+    farm.push({ href: '/more/contacts', icon: <Phone />, label: 'Contacts', sub: 'Vet, farrier, suppliers, emergency' });
+    if (can(user, 'work.manage') || can(user, 'rentals.manage')) farm.push({ href: '/more/notices', icon: <Megaphone />, label: 'Notices', sub: 'Post an announcement' });
     farm.push({ href: '/more/search', icon: <Search />, label: 'Search', sub: 'Find anything' });
     if (datasetsFor(user).length) farm.push({ href: '/more/export', icon: <FileSpreadsheet />, label: 'Export', sub: 'Spreadsheets of the records' });
   }
@@ -49,7 +52,7 @@ export default async function MorePage() {
 
   const me: Row[] = [
     ...(can(user, 'vault.use') ? [{ href: '/vault', icon: <LockKeyhole />, label: 'Passwords & codes', sub: can(user, 'vault.create') ? 'Shared logins, Wi-Fi, gate codes' : 'Codes shared with you' }] : []),
-    { href: '/more/account', icon: <KeyRound />, label: 'Account', sub: 'Password & sign-in' },
+    { href: '/more/account', icon: <KeyRound />, label: 'Account', sub: 'Password, appearance, calendar' },
     { href: '/more/notifications', icon: <Bell />, label: 'Notifications', sub: 'Digests & push' },
   ];
 

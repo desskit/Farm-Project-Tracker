@@ -6,7 +6,7 @@ import { errorResponse } from '@/lib/api/errors';
 import { idempotencyKey, withIdempotency } from '@/lib/api/idempotency';
 
 const schema = z.object({
-  parentType: z.enum(['project', 'task', 'asset']),
+  parentType: z.enum(['project', 'task', 'asset', 'chore']),
   parentId: z.string().min(1),
   body: z.string().optional(),
   photoId: z.string().nullable().optional(),

@@ -3,6 +3,8 @@ import { getSessionUser } from '@/lib/auth/session';
 import { unitDetail } from '@/lib/data/land';
 import { listGroups } from '@/lib/data/livestock';
 import { listInventory } from '@/lib/data/inventory';
+import { guidesFor, listGuides } from '@/lib/data/guides';
+import { GuidesCard } from '@/app/_components/guides-card';
 import { DataError } from '@/lib/data/errors';
 import { can } from '@/lib/domain/permissions';
 import { LAND_KINDS } from '@/lib/domain/garden';
@@ -89,6 +91,7 @@ export default async function UnitPage({ params }: { params: { id: string } }) {
           today={today}
         />
       )}
+      <GuidesCard parentType="land_unit" parentId={unit.id} linked={await guidesFor('land_unit', unit.id)} all={can(user, 'work.manage') ? (await listGuides()).map((g) => ({ id: g.id, title: g.title, summary: g.summary })) : []} canManage={can(user, 'work.manage')} />
       <FieldWorkCard unitId={unit.id} events={d.events} supplies={sup} canLog={log} canManage={manage} today={today} />
     </Screen>
   );

@@ -1,0 +1,4 @@
+.row { display: flex; align-items: center; }
+.row + .row { border-top: 1px solid var(--c-border); }
+.grow { flex: 1; min-width: 0; }
+.add { display: flex; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-top: 1px solid var(--c-border); }

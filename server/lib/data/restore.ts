@@ -44,6 +44,11 @@ export async function restoreBackup(admin: SessionUser, backup: Backup): Promise
   await transaction(async (tx) => {
     // Delete content, children before parents (safe whether or not FKs are on).
     for (const t of [
+      schema.guideLinks,
+      schema.guidePhotos,
+      schema.guides,
+      schema.notices,
+      schema.contacts,
       schema.choreSupplies,
       // Livestock, land and rentals (children before parents).
       schema.inspectionPhotos,
@@ -154,6 +159,10 @@ export async function restoreBackup(admin: SessionUser, backup: Backup): Promise
       [schema.landEvents, 'landEvents'],
       [schema.grazingMoves, 'grazingMoves'],
       [schema.choreSupplies, 'choreSupplies'],
+      [schema.notices, 'notices'],
+      [schema.contacts, 'contacts'],
+      [schema.guides, 'guides'],
+      [schema.guideLinks, 'guideLinks'],
       [schema.settings, 'settings'],
       [schema.activity, 'activity'],
     ];
@@ -170,6 +179,10 @@ export async function restoreBackup(admin: SessionUser, backup: Backup): Promise
     const docs = arr('assetDocs').filter((d) => typeof d.attachmentId === 'string' && attIds.has(d.attachmentId));
     await insertChunked(tx as unknown as typeof db, schema.assetDocs, docs);
     counts.assetDocs = docs.length;
+
+    const guidePics = arr('guidePhotos').filter((d) => typeof d.attachmentId === 'string' && attIds.has(d.attachmentId));
+    await insertChunked(tx as unknown as typeof db, schema.guidePhotos, guidePics);
+    counts.guidePhotos = guidePics.length;
 
     const inspPhotos = arr('inspectionPhotos').filter((d) => typeof d.attachmentId === 'string' && attIds.has(d.attachmentId));
     await insertChunked(tx as unknown as typeof db, schema.inspectionPhotos, inspPhotos);

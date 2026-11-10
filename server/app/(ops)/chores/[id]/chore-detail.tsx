@@ -183,7 +183,10 @@ export function ChoreDetail({
           {chore.assigneeIds.length ? (
             <>
               <AvatarStack names={chore.assigneeIds.map((id) => nameById.get(id) ?? 'Someone')} max={4} />
-              <span>{chore.assigneeIds.map((id) => nameById.get(id) ?? 'Someone').join(', ')}</span>
+              <span>
+                {chore.assigneeIds.map((id) => nameById.get(id) ?? 'Someone').join(', ')}
+                {chore.rotate && chore.turnUserId ? ` · ${chore.turnUserId === currentUser.id ? 'your turn' : `${nameById.get(chore.turnUserId) ?? 'someone'}’s turn`}` : ''}
+              </span>
             </>
           ) : (
             <span className={s.muted}>{chore.open ? 'Up for grabs' : 'Nobody assigned'}</span>

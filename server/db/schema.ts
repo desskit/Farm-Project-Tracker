@@ -142,6 +142,9 @@ export const chores = sqliteTable('chores', {
   /** Recurring care tied to something on the farm, e.g. ('animal_group', id). */
   linkType: text('link_type').$type<ChoreLinkType>(),
   linkId: text('link_id'),
+  /** Take turns: only `turn_user_id` has it on their list; it moves on each time it's done or skipped. */
+  rotate: integer('rotate', { mode: 'boolean' }).notNull().default(false),
+  turnUserId: text('turn_user_id').references(() => users.id, { onDelete: 'set null' }),
 }, (t) => ({
   linkIdx: index('chores_link_idx').on(t.linkType, t.linkId),
   nextDueIdx: index('chores_next_due_idx').on(t.done, t.nextDue),
@@ -370,7 +373,7 @@ export const timeEntries = sqliteTable('time_entries', {
 /* ---------------- notes ---------------- */
 export const notes = sqliteTable('notes', {
   id: text('id').primaryKey(),
-  parentType: text('parent_type').$type<'project' | 'task' | 'asset'>().notNull(),
+  parentType: text('parent_type').$type<'project' | 'task' | 'asset' | 'chore'>().notNull(),
   parentId: text('parent_id').notNull(),
   userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
   date: text('date').notNull(),
@@ -924,4 +927,66 @@ export const calendarTokens = sqliteTable('calendar_tokens', {
   userId: text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
   tokenHash: text('token_hash').notNull().unique(),
   createdAt: integer('created_at').notNull().default(now),
+});
+
+/* ---------------- people & communication ---------------- */
+
+export type NoticeAudience = 'farm' | 'tenants' | 'everyone';
+
+/** An announcement pinned to the top of Today (farm) and/or the renter portal (tenants). */
+export const notices = sqliteTable('notices', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  body: text('body').notNull().default(''),
+  audience: text('audience').$type<NoticeAudience>().notNull().default('farm'),
+  /** Last day it shows (null = until taken down). */
+  expiresOn: text('expires_on'),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at').notNull().default(now),
+});
+
+export type GuideStep = { text: string };
+export type GuideParentType = 'chore' | 'asset' | 'animal_group' | 'land_unit';
+
+/** A how-to: "Starting the generator", "Mixing milk replacer". Steps in order, photos alongside. */
+export const guides = sqliteTable('guides', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  summary: text('summary').notNull().default(''),
+  steps: text('steps', { mode: 'json' }).$type<GuideStep[]>().notNull().default(sql`'[]'`),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  updatedAt: integer('updated_at').notNull().default(now),
+});
+
+export const guidePhotos = sqliteTable('guide_photos', {
+  guideId: text('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  attachmentId: text('attachment_id').notNull().references(() => attachments.id, { onDelete: 'cascade' }),
+  /** Which step it illustrates (0-based); -1 = the guide as a whole. */
+  step: integer('step').notNull().default(-1),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.guideId, t.attachmentId] }),
+  attachmentIdx: index('guide_photos_attachment_idx').on(t.attachmentId),
+}));
+
+/** Where a guide shows up: on a chore, a machine, a herd, a bed. */
+export const guideLinks = sqliteTable('guide_links', {
+  guideId: text('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  parentType: text('parent_type').$type<GuideParentType>().notNull(),
+  parentId: text('parent_id').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.guideId, t.parentType, t.parentId] }),
+  parentIdx: index('guide_links_parent_idx').on(t.parentType, t.parentId),
+}));
+
+export type ContactKind = 'emergency' | 'vet' | 'farrier' | 'supplier' | 'utility' | 'other';
+
+export const contacts = sqliteTable('contacts', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  kind: text('kind').$type<ContactKind>().notNull().default('other'),
+  phone: text('phone').notNull().default(''),
+  email: text('email').notNull().default(''),
+  notes: text('notes').notNull().default(''),
+  /** Also shown to tenants in the renter portal (e.g. after-hours plumber). */
+  showTenants: integer('show_tenants', { mode: 'boolean' }).notNull().default(false),
 });

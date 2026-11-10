@@ -3,7 +3,7 @@
  * (store.js:925-992). Merges chores and maintenance into Overdue / Due Today /
  * Coming Up buckets. Project tasks and rent join as those resources land.
  */
-import { and, eq, inArray, isNotNull, lt, max, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, lt, max, or, sql } from 'drizzle-orm';
 import {
   chores,
   choreAssignees,
@@ -88,6 +88,8 @@ export async function getDashboard(currentUser: SessionUser, scope: 'mine' | 'al
     if (b === 'later') continue;
     const choreOn = choreAssignees[c.id] ?? [];
     if (scope === 'mine' && !choreOn.includes(currentUser.id)) continue;
+    // A chore that takes turns is only on the list of whoever's turn it is.
+    if (scope === 'mine' && c.rotate && c.turnUserId && c.turnUserId !== currentUser.id) continue;
     if (!canSeeWork(currentUser, { ...c, assigneeIds: choreOn })) continue;
     buckets[b].push({
       kind: 'chore',
@@ -189,7 +191,7 @@ export async function myOverdueCount(currentUser: SessionUser): Promise<number> 
       .select({ n: sql<number>`count(*)` })
       .from(chores)
       .innerJoin(choreAssignees, and(eq(choreAssignees.choreId, chores.id), eq(choreAssignees.userId, currentUser.id)))
-      .where(and(eq(chores.done, false), lt(chores.nextDue, today))),
+      .where(and(eq(chores.done, false), lt(chores.nextDue, today), or(eq(chores.rotate, false), isNull(chores.turnUserId), eq(chores.turnUserId, currentUser.id)))),
     db
       .select({ n: sql<number>`count(*)` })
       .from(projectTasks)

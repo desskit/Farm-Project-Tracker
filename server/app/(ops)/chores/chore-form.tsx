@@ -57,6 +57,7 @@ export type ChorePayload = {
   requirePhoto: boolean;
   steps: string[];
   supplies: { inventoryId: string; qty: number }[];
+  rotate: boolean;
 };
 
 export type SupplyOption = { id: string; name: string; unit: string };
@@ -91,6 +92,7 @@ export function ChoreForm({
   const [assigneeIds, setAssigneeIds] = useState<string[]>(initial?.assigneeIds ?? []);
   const [open, setOpen] = useState(initial?.open ?? false);
   const [requirePhoto, setRequirePhoto] = useState(initial?.requirePhoto ?? false);
+  const [rotate, setRotate] = useState(initial?.rotate ?? false);
   const [steps, setSteps] = useState((initial?.steps ?? []).join('\n'));
   const [supplies, setSupplies] = useState(initialSupplies.map((x) => ({ inventoryId: x.inventoryId, qty: String(x.qty) })));
   const [seasonal, setSeasonal] = useState(!!initSchedule?.season);
@@ -120,6 +122,7 @@ export function ChoreForm({
       assigneeIds,
       nextDue: scheduleType === 'once' ? dueDate : undefined,
       open,
+      rotate: rotate && assigneeIds.length > 1,
       requirePhoto,
       steps: steps
         .split('\n')
@@ -230,6 +233,12 @@ export function ChoreForm({
         <input type="checkbox" checked={open} onChange={(e) => setOpen(e.target.checked)} />
         Leave open for anyone to claim
       </label>
+      {assigneeIds.length > 1 && (
+        <label className="inline-check">
+          <input type="checkbox" checked={rotate} onChange={(e) => setRotate(e.target.checked)} />
+          Take turns — it shows for one person at a time and moves on when done
+        </label>
+      )}
       <label className="inline-check" style={{ marginBottom: 12 }}>
         <input type="checkbox" checked={requirePhoto} onChange={(e) => setRequirePhoto(e.target.checked)} />
         Require a photo to complete

@@ -49,7 +49,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
       {can(user, 'finance.view') && (
         <BudgetSection projectId={project.id} expenses={expenses} summary={summary} currentUser={user} />
       )}
-      <NotesSection parentType="project" parentId={project.id} notes={notes} currentUser={user} />
+      <NotesSection parentType="project" parentId={project.id} notes={notes} currentUser={user} mentionNames={people.filter((p) => p.active).map((p) => p.name)} />
     </main>
   );
 }

@@ -30,6 +30,11 @@ export const BRANDS: BrandInfo[] = [
 export const DEFAULT_BRAND: BrandId = 'classic';
 export const BRAND_SETTING_KEY = 'brand';
 export const THEME_COOKIE = 'fpt-theme';
+export const TEXT_COOKIE = 'fpt-text';
+export type TextPref = 'normal' | 'large';
+export function parseTextPref(v: string | undefined | null): TextPref {
+  return v === 'large' ? 'large' : 'normal';
+}
 
 export function isBrandId(v: unknown): v is BrandId {
   return typeof v === 'string' && BRANDS.some((b) => b.id === v);

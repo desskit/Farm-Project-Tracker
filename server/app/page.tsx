@@ -11,6 +11,7 @@ import { ButtonLink, Card, EmptyState, ListRow, PageHeader } from '@/components/
 import { WorkItemRow } from '@/components/patterns/work-item-row';
 import { ClaimButton } from '@/components/patterns/work-buttons';
 import { WeatherWidget } from './_components/weather-widget';
+import { Notices } from './_components/notices';
 import { PortalHome } from './_components/portal-home';
 import s from './today.module.css';
 
@@ -63,6 +64,7 @@ export default async function TodayPage({ searchParams }: { searchParams: { scop
         }
       />
 
+      {!everything && <Notices user={user} />}
       {!everything && <WeatherWidget />}
 
       {cards && <FarmToday cards={cards} />}

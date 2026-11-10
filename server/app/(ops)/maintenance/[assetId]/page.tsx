@@ -11,6 +11,9 @@ import {
 } from '@/lib/data/maintenance';
 import { timerStatesFor } from '@/lib/data/timers';
 import { listNotes } from '@/lib/data/notes';
+import { guidesFor, listGuides } from '@/lib/data/guides';
+import { GuidesCard } from '@/app/_components/guides-card';
+import { can } from '@/lib/domain/permissions';
 import { listAssetDocs } from '@/lib/data/asset-docs';
 import { listUsers } from '@/lib/data/users';
 import { AssetDetail } from './asset-detail';
@@ -58,8 +61,9 @@ export default async function AssetDetailPage({ params }: { params: { assetId: s
         currentUser={user}
         timers={timers}
       />
+      <GuidesCard parentType="asset" parentId={asset.id} linked={await guidesFor('asset', asset.id)} all={can(user, 'work.manage') ? (await listGuides()).map((g) => ({ id: g.id, title: g.title, summary: g.summary })) : []} canManage={can(user, 'work.manage')} />
       <AssetDocs assetId={asset.id} docs={docs} currentUser={user} />
-      <NotesSection parentType="asset" parentId={asset.id} notes={notes} currentUser={user} />
+      <NotesSection parentType="asset" parentId={asset.id} notes={notes} currentUser={user} mentionNames={people.filter((p) => p.active).map((p) => p.name)} />
     </main>
   );
 }

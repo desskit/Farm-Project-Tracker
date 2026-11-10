@@ -6,10 +6,13 @@
 import 'server-only';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
-import { notes, users } from '@/db/schema';
+import { notes, projectTasks, users } from '@/db/schema';
 import { uid } from '@/lib/ids';
 import { todayISO } from '@/lib/domain/dates';
-import type { SessionUser } from '@/lib/auth/session';
+import { capsFor, type SessionUser } from '@/lib/auth/session';
+import { findMentions } from '@/lib/domain/mentions';
+import { pushToPeople } from '@/lib/notify/events';
+import { recipientsWith } from './recipients';
 import { logActivity } from './activity';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
@@ -17,7 +20,7 @@ import { can } from '@/lib/domain/permissions';
 import { assertOwnUpload } from './attachment-access';
 import { assertWorkVisible } from './work-access';
 
-export type NoteParentType = 'project' | 'task' | 'asset';
+export type NoteParentType = 'project' | 'task' | 'asset' | 'chore';
 export type NoteRow = {
   id: string;
   parentType: NoteParentType;
@@ -104,8 +107,31 @@ export async function addNote(
   });
   await logActivity(user.id, 'added a note');
   publishChange('note');
+  await notifyMentions(user, data.parentType, data.parentId, body);
   const row = (await listNotes(data.parentType, data.parentId)).find((n) => n.id === id);
   return row!;
+}
+
+async function noteHref(parentType: NoteParentType, parentId: string): Promise<string> {
+  if (parentType === 'chore') return `/chores/${parentId}`;
+  if (parentType === 'project') return `/projects/${parentId}`;
+  if (parentType === 'asset') return `/maintenance/${parentId}`;
+  const [t] = await db.select({ projectId: projectTasks.projectId }).from(projectTasks).where(eq(projectTasks.id, parentId)).limit(1);
+  return t ? `/projects/${t.projectId}` : '/projects';
+}
+
+/** "@Sam" in a note pushes to Sam — but only if Sam can see the thing the note is on. */
+async function notifyMentions(author: SessionUser, parentType: NoteParentType, parentId: string, body: string): Promise<void> {
+  if (!body.includes('@')) return;
+  const people = await recipientsWith('farm.view');
+  const ids = findMentions(body, people).filter((id) => id !== author.id);
+  if (!ids.length) return;
+  const allowed: string[] = [];
+  for (const p of people.filter((x) => ids.includes(x.id))) {
+    const viewer: SessionUser = { id: p.id, name: p.name, email: p.email, role: p.role, caps: await capsFor(p.id, p.role) };
+    if (await assertWorkVisible(viewer, parentType, parentId).then(() => true, () => false)) allowed.push(p.id);
+  }
+  if (allowed.length) await pushToPeople(allowed, { title: `${author.name} mentioned you`, body: body.slice(0, 140), url: await noteHref(parentType, parentId) });
 }
 
 export async function deleteNote(user: SessionUser, id: string): Promise<void> {

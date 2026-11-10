@@ -9,7 +9,7 @@
  */
 import { eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
-import { chores, choreCompletions, choreSupplies, inventory } from '@/db/schema';
+import { chores, choreCompletions, choreSupplies, inventory, users } from '@/db/schema';
 import type { ChoreLinkType, Schedule, SentBack } from '@/db/schema';
 import { uid } from '@/lib/ids';
 import { nextOccurrenceAfter } from '@/lib/domain/recurrence';
@@ -26,7 +26,8 @@ import {
 import { stopTimersFor } from './timers';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
-import { pushAssigned, pushClaimed, pushSentBack } from '@/lib/notify/events';
+import { pushAssigned, pushClaimed, pushSentBack, pushToPeople } from '@/lib/notify/events';
+import { currentTurn, nextTurn } from '@/lib/domain/rotation';
 import { can } from '@/lib/domain/permissions';
 import { canSeeWork } from '@/lib/domain/scope';
 import { assertOwnUpload } from './attachment-access';
@@ -73,7 +74,30 @@ export type ChoreInput = {
   link?: { type: ChoreLinkType; id: string } | null;
   /** Supplies used every time it's done ("2 scoops of layer feed"). */
   supplies?: { inventoryId: string; qty: number }[];
+  /** Take turns between the people on it. */
+  rotate?: boolean;
 };
+
+async function turners(choreId: string) {
+  const ids = await choreAssigneeIds(choreId);
+  return ids.length ? db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, ids)) : [];
+}
+
+/** Keep `turn_user_id` valid after the people on a chore (or its rotate switch) change. */
+async function syncTurn(choreId: string): Promise<void> {
+  const [c] = await db.select({ rotate: chores.rotate, turn: chores.turnUserId }).from(chores).where(eq(chores.id, choreId)).limit(1);
+  if (!c) return;
+  const want = c.rotate ? currentTurn(await turners(choreId), c.turn) : null;
+  if (want !== c.turn) await db.update(chores).set({ turnUserId: want }).where(eq(chores.id, choreId));
+}
+
+/** After a rotating chore is done or skipped: hand it to the next person and tell them. */
+async function passTurn(actor: SessionUser, chore: ChoreRow): Promise<void> {
+  if (!chore.rotate) return;
+  const next = nextTurn(await turners(chore.id), chore.turnUserId ?? actor.id);
+  await db.update(chores).set({ turnUserId: next }).where(eq(chores.id, chore.id));
+  if (next && next !== chore.turnUserId) await pushToPeople([next], { title: 'Your turn', body: chore.name, url: `/chores/${chore.id}` }, actor.id);
+}
 
 export type ChoreSupply = { inventoryId: string; qty: number; name: string; unit: string; onHand: number };
 
@@ -117,8 +141,10 @@ export async function addChore(user: SessionUser, data: ChoreInput): Promise<Cho
     steps: Array.isArray(data.steps) ? data.steps.filter(Boolean) : [],
     linkType: data.link?.type ?? null,
     linkId: data.link?.id ?? null,
+    rotate: !!data.rotate,
   });
   await setChoreAssignees(id, data.assigneeIds ?? []);
+  await syncTurn(id);
   if (data.supplies?.length) await setChoreSupplies(id, data.supplies);
   await logActivity(user.id, `added chore "${data.name.trim()}"`, { href: `/chores/${id}` });
   await pushAssigned(user.id, data.assigneeIds ?? [], 'chore', data.name.trim(), `/chores/${id}`);
@@ -138,6 +164,7 @@ export async function updateChore(user: SessionUser, id: string, data: Partial<C
   patch.requirePhoto = !!data.requirePhoto;
   patch.open = !!data.open;
   if (Array.isArray(data.steps)) patch.steps = data.steps.filter(Boolean);
+  if (data.rotate !== undefined) patch.rotate = !!data.rotate;
 
   await db.update(chores).set(patch).where(eq(chores.id, id));
   if (Array.isArray(data.supplies)) await setChoreSupplies(id, data.supplies);
@@ -148,6 +175,7 @@ export async function updateChore(user: SessionUser, id: string, data: Partial<C
     await setChoreAssignees(id, data.assigneeIds);
     await pushAssigned(user.id, added, 'chore', patch.name ?? chore.name, `/chores/${id}`);
   }
+  await syncTurn(id);
   publishChange('chore');
   return (await choreById(id))!;
 }
@@ -225,6 +253,7 @@ export async function completeChore(
   ]);
   await stopTimersFor('chore', id); // completing the work stops any running clock
   await logActivity(user.id, `completed chore "${chore.name}"`, { href: `/chores/${id}` });
+  await passTurn(user, chore);
 
   // Take what the chore uses off the shelf. Never a reason to refuse the
   // chore — the animals were fed whatever the app thinks is in the bin — so a
@@ -254,6 +283,7 @@ export async function skipChore(user: SessionUser, id: string, note?: string): P
   if (chore.schedule.type === 'once') throw new DataError('A one-off chore can’t be skipped — snooze it or delete it.', 400);
   const nextDue = nextOccurrenceAfter(chore.schedule, chore.nextDue);
   await db.update(chores).set({ nextDue, sentBack: null }).where(eq(chores.id, id));
+  await passTurn(user, chore);
   await logActivity(user.id, `skipped chore "${chore.name}" (${chore.nextDue})${note?.trim() ? ` — ${note.trim()}` : ''}`, { href: `/chores/${id}` });
   publishChange('chore');
   return nextDue;
@@ -277,6 +307,7 @@ export async function claimChore(user: SessionUser, id: string): Promise<void> {
   if (!chore.open) throw new DataError('This chore is not open to claim.', 400);
   if (chore.assigneeIds.includes(user.id)) throw new DataError('You are already on this chore.', 400);
   await addChoreAssignee(id, user.id);
+  await syncTurn(id);
   await pushClaimed(user.id, user.name, chore.assigneeIds, chore.name, `/chores/${id}`);
   publishChange('chore');
 }
@@ -294,6 +325,7 @@ export async function releaseChore(user: SessionUser, id: string): Promise<void>
   } else {
     throw new DataError('Only someone on the chore or a manager can release it.', 403);
   }
+  await syncTurn(id);
   publishChange('chore');
 }
 

@@ -1,9 +1,11 @@
-import { FileText, KeyRound, MessageSquareWarning, Wallet } from 'lucide-react';
+import { FileText, KeyRound, MessageSquareWarning, Phone, Wallet } from 'lucide-react';
 import type { SessionUser } from '@/lib/auth/session';
 import { rentChargesForMonth, rentAssignmentFor } from '@/lib/data/rent';
 import { rentDocCountFor } from '@/lib/data/rent-docs';
 import { listRequests } from '@/lib/data/requests';
 import { leaseIdsFor } from '@/lib/data/rentals';
+import { listContacts } from '@/lib/data/contacts';
+import { Notices } from './notices';
 import Link from 'next/link';
 import { currentMonthKey, monthLabel } from '@/lib/domain/dates';
 import { can } from '@/lib/domain/permissions';
@@ -33,6 +35,7 @@ export async function PortalHome({ user }: { user: SessionUser }) {
   return (
     <main className={s.wrap}>
       <PageHeader title={`Hi, ${user.name.split(' ')[0]}`} subtitle="Your rent, documents and requests" />
+      <Notices user={user} />
 
       <Card title={`Rent · ${monthLabel(mk)}`}>
         {charge ? (
@@ -63,6 +66,7 @@ export async function PortalHome({ user }: { user: SessionUser }) {
 
       <Card flush>
         <ListRow href="/more/rent#documents" lead={<FileText />} title="Documents" meta={docCount ? `${docCount} on file` : 'Lease and paperwork'} />
+        {(await listContacts(user)).length > 0 && <ListRow href="/more/contacts" lead={<Phone />} title="Contacts" meta="Who to call" />}
         {can(user, 'requests.create') && (
           <ListRow
             href="/requests"

@@ -199,3 +199,13 @@
   --shadow: var(--shadow-2);
   --shadow-lg: var(--shadow-3);
 }
+
+/* Larger text (Account → Appearance): one step up across the scale. */
+[data-text="lg"] {
+  --text-xs: 14px;
+  --text-sm: 16px;
+  --text-md: 18px;
+  --text-lg: 20px;
+  --text-xl: 25px;
+  --text-2xl: 32px;
+}

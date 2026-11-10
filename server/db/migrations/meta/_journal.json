@@ -169,6 +169,13 @@
       "when": 1794289399158,
       "tag": "0023_reminders",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1794290625052,
+      "tag": "0024_people",
+      "breakpoints": true
     }
   ]
 }

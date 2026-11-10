@@ -8,6 +8,7 @@ import { submitQueued } from '@/lib/client/outbox';
 import type { NoteRow, NoteParentType } from '@/lib/data/notes';
 import type { SessionUser } from '@/lib/auth/session';
 import { can } from '@/lib/domain/permissions';
+import { mentionQuery } from '@/lib/domain/mentions';
 import { Banner, Button, Card, IconButton, Textarea } from '@/components/ui';
 import { useDialogs } from '@/components/ui/dialogs';
 import s from './notes-section.module.css';
@@ -18,8 +19,10 @@ import s from './notes-section.module.css';
  * one. `compact` drops the card frame for use inside a task row.
  */
 export function NotesSection({
-  parentType, parentId, notes, currentUser, compact = parentType === 'task',
+  parentType, parentId, notes, currentUser, compact = parentType === 'task', mentionNames = [],
 }: {
+  /** People who can be @mentioned (they get a notification). */
+  mentionNames?: string[];
   parentType: NoteParentType;
   parentId: string;
   notes: NoteRow[];
@@ -57,6 +60,11 @@ export function NotesSection({
     }
   }
 
+  // Typing "@Sa" offers matching names; tapping one completes it.
+  const q = mentionQuery(body);
+  const suggestions = q == null ? [] : mentionNames.filter((n) => n.toLowerCase().startsWith(q.toLowerCase()) && n.toLowerCase() !== q.toLowerCase()).slice(0, 6);
+  const complete = (name: string) => setBody(body.slice(0, body.length - (q?.length ?? 0)) + name + ' ');
+
   async function onDelete(id: string) {
     if (!(await askConfirm('Delete this note?'))) return;
     const res = await fetch(`/api/notes/${id}`, { method: 'DELETE' });
@@ -86,7 +94,12 @@ export function NotesSection({
       )}
       {can(currentUser, 'work.do') && (
         <form onSubmit={onSubmit} className={s.form}>
-          <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={2} placeholder="Add a note for the crew…" aria-label="New note" />
+          <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={2} placeholder={mentionNames.length ? 'Add a note… type @ to notify someone' : 'Add a note for the crew…'} aria-label="New note" />
+          {suggestions.length > 0 && (
+            <div className={s.row}>
+              {suggestions.map((n) => <Button key={n} size="sm" variant="secondary" onClick={() => complete(n)}>@{n}</Button>)}
+            </div>
+          )}
           <div className={s.row}>
             <label className={s.photo}>
               <Camera aria-hidden />
