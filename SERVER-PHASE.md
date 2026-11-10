@@ -157,8 +157,8 @@ Port the runtime shapes seen in `seed()` (`js/store.js:118-235`) and PLANNING.md
 - **Caddyfile:** `farm.example.com { reverse_proxy app:3000 }` → automatic Let's Encrypt TLS.
 - **Router:** forward external 80/443 → server; **DDNS** if the ISP IP is dynamic; a domain/subdomain
   is required for Let's Encrypt.
-- **.env:** `SESSION_SECRET`, `SQLITE_PATH`, `PUBLIC_URL`, `SMTP_*`, `VAPID_PUBLIC` / `VAPID_PRIVATE`,
-  `ANTHROPIC_API_KEY`. Documented in `.env.example`.
+- **.env:** `TZ`, `DATABASE_URL`, `PUBLIC_URL`, `SMTP_*`, `VAPID_PUBLIC` / `VAPID_PRIVATE`,
+  `ANTHROPIC_API_KEY`. Documented in `.env.example`. (No session secret: tokens are random and stored hashed.)
 - **Backups:** nightly copy of `app.db` + `uploads/` (optionally **Litestream** for continuous SQLite
   replication).
 - **Hardening (important with public exposure):** HTTPS-only + secure cookies, **login

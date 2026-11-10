@@ -4,11 +4,16 @@ A mobile-first web app for a small farm team to track recurring **chores**, **ma
 coming due on equipment and property, and long-term **projects** — with an at-a-glance
 dashboard of what's overdue, due today, and coming up.
 
-**Status:** Phase 0 — a working **static prototype** for testing the UX. It runs entirely in
-the browser and stores data in **`localStorage`** (nothing is sent to a server). Real auth,
-email/push reminders, and the live Claude API step-generation come with the server phase.
+**The real app lives in [`server/`](server/README.md).** It's self-hosted (Next.js + SQLite on a
+home server). It covers chores, projects, upkeep, supplies, animals, land, rentals and a renter
+portal, with roles and permissions. Start with [server/README.md](server/README.md), then
+[server/DEPLOY-PROXMOX.md](server/DEPLOY-PROXMOX.md) to install it.
 
-## Try it
+Everything below describes the **original static prototype** in this folder (`index.html`,
+`js/`). It runs entirely in the browser with `localStorage`. It's kept for reference and isn't
+the app the farm uses.
+
+## Try the prototype
 
 **Locally:** open `index.html` in a browser, or serve the folder:
 

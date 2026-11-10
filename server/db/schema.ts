@@ -879,3 +879,13 @@ export const inspections = sqliteTable('inspections', {
 }, (t) => ({
   unitIdx: index('inspections_unit_idx').on(t.unitId, t.date),
 }));
+
+/** Photos taken during an inspection, optionally tied to an area ("Kitchen"). */
+export const inspectionPhotos = sqliteTable('inspection_photos', {
+  inspectionId: text('inspection_id').notNull().references(() => inspections.id, { onDelete: 'cascade' }),
+  attachmentId: text('attachment_id').notNull().references(() => attachments.id, { onDelete: 'cascade' }),
+  area: text('area').notNull().default(''),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.inspectionId, t.attachmentId] }),
+  attachmentIdx: index('inspection_photos_attachment_idx').on(t.attachmentId),
+}));

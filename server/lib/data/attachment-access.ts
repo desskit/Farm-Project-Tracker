@@ -5,6 +5,7 @@
  *  - rental paperwork: that renter and people with finance.view;
  *  - maintenance request photos: whoever sent it and requests.manage;
  *  - project expense receipts: finance.view, or whoever uploaded it;
+ *  - rental inspection photos: rentals.manage;
  *  - anything else on the farm (proof photos, service logs, asset papers,
  *    notes): people who can use the farm app (farm.view) — so renters can't
  *    open farm photos;
@@ -19,16 +20,16 @@ import 'server-only';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import {
-  assetDocs, attachments, choreCompletions, maintenanceLogs, maintenanceRequests, notes, projectExpenses, projectTasks, rentDocs,
+  assetDocs, attachments, choreCompletions, inspectionPhotos, maintenanceLogs, maintenanceRequests, notes, projectExpenses, projectTasks, rentDocs,
 } from '@/db/schema';
 import type { SessionUser } from '@/lib/auth/session';
 import { can } from '@/lib/domain/permissions';
 import { DataError } from './errors';
 
-type Ref = { kind: 'rent'; renterId: string } | { kind: 'request'; createdBy: string | null } | { kind: 'expense' } | { kind: 'farm' };
+type Ref = { kind: 'rent'; renterId: string } | { kind: 'request'; createdBy: string | null } | { kind: 'expense' } | { kind: 'inspection' } | { kind: 'farm' };
 
 async function referencesTo(id: string): Promise<Ref[]> {
-  const [rent, expense, completion, log, assetDoc, task, note, request] = await Promise.all([
+  const [rent, expense, completion, log, assetDoc, task, note, request, inspection] = await Promise.all([
     db.select({ userId: rentDocs.userId }).from(rentDocs).where(eq(rentDocs.attachmentId, id)),
     db.select({ id: projectExpenses.id }).from(projectExpenses).where(eq(projectExpenses.photoId, id)),
     db.select({ id: choreCompletions.id }).from(choreCompletions).where(eq(choreCompletions.photoId, id)),
@@ -37,11 +38,13 @@ async function referencesTo(id: string): Promise<Ref[]> {
     db.select({ id: projectTasks.id }).from(projectTasks).where(eq(projectTasks.donePhotoId, id)),
     db.select({ id: notes.id }).from(notes).where(eq(notes.photoId, id)),
     db.select({ createdBy: maintenanceRequests.createdBy }).from(maintenanceRequests).where(eq(maintenanceRequests.photoId, id)),
+    db.select({ id: inspectionPhotos.inspectionId }).from(inspectionPhotos).where(eq(inspectionPhotos.attachmentId, id)),
   ]);
   return [
     ...rent.map((r) => ({ kind: 'rent' as const, renterId: r.userId })),
     ...request.map((r) => ({ kind: 'request' as const, createdBy: r.createdBy })),
     ...expense.map(() => ({ kind: 'expense' as const })),
+    ...inspection.map(() => ({ kind: 'inspection' as const })),
     ...[...completion, ...log, ...assetDoc, ...task, ...note].map(() => ({ kind: 'farm' as const })),
   ];
 }
@@ -56,6 +59,7 @@ export async function canViewAttachment(user: SessionUser, id: string): Promise<
     if (r.kind === 'rent') return r.renterId === user.id || can(user, 'finance.view');
     if (r.kind === 'request') return r.createdBy === user.id || can(user, 'requests.manage');
     if (r.kind === 'expense') return uploader || can(user, 'finance.view');
+    if (r.kind === 'inspection') return can(user, 'rentals.manage');
     return can(user, 'farm.view');
   });
 }

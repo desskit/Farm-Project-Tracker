@@ -7,6 +7,8 @@ import {
 } from '@/lib/data/rentals';
 import { ensureRentCharges, markRentPaid, rentAssignmentFor, setRent, stopRent } from '@/lib/data/rent';
 import { createRequest } from '@/lib/data/requests';
+import { getDashboard, myOverdueCount } from '@/lib/data/dashboard';
+import { canViewAttachment } from '@/lib/data/attachment-access';
 import { addDays, currentMonthKey, todayISO } from '@/lib/domain/dates';
 
 const { db, schema } = await useTestDb();
@@ -99,5 +101,38 @@ describe('rentals', () => {
   it('only lets rental managers manage rentals', async () => {
     const family = await makeUser('family');
     await expect(createRentalUnit(family, { name: 'x' })).rejects.toThrow(/Only managers/);
+  });
+});
+
+describe('rentals follow-ups', () => {
+  it('shows a co-tenant the lease’s charges on Today and in their badge', async () => {
+    const mgr = await makeUser('manager');
+    const billed = await makeUser('renter');
+    const co = await makeUser('renter');
+    const unit = await createRentalUnit(mgr, { name: 'Duplex A' });
+    const lease = await createLease(mgr, unit, { tenantIds: [billed.id, co.id], primaryId: billed.id, startDate: `${mk}-01`, rent: 600, dueDay: 1 });
+    await ensureRentCharges();
+    const all = await getDashboard(co, 'mine');
+    const rentIds = [...all.overdue, ...all.today, ...all.upcoming].filter((i) => i.kind === 'rent').map((i) => i.id);
+    const [c] = await charges(lease);
+    if (c.dueDate <= addDays(T, 7)) expect(rentIds).toContain(c.id);
+    if (c.dueDate < T) expect(await myOverdueCount(co)).toBeGreaterThanOrEqual(1);
+    const stranger = await makeUser('renter');
+    const theirs = await getDashboard(stranger, 'mine');
+    expect([...theirs.overdue, ...theirs.today, ...theirs.upcoming].some((i) => i.id === c.id)).toBe(false);
+  });
+
+  it('keeps inspection photos to rental managers', async () => {
+    const mgr = await makeUser('manager');
+    const family = await makeUser('family');
+    const unit = await createRentalUnit(mgr, { name: 'Loft' });
+    await db.insert(schema.attachments).values({ id: 'att-insp', path: 'x.jpg', mime: 'image/jpeg', uploadedBy: mgr.id });
+    await addInspection(mgr, unit, { kind: 'routine', date: T, items: [{ area: 'Kitchen', condition: 'good', notes: '' }], photos: [{ attachmentId: 'att-insp', area: 'Kitchen' }] });
+    expect((await rentalUnitDetail(unit)).inspections[0].photos).toEqual([{ id: 'att-insp', area: 'Kitchen' }]);
+    expect(await canViewAttachment(mgr, 'att-insp')).toBe(true);
+    expect(await canViewAttachment(family, 'att-insp')).toBe(false);
+    // Someone else's upload can't be attached.
+    await db.insert(schema.attachments).values({ id: 'att-other', path: 'y.jpg', mime: 'image/jpeg', uploadedBy: family.id });
+    await expect(addInspection(mgr, unit, { kind: 'routine', date: T, items: [{ area: 'Yard', condition: 'good', notes: '' }], photos: [{ attachmentId: 'att-other' }] })).rejects.toThrow(/can’t be attached/);
   });
 });

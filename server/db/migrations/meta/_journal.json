@@ -148,6 +148,13 @@
       "when": 1794239283802,
       "tag": "0020_drop_assigned_to",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1794286145225,
+      "tag": "0021_inspection_photos",
+      "breakpoints": true
     }
   ]
 }

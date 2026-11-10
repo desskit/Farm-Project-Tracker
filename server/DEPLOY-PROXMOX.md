@@ -195,48 +195,64 @@ Press `Ctrl-C` to stop following logs (containers keep running).
 
 - **From the guest itself:**
   ```bash
+  docker compose ps                       # app should say (healthy) within a minute
   curl -s http://localhost:3000/api/health
   # {"ok":true,"db":"up","time":"..."}
+  docker compose logs --tail=40 app       # the [boot] line shows your timezone and today's date
   ```
 - **Through Caddy / the internet:** browse to `https://farm.example.com`. You should get a valid
-  padlock (Let's Encrypt) and the placeholder home page reading *"Server phase — foundation is up"*
-  with *"Not signed in."* That confirms the full path (DNS → router → Caddy → app → DB) works.
+  padlock (Let's Encrypt) and the sign-in page. Sign in with the `SEED_ADMIN_*` account from your
+  `.env`, then change its password under More → Account.
 - Caddy issues the cert on first HTTPS request; if the padlock isn't valid immediately, give it a
   minute and check `docker compose logs -f caddy`.
 
-The admin account from your `.env` already exists in the database — the login screen to use it
-arrives with the next phase.
+Then, as admin: **People** to invite everyone (pick each person's role; set an end date for
+guests), and **People → Who sees what** to check the permissions. Use **Preview as** on a
+person to see exactly what they will see.
 
 ---
 
 ## 7. Backups
 
-All app state is the **`farmdata`** Docker volume (`/data/app.db` + `/data/uploads`). Options:
+The app backs itself up **every night at 02:40**: a consistent snapshot of the database plus every
+uploaded file, kept for 7 days (`BACKUP_KEEP_DAYS`) in the `backups` folder next to the data.
 
-- **Proxmox-level:** snapshot or back up the whole guest (Datacenter → Backup) — simplest.
-- **File-level (nightly):**
-  ```bash
-  docker run --rm -v farm_farmdata:/data -v "$PWD":/backup busybox \
-    tar czf /backup/farm-backup-$(date +%F).tgz -C /data .
-  ```
-  (Volume name is usually `<projectdir>_farmdata`; confirm with `docker volume ls`.)
-- Restore by extracting the tarball back into the volume while the app is stopped.
-
-Continuous SQLite replication (Litestream) is planned for a later phase.
+- **Take one now / download one:** More → Data → *Run backup now*, then *Download .tar.gz* next to
+  any day. That file holds the database and all photos and documents; keep a copy off the server.
+- **Proxmox-level (recommended as well):** Datacenter → Backup → add a weekly job for this VM to a
+  *different* disk or a NAS. That's the copy that survives the VM's disk failing.
+- **Restore a downloaded backup:** stop the app (`docker compose stop app`), put `app.db` and the
+  `uploads/` folder back into the data volume, and start it again.
 
 ---
 
 ## 8. Updating the app
 
+Updates are automatic once cron is set up. Only commits that passed CI are ever installed (they
+land on the `deploy` branch).
+
 ```bash
-cd Farm-Project-Tracker
-git pull
-cd server
-docker compose up -d --build
+sudo apt install -y cron        # if `crontab` says "command not found"
+crontab -e
 ```
 
-Migrations run automatically on boot, so schema changes apply themselves. Your data in the volume
-is preserved across rebuilds.
+Add these three lines (use your own username):
+
+```
+PATH=/usr/local/bin:/usr/bin:/bin
+0 3 * * * /home/YOUR_USER/Farm-Project-Tracker/server/scripts/auto-update.sh
+* * * * * /home/YOUR_USER/Farm-Project-Tracker/server/scripts/deploy-watch.sh
+```
+
+- **3 a.m.:** `auto-update.sh` pulls `deploy`, builds, **rehearses the database migrations on a
+  copy** of the live data, then switches over. If the new version doesn't come up healthy, it puts
+  back the previous code *and* the pre-update database snapshot.
+- **Every minute:** `deploy-watch.sh` checks for an admin pressing **More → Data → Update now**,
+  so you can update without SSH.
+- **By hand:** `cd ~/Farm-Project-Tracker/server && setsid -w ./scripts/auto-update.sh </dev/null`,
+  then `tail -15 ~/Farm-Project-Tracker/auto-update.log`.
+
+Details: [scripts/README-auto-update.md](./scripts/README-auto-update.md).
 
 ---
 
@@ -244,16 +260,19 @@ is preserved across rebuilds.
 
 Port-forwarding puts the app on the public internet, so:
 
-- Use a **strong admin password**. (Sessions are random tokens stored hashed; there is no secret to set.)
-- Keep the guest updated (`apt upgrade`) and rebuild the app periodically for patches.
+- Use a **strong admin password**. Sessions are random tokens stored hashed; there is no secret to set.
+- Built in: login throttling, cross-site request blocking, a strict Content-Security-Policy, files
+  served only to people allowed to see them, and guest access that ends on its own.
+- Keep the guest updated (`sudo apt update && sudo apt upgrade`). The app updates itself (§8).
 - Consider a firewall on the guest allowing only 80/443/22, e.g.:
   ```bash
   sudo ufw allow 22,80,443/tcp && sudo ufw enable
   ```
-- Consider **fail2ban** or **CrowdSec** watching Caddy's logs to throttle brute-force attempts.
-  (Server-side login rate-limiting is on the roadmap.)
+- Consider **fail2ban** or **CrowdSec** watching Caddy's logs for extra brute-force protection.
 - If you'd rather not expose anything publicly, a VPN (Tailscale/WireGuard) is a drop-in
-  alternative — Caddy can still serve internally; just don't port-forward.
+  alternative: Caddy can still serve internally; just don't port-forward.
+- **Save the vault recovery key** (More → Passwords & codes → Groups → Show recovery key) somewhere off the
+  server. Without it, a lost data volume means the stored passwords can't be read.
 
 ---
 
@@ -268,3 +287,7 @@ Port-forwarding puts the app on the public internet, so:
 | Dates/rollovers look off by a day | Set `TZ` in `.env` to the farm's timezone and `docker compose up -d`. |
 | `[boot] no users found ... SEED_ADMIN_* unset` | Set `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` in `.env` and restart. |
 | Health check fails | `docker compose logs app` — usually a bad `DATABASE_URL` or the `/data` volume isn't writable. |
+| `no space left on device` during a build | `docker builder prune -af`; if the VM disk is full, grow it in Proxmox (Hardware → Disk → Resize), then `growpart`, `pvresize` and `lvextend -r` inside the VM. |
+| Update hangs when run from SSH | Run it as `setsid -w ./scripts/auto-update.sh </dev/null` (§8). |
+| Update log says the migration rehearsal failed | Nothing changed on the live server. Send the log; the next good commit fixes it. |
+| `crontab: command not found` | `sudo apt install -y cron`. |

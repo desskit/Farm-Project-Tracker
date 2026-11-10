@@ -52,6 +52,7 @@ export async function GET() {
       utilityAccounts,
       utilityBills,
       inspections,
+      inspectionPhotos,
     ] = await Promise.all([
       db.select().from(schema.chores),
       db.select().from(schema.choreCompletions),
@@ -91,6 +92,7 @@ export async function GET() {
       db.select().from(schema.utilityAccounts),
       db.select().from(schema.utilityBills),
       db.select().from(schema.inspections),
+      db.select().from(schema.inspectionPhotos),
     ]);
 
     const backup = {
@@ -135,6 +137,7 @@ export async function GET() {
       utilityAccounts,
       utilityBills,
       inspections,
+      inspectionPhotos,
     };
 
     return new NextResponse(JSON.stringify(backup, null, 2), {

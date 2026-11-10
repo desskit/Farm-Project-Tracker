@@ -45,6 +45,7 @@ export async function restoreBackup(admin: SessionUser, backup: Backup): Promise
     // Delete content, children before parents (safe whether or not FKs are on).
     for (const t of [
       // Livestock, land and rentals (children before parents).
+      schema.inspectionPhotos,
       schema.utilityBills,
       schema.utilityAccounts,
       schema.inspections,
@@ -167,6 +168,10 @@ export async function restoreBackup(admin: SessionUser, backup: Backup): Promise
     const docs = arr('assetDocs').filter((d) => typeof d.attachmentId === 'string' && attIds.has(d.attachmentId));
     await insertChunked(tx as unknown as typeof db, schema.assetDocs, docs);
     counts.assetDocs = docs.length;
+
+    const inspPhotos = arr('inspectionPhotos').filter((d) => typeof d.attachmentId === 'string' && attIds.has(d.attachmentId));
+    await insertChunked(tx as unknown as typeof db, schema.inspectionPhotos, inspPhotos);
+    counts.inspectionPhotos = inspPhotos.length;
 
     const rentPapers = arr('rentDocs').filter((d) => typeof d.attachmentId === 'string' && attIds.has(d.attachmentId));
     await insertChunked(tx as unknown as typeof db, schema.rentDocs, rentPapers);

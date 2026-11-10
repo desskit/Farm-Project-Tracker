@@ -1,75 +1,76 @@
 # Farm Project Tracker — Server
 
-The self-hosted, multi-user server-phase rewrite of the Farm Project Tracker
-(Next.js + SQLite). See [`../SERVER-PHASE.md`](../SERVER-PHASE.md) for the full design.
+The self-hosted, multi-user farm app (Next.js + SQLite) that runs the farm day to day. It
+replaced the browser-only prototype in the repo root. Install and day-to-day running are
+covered in **[DEPLOY-PROXMOX.md](./DEPLOY-PROXMOX.md)**. Who can do what is in
+**[../docs/permissions.md](../docs/permissions.md)** (also in the app: People → Who sees what).
 
-> **Status:** Phase 0–1 in progress. The foundation runs (DB, migrations, seed,
-> auth core, healthcheck, Docker/Caddy). Auth routes and the full UI are next.
+## What it does
+
+| Area | What's in it |
+|---|---|
+| **Today** | Your overdue / due today / coming up, work up for grabs, weather, and "farm today" tiles for managers (upkeep due, low stock, rent to confirm, requests, leases ending). Animals and land cards: eggs, births due, withdrawals, crops ready, sowings due, spray waits |
+| **Work** | Repeating chores (skip or snooze an occurrence), projects with tasks (tasks can repeat), equipment upkeep by date or meter, claiming open work, proof photos, timers, sending work back |
+| **Farm** | Supplies with quick logging; assets and their papers; **animals** (groups, individual records, eggs/milk/wool, treatments with withdrawal dates, breeding, care chores); **land** (gardens and beds, plantings and successions, orchard, harvests, sprays with pre-harvest intervals, grazing rotation) |
+| **Money** | Rent per lease, utilities billed back, late fees, rent history, project budgets and expenses, spending |
+| **Rentals** | Units, leases with several tenants, inspections with photos and move-in/move-out comparison, maintenance requests tied to the unit, lease-end reminders |
+| **Renter portal** | Renters get their rent, documents and requests — never the farm |
+| **People** | Six roles (admin, manager, family, crew, guest, renter) with per-person switches, guest access that expires, preview-as-person, invite emails |
+| **Other** | Passwords & codes vault (encrypted, shared by group), calendar, search, activity, leaderboard, CSV exports, push/email digests, offline logging that syncs later |
 
 ## Stack
 
-- **Next.js 14 (App Router)** — UI + API in one process, `output: standalone`.
-- **SQLite via Drizzle ORM** (libsql driver, no native build step).
-- **Auth**: password hashing with Node `scrypt`, opaque session cookies.
-- **Migrations run automatically on boot** (`instrumentation.ts` → `lib/boot-migrate.ts`),
-  and a first admin is created from `SEED_ADMIN_*` on an empty database.
+- **Next.js 14 (App Router)**: UI and API in one process, `output: standalone`.
+- **SQLite via Drizzle ORM** (libsql driver, no native build step). WAL mode, foreign keys on.
+- **Auth**: `scrypt` password hashes, random session tokens stored hashed, login throttling,
+  Origin checks on every write, a per-request CSP script nonce.
+- **Permissions**: one capability table (`lib/domain/permissions.ts`) drives the API, screens and
+  navigation. Tests fail if a route skips its check or the doc drifts from the table.
+- **Migrations run on boot** (`lib/boot-migrate.ts`), after a snapshot of the database. The
+  nightly updater rehearses them on a copy first.
 
 ## Local development
 
 ```bash
 cd server
-cp .env.example .env            # edit values
-npm install
-npm run db:generate             # (re)generate SQL migrations from db/schema.ts
+cp .env.example .env            # set TZ and SEED_ADMIN_* at least
+npm ci
 DATABASE_URL="file:./data/app.db" npm run db:migrate
 DATABASE_URL="file:./data/app.db" npm run db:seed   # optional demo farm data
 npm run dev                     # http://localhost:3000  (health: /api/health)
 ```
 
-Useful scripts: `npm run typecheck`, `npm test` (Vitest domain-logic tests),
-`npm run build`.
+Before pushing: `npm run typecheck && npm run lint && npm test && npm run build` (CI runs the same).
 
-## Deploy with Docker + Caddy (home server)
+Changing the database: edit `db/schema.ts`, run `npm run db:generate`, read the SQL it wrote, and
+add a migration test in `test/migrations.test.ts` when existing rows are reshaped.
 
-```bash
-cd server
-cp .env.example .env            # set PUBLIC_DOMAIN, SEED_ADMIN_*, TZ
-docker compose up -d --build
-```
+Changing permissions: edit `CAPS` / `MATRIX` in `lib/domain/permissions.ts`, then
+`npx tsx scripts/permissions-doc.ts` to regenerate `docs/permissions.md`.
 
-- The **app** container auto-migrates on boot and creates the first admin.
-- **Caddy** terminates HTTPS for `PUBLIC_DOMAIN` (automatic Let's Encrypt) and
-  proxies to the app. It needs inbound **80/443**.
-- Data (SQLite file + uploads) lives in the `farmdata` Docker volume.
+## How releases reach the server
 
-### Router / DNS
+1. Push to `main` → GitHub Actions CI (typecheck, lint, tests, build).
+2. If CI passes, CI fast-forwards the **`deploy`** branch.
+3. On the server, `scripts/auto-update.sh` (cron, 3 a.m.) pulls `deploy`, builds, rehearses the
+   migrations on a copy of the live database, switches over, and rolls back code and data if the
+   health check fails. Admins can also start it from More → Data → Update
+   (`scripts/deploy-watch.sh` picks the request up within a minute).
 
-- Point `PUBLIC_DOMAIN` at your home IP (A record). If your ISP IP is dynamic,
-  use **DDNS** (e.g. Cloudflare/DuckDNS) and keep the record updated.
-- Forward external **TCP 80 and 443** to the host running Docker.
-- Let's Encrypt needs 80/443 reachable to issue the certificate.
-
-## Running on Proxmox
-
-Both work; pick one:
-
-- **VM (simplest):** create a Debian/Ubuntu VM, install Docker, clone the repo,
-  `docker compose up -d --build`. No special settings.
-- **LXC container (lighter):** use a Debian template and enable Docker support on
-  the container — set `features: nesting=1,keyctl=1` (Options → Features, or in
-  `/etc/pve/lxc/<id>.conf`), then install Docker inside. Unprivileged + nesting is
-  fine for this workload.
-
-Give the guest a static IP on your LAN and forward the router's 80/443 to it.
-Snapshot the guest before upgrades; the SQLite volume is the thing to back up.
+See [`scripts/README-auto-update.md`](./scripts/README-auto-update.md).
 
 ## Backups
 
-The whole app state is the `farmdata` volume (`/data/app.db` + `/data/uploads`).
-Back it up with a nightly volume copy, or add **Litestream** for continuous SQLite
-replication (planned). To restore, drop the files back into the volume.
+- **Nightly (02:40):** a consistent `VACUUM INTO` snapshot of the database plus hard links of every
+  upload, kept for `BACKUP_KEEP_DAYS` (default 7) next to the data.
+- **Download:** More → Data lists each day's backup with a **.tar.gz** download (database + files).
+  Keep one off the server now and then.
+- **Restore:** More → Data accepts the JSON export. A Proxmox backup of the whole VM is the
+  disaster-recovery copy.
 
 ## Environment variables
 
-See [`.env.example`](./.env.example). Optional integrations (SMTP email digests,
-VAPID web-push, Anthropic "Suggest steps") stay disabled while their vars are blank.
+See [`.env.example`](./.env.example). `TZ` is required (boot refuses UTC unless `ALLOW_UTC=1`).
+Email (`SMTP_*`), push (`VAPID_*`) and AI suggestions (`ANTHROPIC_API_KEY`) stay off while blank.
+The vault key is created on first use under the data folder unless `VAULT_KEY` is set. There is no
+session secret to set.

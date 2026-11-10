@@ -25,3 +25,8 @@
 .logGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: var(--space-2); }
 .linkBtn { background: none; border: 0; padding: 0 4px; color: var(--c-primary); font: inherit; text-decoration: underline; cursor: pointer; }
 .rowLink { display: block; color: inherit; text-decoration: none; }
+.thumbs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.thumbs img { width: 72px; height: 72px; object-fit: cover; border-radius: var(--r-md); border: 1px solid var(--c-border); display: block; }
+.fileBtn { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: var(--tap); padding: 0 var(--space-3); border: 1px solid var(--c-border-strong); border-radius: var(--r-md); color: var(--c-primary); font-weight: 600; cursor: pointer; }
+.fileBtn svg { width: 18px; height: 18px; }
+.fileBtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }

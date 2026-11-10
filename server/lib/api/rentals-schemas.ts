@@ -43,4 +43,5 @@ export const inspectionSchema = z.object({
   date,
   items: z.array(z.object({ area: text(60), condition: z.enum(['good', 'fair', 'poor', 'na']), notes: text(500) })).min(1).max(60),
   notes: text(2000).optional(),
+  photos: z.array(z.object({ attachmentId: id, area: text(60).optional() })).max(40).optional(),
 });

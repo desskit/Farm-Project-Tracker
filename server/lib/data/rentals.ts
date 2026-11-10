@@ -12,7 +12,7 @@ import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { db } from '@/db';
 import {
-  inspections, leaseTenants, leases, maintenanceRequests, rentCharges, rentalUnits, users, utilityAccounts, utilityBills,
+  inspectionPhotos, inspections, leaseTenants, leases, maintenanceRequests, rentCharges, rentalUnits, users, utilityAccounts, utilityBills,
   type InspectionItem, type InspectionKind, type RentalKind, type UtilityKind,
 } from '@/db/schema';
 import { uid } from '@/lib/ids';
@@ -23,6 +23,7 @@ import type { SessionUser } from '@/lib/auth/session';
 import { publishChange } from '@/lib/realtime/bus';
 import { logActivity } from './activity';
 import { DataError } from './errors';
+import { assertOwnUpload } from './attachment-access';
 
 export type UnitRow = typeof rentalUnits.$inferSelect;
 export type LeaseRow = typeof leases.$inferSelect;
@@ -111,11 +112,12 @@ export async function listRentalUnits(): Promise<UnitSummary[]> {
 
 export async function rentalUnitDetail(id: string) {
   const unit = await unitOr404(id);
-  const [ls, accounts, insp, reqs] = await Promise.all([
+  const [ls, accounts, insp, reqs, photos] = await Promise.all([
     db.select().from(leases).where(eq(leases.unitId, id)).orderBy(desc(leases.startDate)),
     db.select().from(utilityAccounts).where(eq(utilityAccounts.unitId, id)),
     db.select().from(inspections).where(eq(inspections.unitId, id)).orderBy(desc(inspections.date)),
     db.select().from(maintenanceRequests).where(eq(maintenanceRequests.unitId, id)).orderBy(desc(maintenanceRequests.updatedAt)).limit(20),
+    db.select({ p: inspectionPhotos }).from(inspectionPhotos).innerJoin(inspections, eq(inspections.id, inspectionPhotos.inspectionId)).where(eq(inspections.unitId, id)),
   ]);
   const leaseViews = await withTenants(ls);
   const leaseIds = ls.map((l) => l.id);
@@ -137,7 +139,7 @@ export async function rentalUnitDetail(id: string) {
     current: leaseViews.find((l) => l.status === 'active') ?? null,
     past: leaseViews.filter((l) => l.status !== 'active'),
     accounts: accounts.map((a) => ({ ...a, bills: bills.filter((b) => b.accountId === a.id).slice(0, 6) })),
-    inspections: insp,
+    inspections: insp.map((i) => ({ ...i, photos: photos.filter((p) => p.p.inspectionId === i.id).map((p) => ({ id: p.p.attachmentId, area: p.p.area })) })),
     comparisons,
     requests: reqs,
     charges,
@@ -335,15 +337,24 @@ export async function deleteUtilityBill(user: SessionUser, id: string): Promise<
 
 /* ---------------- inspections ---------------- */
 
-export async function addInspection(user: SessionUser, unitId: string, d: { kind: InspectionKind; date: string; items: InspectionItem[]; notes?: string }): Promise<string> {
+export async function addInspection(
+  user: SessionUser,
+  unitId: string,
+  d: { kind: InspectionKind; date: string; items: InspectionItem[]; notes?: string; photos?: { attachmentId: string; area?: string }[] },
+): Promise<string> {
   need(user);
+  for (const p of d.photos ?? []) await assertOwnUpload(user, p.attachmentId);
   const unit = await unitOr404(unitId);
   const items = d.items.filter((i) => i.area.trim()).map((i) => ({ area: i.area.trim(), condition: i.condition, notes: i.notes.trim() }));
   if (!items.length) throw new DataError('Rate at least one area.', 400);
   // Tie it to the lease it belongs to: the active one, or for a move-out the latest.
   const [lease] = await db.select().from(leases).where(eq(leases.unitId, unitId)).orderBy(desc(leases.status), desc(leases.startDate)).limit(1);
   const id = uid('in');
-  await db.insert(inspections).values({ id, unitId, leaseId: lease?.id ?? null, kind: d.kind, date: d.date, items, notes: d.notes ?? '', userId: user.id });
+  await runBatch([
+    db.insert(inspections).values({ id, unitId, leaseId: lease?.id ?? null, kind: d.kind, date: d.date, items, notes: d.notes ?? '', userId: user.id }),
+    ...[...new Map((d.photos ?? []).map((p) => [p.attachmentId, p])).values()].map((p) =>
+      db.insert(inspectionPhotos).values({ inspectionId: id, attachmentId: p.attachmentId, area: p.area?.trim() ?? '' })),
+  ]);
   await logActivity(user.id, `recorded a ${d.kind.replace('_', '-')} inspection of ${unit.name}`, { audience: 'finance.view', href: `/more/rentals/${unitId}` });
   publishChange('rent');
   return id;

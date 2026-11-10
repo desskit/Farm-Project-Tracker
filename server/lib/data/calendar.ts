@@ -15,6 +15,7 @@ import { choreAssigneeIdsFor, taskAssigneeIdsFor } from './assignees';
 import { upkeepWithStatus } from './upkeep-status';
 import { livestockAlerts } from './livestock';
 import { landAlerts } from './land';
+import { leaseIdsFor } from './rentals';
 import { todayISO } from '@/lib/domain/dates';
 
 export type CalendarKind = 'chore' | 'maintenance' | 'task' | 'rent' | 'animals' | 'land';
@@ -82,10 +83,13 @@ export async function calendarItems(viewer: SessionUser, fromISO: string, toISO:
     }
   }
 
+  const myLeases = await leaseIdsFor(viewer.id);
   for (const c of rentRows) {
-    if (c.userId !== viewer.id && !seesAllRent) continue;
+    const mine = c.userId === viewer.id || (!!c.leaseId && myLeases.includes(c.leaseId));
+    if (!mine && !seesAllRent) continue;
     if (c.status !== 'verified' && c.dueDate && within(c.dueDate)) {
-      const title = c.userId === viewer.id ? 'Your rent' : `Rent · ${nameById.get(c.userId) ?? 'someone'}`;
+      const what = c.kind === 'rent' ? 'rent' : c.label || 'charge';
+      const title = mine ? `Your ${what}` : `${what.charAt(0).toUpperCase()}${what.slice(1)} · ${nameById.get(c.userId) ?? 'someone'}`;
       out.push({ date: c.dueDate, kind: 'rent', id: c.id, title, href: '/more/rent' });
     }
   }

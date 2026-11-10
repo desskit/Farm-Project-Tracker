@@ -1,7 +1,8 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { ClipboardCheck, FileSignature, Pencil, Plus, Trash2, Zap } from 'lucide-react';
+import { Camera, ClipboardCheck, FileSignature, Pencil, Plus, Trash2, Zap } from 'lucide-react';
+import { uploadPhoto } from '@/lib/client/photo';
 import type { Condition, InspectionItem, InspectionKind, RentalKind, UtilityKind } from '@/db/schema';
 import type { AreaChange } from '@/lib/domain/rentals';
 import { DEFAULT_AREAS, RENTAL_KIND_LABEL, UTILITY_LABEL } from '@/lib/domain/rentals';
@@ -241,7 +242,7 @@ function BillForm({ account, hasLease, onDone }: { account: Account; hasLease: b
 
 /* ---------------- inspections ---------------- */
 
-type Inspection = { id: string; kind: InspectionKind; date: string; items: InspectionItem[]; notes: string };
+type Inspection = { id: string; kind: InspectionKind; date: string; items: InspectionItem[]; notes: string; photos: { id: string; area: string }[] };
 type Comparison = { outId: string; inId: string; inDate: string; changes: AreaChange[] };
 const KIND_LABEL: Record<InspectionKind, string> = { move_in: 'Move-in', move_out: 'Move-out', routine: 'Routine' };
 const COND_LABEL: Record<Condition, string> = { good: 'Good', fair: 'Fair', poor: 'Poor', na: 'N/A' };
@@ -268,7 +269,7 @@ export function InspectionsCard({ unitId, inspections, comparisons, today }: { u
           <div key={i.id} className={s.event}>
             <span className={s.eventMain}>
               <strong>{KIND_LABEL[i.kind]} · {fmtDate(i.date)}</strong>
-              <small>{i.items.length} areas{poor ? ` · ${poor} poor` : ''}{cmp ? ` · vs move-in ${fmtDate(cmp.inDate)}: ${worse.length ? `${worse.length} worse` : 'nothing worse'}` : ''}</small>
+              <small>{i.items.length} areas{poor ? ` · ${poor} poor` : ''}{i.photos.length ? ` · ${i.photos.length} photo${i.photos.length === 1 ? '' : 's'}` : ''}{cmp ? ` · vs move-in ${fmtDate(cmp.inDate)}: ${worse.length ? `${worse.length} worse` : 'nothing worse'}` : ''}</small>
               {open === i.id && (
                 <>
                   {i.items.map((x) => {
@@ -280,6 +281,16 @@ export function InspectionsCard({ unitId, inspections, comparisons, today }: { u
                     );
                   })}
                   {i.notes && <small>{i.notes}</small>}
+                  {i.photos.length > 0 && (
+                    <span className={s.thumbs}>
+                      {i.photos.map((p) => (
+                        <a key={p.id} href={`/api/attachments/${p.id}`} target="_blank" rel="noopener" title={p.area || 'Photo'}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={`/api/attachments/${p.id}`} alt={p.area || 'Inspection photo'} loading="lazy" />
+                        </a>
+                      ))}
+                    </span>
+                  )}
                 </>
               )}
             </span>
@@ -308,6 +319,9 @@ function InspectionForm({ unitId, kind, start, today, onDone }: { unitId: string
   const [newArea, setNewArea] = useState('');
   const [notes, setNotes] = useState('');
   const [skipNa, setSkipNa] = useState(true);
+  const [photos, setPhotos] = useState<{ attachmentId: string; area: string; name: string }[]>([]);
+  const [photoArea, setPhotoArea] = useState('');
+  const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const setItem = (i: number, p: Partial<InspectionItem>) => setItems(items.map((x, j) => (j === i ? { ...x, ...p } : x)));
@@ -315,7 +329,10 @@ function InspectionForm({ unitId, kind, start, today, onDone }: { unitId: string
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const err = await send(`/api/rentals/${unitId}/inspections`, 'POST', { kind, date, items: skipNa ? items.filter((x) => x.condition !== 'na') : items, notes });
+    const err = await send(`/api/rentals/${unitId}/inspections`, 'POST', {
+      kind, date, items: skipNa ? items.filter((x) => x.condition !== 'na') : items, notes,
+      photos: photos.map(({ attachmentId, area }) => ({ attachmentId, area })),
+    });
     setBusy(false);
     if (err) return setError(err);
     onDone();
@@ -337,10 +354,43 @@ function InspectionForm({ unitId, kind, start, today, onDone }: { unitId: string
         <Input value={newArea} onChange={(e) => setNewArea(e.target.value)} placeholder="Another area" aria-label="Another area" maxLength={60} />
         <Button size="sm" variant="secondary" disabled={!newArea.trim() || items.some((x) => x.area === newArea.trim())} onClick={() => { setItems([...items, { area: newArea.trim(), condition: 'good', notes: '' }]); setNewArea(''); }}>Add area</Button>
       </div>
+      <Field label="Photos" htmlFor="in-photo" hint="Pick the area first, then add its photos. Only rental managers can open them.">
+        <div className={s.quickRow}>
+          <Select value={photoArea} onChange={(e) => setPhotoArea(e.target.value)} aria-label="Area the photos show">
+            <option value="">General</option>
+            {items.map((x) => <option key={x.area} value={x.area}>{x.area}</option>)}
+          </Select>
+          <label className={s.fileBtn}>
+            <Camera aria-hidden /> {uploading ? 'Uploading…' : 'Add photos'}
+            <input id="in-photo" type="file" accept="image/*" multiple disabled={uploading} onChange={async (e) => {
+              const files = [...(e.target.files ?? [])];
+              e.target.value = '';
+              if (!files.length) return;
+              setUploading(true);
+              setError(null);
+              try {
+                const added: typeof photos = [];
+                for (const f of files) added.push({ attachmentId: await uploadPhoto(f), area: photoArea, name: f.name });
+                setPhotos((p) => [...p, ...added]);
+              } catch (x) {
+                setError(x instanceof Error ? x.message : 'Upload failed.');
+              } finally {
+                setUploading(false);
+              }
+            }} />
+          </label>
+        </div>
+      </Field>
+      {photos.length > 0 && (
+        <p className={s.muted}>
+          {photos.map((p) => `${p.area || 'General'}: ${p.name}`).join(' · ')}{' '}
+          <button type="button" className={s.linkBtn} onClick={() => setPhotos([])}>clear</button>
+        </p>
+      )}
       <Switch label="Leave out areas marked N/A" checked={skipNa} onChange={setSkipNa} />
       <Field label="Overall notes" htmlFor="in-notes"><Textarea id="in-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
       {error && <Banner tone="danger">{error}</Banner>}
-      <Button type="submit" block loading={busy}>Save inspection</Button>
+      <Button type="submit" block loading={busy} disabled={uploading}>Save inspection</Button>
     </form>
   );
 }

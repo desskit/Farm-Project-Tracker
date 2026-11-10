@@ -3,7 +3,7 @@
  * (store.js:925-992). Merges chores and maintenance into Overdue / Due Today /
  * Coming Up buckets. Project tasks and rent join as those resources land.
  */
-import { and, eq, isNotNull, lt, max, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, lt, max, or, sql } from 'drizzle-orm';
 import {
   chores,
   choreAssignees,
@@ -15,6 +15,7 @@ import {
   projectTasks,
   taskAssignees,
   rentCharges,
+  leaseTenants,
 } from '@/db/schema';
 import { db } from '@/db';
 import { bucketForDate, type Bucket } from '@/lib/domain/dashboard';
@@ -23,6 +24,7 @@ import { maintenanceStatus } from '@/lib/domain/maintenance';
 import { todayISO, currentMonthKey } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
 import { choreAssigneeIdsFor, taskAssigneeIdsFor } from './assignees';
+import { leaseIdsFor } from './rentals';
 import { can } from '@/lib/domain/permissions';
 import { canSeeWork } from '@/lib/domain/scope';
 
@@ -141,12 +143,15 @@ export async function getDashboard(currentUser: SessionUser, scope: 'mine' | 'al
   // Someone else's rent is private: only managers and admins may see it, in
   // either scope. Everyone else only ever sees their own charge.
   const seesAllRent = can(currentUser, 'finance.view');
+  // "Mine" includes charges on any lease they're on, not only the ones billed to them.
+  const myLeases = await leaseIdsFor(currentUser.id);
+  const isMine = (c: { userId: string; leaseId: string | null }) => c.userId === currentUser.id || (!!c.leaseId && myLeases.includes(c.leaseId));
   for (const c of monthCharges) {
     if (c.status === 'verified') continue;
-    if (c.userId !== currentUser.id && !seesAllRent) continue;
+    if (!isMine(c) && !seesAllRent) continue;
     // "mine" shows the renter's own still-unpaid charge; "all" shows every
     // non-verified charge the viewer is allowed to see.
-    if (scope === 'mine' && (c.userId !== currentUser.id || c.status === 'marked')) continue;
+    if (scope === 'mine' && (!isMine(c) || c.status === 'marked')) continue;
     const b = bucketForDate(c.dueDate);
     if (b === 'later') continue;
     buckets[b].push({
@@ -203,7 +208,10 @@ export async function myOverdueCount(currentUser: SessionUser): Promise<number> 
       .from(rentCharges)
       .where(
         and(
-          eq(rentCharges.userId, currentUser.id),
+          or(
+            eq(rentCharges.userId, currentUser.id),
+            inArray(rentCharges.leaseId, db.select({ id: leaseTenants.leaseId }).from(leaseTenants).where(eq(leaseTenants.userId, currentUser.id))),
+          ),
           eq(rentCharges.month, currentMonthKey()),
           eq(rentCharges.status, 'unpaid'),
           lt(rentCharges.dueDate, today),
