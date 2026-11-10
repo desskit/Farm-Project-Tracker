@@ -15,6 +15,7 @@ import { db } from '@/db';
 import { users, notificationPrefs } from '@/db/schema';
 import { sendPushToUser, pushConfigured } from './push';
 import { recipientsWith } from '@/lib/data/recipients';
+import { emitEvent } from './webhooks';
 
 /**
  * Who actually gets a given event push: everyone named who still exists, is
@@ -114,6 +115,7 @@ export async function pushClaimed(
 /** A supply crossed its reorder point — managers need to know to restock. */
 export async function pushLowStock(actorId: string, itemName: string, qty: number, unit: string): Promise<void> {
   const ids = (await recipientsWith('supplies.manage')).map((m) => m.id);
+  await emitEvent('stock.low', { title: 'Running low', body: `${itemName} is down to ${qty} ${unit}`, url: '/more/supplies' });
   await notify(ids, actorId, {
     title: 'Running low',
     body: `${itemName} is down to ${qty} ${unit}`,

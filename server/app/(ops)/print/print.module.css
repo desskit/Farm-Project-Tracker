@@ -1,0 +1,15 @@
+.table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.table th, .table td { border: 1px solid var(--c-border-strong); padding: 6px 8px; text-align: left; vertical-align: top; }
+.table th { background: var(--c-surface-2, transparent); font-weight: 600; white-space: nowrap; }
+.table .day { width: 34px; text-align: center; padding: 6px 2px; }
+.table .off { background: repeating-linear-gradient(45deg, transparent, transparent 4px, var(--c-border) 4px, var(--c-border) 5px); }
+.box { display: inline-block; width: 16px; height: 16px; border: 1.5px solid var(--c-text); border-radius: 3px; }
+.scroll { overflow-x: auto; }
+.note { color: var(--c-text-muted); font-size: var(--text-sm); margin: 0; }
+.bar { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+.sign { margin-top: var(--space-5); font-size: var(--text-sm); }
+@media print {
+  .table { font-size: 11px; }
+  .table th { background: none; }
+  .scroll { overflow: visible; }
+}

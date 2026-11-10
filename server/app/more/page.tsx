@@ -1,4 +1,4 @@
-import { Activity, Bell, BookOpen, Building2, CalendarDays, CircleDollarSign, CloudSun, Database, FileSpreadsheet, KeyRound, LockKeyhole, Megaphone, MessageSquareWarning, Package, Phone, Receipt, Scale, Search, ShieldCheck, Timer, Tractor, Trophy, UserCog, Users, Wallet } from 'lucide-react';
+import { Activity, BarChart3, Bell, BookOpen, Building2, CalendarDays, CircleDollarSign, CloudSun, Database, FileSpreadsheet, KeyRound, LockKeyhole, Megaphone, MessageSquareWarning, Package, Phone, Receipt, Scale, Search, ShieldCheck, Timer, Tractor, Trophy, UserCog, Users, Wallet, Webhook } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { getSessionUser } from '@/lib/auth/session';
 import { lowStockItems } from '@/lib/data/inventory';
@@ -33,7 +33,8 @@ export default async function MorePage() {
     farm.push({ href: '/more/contacts', icon: <Phone />, label: 'Contacts', sub: 'Vet, farrier, suppliers, emergency' });
     if (can(user, 'work.manage') || can(user, 'rentals.manage')) farm.push({ href: '/more/notices', icon: <Megaphone />, label: 'Notices', sub: 'Post an announcement' });
     farm.push({ href: '/more/search', icon: <Search />, label: 'Search', sub: 'Find anything' });
-    if (datasetsFor(user).length) farm.push({ href: '/more/export', icon: <FileSpreadsheet />, label: 'Export', sub: 'Spreadsheets of the records' });
+    farm.push({ href: '/more/review', icon: <BarChart3 />, label: 'Year in review', sub: 'Eggs, harvest, chores and hours' });
+    farm.push({ href: '/more/export', icon: <FileSpreadsheet />, label: 'Export & print', sub: 'Spreadsheets, chore sheet, record books' });
   }
 
   const money: Row[] = [];
@@ -51,6 +52,7 @@ export default async function MorePage() {
     admin.push({ href: '/more/access', icon: <ShieldCheck />, label: 'Who sees what', sub: 'Permissions by role' });
   }
   if (can(user, 'system.admin')) admin.push({ href: '/more/data', icon: <Database />, label: 'Server & data', sub: 'Updates, backups, export' });
+  if (can(user, 'system.admin')) admin.push({ href: '/more/webhooks', icon: <Webhook />, label: 'Webhooks', sub: 'Tell other systems when things happen' });
 
   const me: Row[] = [
     ...(can(user, 'vault.use') ? [{ href: '/vault', icon: <LockKeyhole />, label: 'Passwords & codes', sub: can(user, 'vault.create') ? 'Shared logins, Wi-Fi, gate codes' : 'Codes shared with you' }] : []),

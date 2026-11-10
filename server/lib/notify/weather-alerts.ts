@@ -16,6 +16,7 @@ import { currentWeatherAlerts } from '@/lib/data/weather';
 import { todayISO } from '@/lib/domain/dates';
 import type { WeatherAlert } from '@/lib/domain/weather-alerts';
 import { pushToPeople } from './events';
+import { emitEvent } from './webhooks';
 
 const KEY = 'weather-alerts-sent';
 
@@ -52,6 +53,7 @@ export async function runWeatherAlerts(today = todayISO(), alerts?: WeatherAlert
       ids = (await recipientsWith('work.manage')).map((r) => r.id);
     }
     keep[key] = true; // decided either way: don't re-evaluate this alert every three hours
+    await emitEvent('weather.alert', { title: a.title, body: a.detail, url: '/more/weather' });
     if (!ids.length) continue;
     await pushToPeople(ids, { title: a.title, body, url });
     count++;

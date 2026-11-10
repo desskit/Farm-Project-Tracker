@@ -12,6 +12,7 @@ import { can } from '@/lib/domain/permissions';
 import { uid } from '@/lib/ids';
 import { publishChange } from '@/lib/realtime/bus';
 import { pushRequest } from '@/lib/notify/events';
+import { emitEvent } from '@/lib/notify/webhooks';
 import { recipientsWith } from './recipients';
 import { assertOwnUpload } from './attachment-access';
 import { logActivity } from './activity';
@@ -97,6 +98,8 @@ export async function createRequest(
   });
   await logActivity(user.id, `sent a maintenance request: "${title}"`, { audience: 'requests.manage', href: `/requests/${id}` });
   const managers = (await recipientsWith('requests.manage')).map((m) => m.id);
+  // The sender's name stays on the farm; an outside service gets the request itself.
+  await emitEvent('request.new', { title: data.urgent ? 'Urgent request' : 'New request', body: title, url: `/requests/${id}` });
   await pushRequest(user.id, managers, {
     title: data.urgent ? 'Urgent request' : 'New request',
     body: `${user.name}: ${title}`,

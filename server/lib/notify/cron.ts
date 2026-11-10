@@ -16,6 +16,7 @@ import { runUpkeepAlerts } from './upkeep-alerts';
 import { runLeaseJobs } from './lease-jobs';
 import { runWeatherAlerts } from './weather-alerts';
 import { runRenewalReminders } from './renewals';
+import { runBirthHooks } from './webhooks';
 import { getWeather, refreshForecast } from '@/lib/data/weather';
 
 const g = globalThis as unknown as { __fptCronStarted?: boolean };
@@ -74,6 +75,10 @@ export function startCron(): void {
     runRenewalReminders()
       .then((r) => r.sent && console.log(`[cron] renewal reminders: ${r.sent}`))
       .catch((e) => console.error('[cron] renewal reminders failed', e));
+  });
+  // Births and hatches close at hand, for anything listening on a webhook: 07:30.
+  cron.schedule('30 7 * * *', () => {
+    runBirthHooks().catch((e) => console.error('[cron] birth webhooks failed', e));
   });
   // Late fees first, so the 07:00 reminders already include them.
   cron.schedule('50 6 * * *', () => {

@@ -9,12 +9,16 @@ import { recipientsWith } from '@/lib/data/recipients';
 import { todayISO } from '@/lib/domain/dates';
 import { emailConfigured, emailLayout, escapeHtml, sendMail } from './email';
 import { pushConfigured, sendPushToUser } from './push';
+import { emitEvent } from './webhooks';
+import { fmtDate } from '@/lib/domain/dates';
 
 export async function runLeaseJobs(today = todayISO()): Promise<{ lateFees: number; reminders: number }> {
   const lateFees = await applyLateFees(today);
   const due = await leaseRemindersDue(today);
   if (due.length) {
     const lines = due.map(leaseReminderText);
+    // Tenant names stay on the farm: an outside service gets the unit and the date.
+    for (const d of due) await emitEvent('lease.ending', { title: 'Lease ending', body: `${d.unitName}: lease ${d.stage === 'ended' ? 'ended' : 'ends'} ${fmtDate(d.endDate)}`, url: `/more/rentals/${d.unitId}` });
     const managers = await recipientsWith('rentals.manage');
     for (const m of managers) {
       if (pushConfigured()) {

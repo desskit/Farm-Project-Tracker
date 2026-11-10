@@ -52,6 +52,8 @@ export const users = sqliteTable('users', {
   // Guests (and anyone else given a time limit) stop being able to sign in
   // after this moment (epoch ms). Null = no end date.
   accessExpiresAt: integer('access_expires_at'),
+  /** The newest "what's new" entry this person has dismissed (lib/whats-new.ts). */
+  newsSeen: text('news_seen').notNull().default(''),
 });
 
 /**
@@ -1060,3 +1062,23 @@ export const hatches = sqliteTable('hatches', {
 }, (t) => ({
   statusIdx: index('hatches_status_idx').on(t.status, t.setOn),
 }));
+
+/* ---------------- outgoing webhooks ---------------- */
+
+/**
+ * A URL the farm calls when something happens (low stock, a new request, a
+ * weather alert…), for home automation or services like IFTTT. Admin only.
+ */
+export const webhooks = sqliteTable('webhooks', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  url: text('url').notNull(),
+  /** Event types this hook wants; empty means all of them. */
+  events: text('events', { mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+  /** Signs each delivery (HMAC-SHA256 in the X-Farm-Signature header). */
+  secret: text('secret').notNull(),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  lastStatus: text('last_status').notNull().default(''),
+  lastAt: integer('last_at'),
+  createdAt: integer('created_at').notNull().default(now),
+});
