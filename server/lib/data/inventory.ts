@@ -4,7 +4,7 @@
  */
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { inventory, inventoryLog } from '@/db/schema';
+import { inventory, inventoryLog, type SupplyRefType } from '@/db/schema';
 import { uid } from '@/lib/ids';
 import { todayISO } from '@/lib/domain/dates';
 import type { SessionUser } from '@/lib/auth/session';
@@ -80,7 +80,9 @@ export async function deleteInventoryItem(user: SessionUser, id: string): Promis
 }
 
 /** Anyone can use/restock; each adjustment is logged with who/when. */
-export async function adjustStock(user: SessionUser, id: string, delta: number, reason?: string): Promise<number> {
+export type SupplyRef = { type: SupplyRefType; id: string };
+
+export async function adjustStock(user: SessionUser, id: string, delta: number, reason?: string, opts: { ref?: SupplyRef | null } = {}): Promise<number> {
   const it = await inventoryById(id);
   if (!it) throw new DataError('No such item.', 404);
   const d = Number(delta);
@@ -88,7 +90,7 @@ export async function adjustStock(user: SessionUser, id: string, delta: number, 
   if (it.qty + d < 0) throw new DataError(`Only ${it.qty} ${it.unit} on hand.`, 400);
   const qty = it.qty + d;
   await db.update(inventory).set({ qty }).where(eq(inventory.id, id));
-  await db.insert(inventoryLog).values({ id: uid('il'), itemId: id, delta: d, reason: reason || '', userId: user.id, date: todayISO() });
+  await db.insert(inventoryLog).values({ id: uid('il'), itemId: id, delta: d, reason: reason || '', userId: user.id, date: todayISO(), refType: opts.ref?.type ?? null, refId: opts.ref?.id ?? null });
   await logActivity(user.id, `${d > 0 ? 'restocked' : 'used'} ${Math.abs(d)} ${it.unit} of ${it.name}`, { href: `/more/supplies/${id}` });
   // Only on the adjustment that crosses the line, so a shelf that sits low
   // doesn't nag on every draw.

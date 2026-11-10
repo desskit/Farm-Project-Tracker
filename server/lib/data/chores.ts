@@ -7,9 +7,9 @@
  * another route, a cron job — gets the same guarantees the prototype's
  * store.js gave every UI call site.
  */
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
-import { chores, choreCompletions } from '@/db/schema';
+import { chores, choreCompletions, choreSupplies, inventory } from '@/db/schema';
 import type { ChoreLinkType, Schedule, SentBack } from '@/db/schema';
 import { uid } from '@/lib/ids';
 import { nextOccurrenceAfter } from '@/lib/domain/recurrence';
@@ -30,6 +30,8 @@ import { pushAssigned, pushClaimed, pushSentBack } from '@/lib/notify/events';
 import { can } from '@/lib/domain/permissions';
 import { canSeeWork } from '@/lib/domain/scope';
 import { assertOwnUpload } from './attachment-access';
+import { drawWhatsThere, returnSupplies } from './consumption';
+import type { SupplyRef } from './inventory';
 
 /** A chore plus the people on it (from chore_assignees). */
 export type ChoreRow = typeof chores.$inferSelect & { assigneeIds: string[] };
@@ -69,7 +71,37 @@ export type ChoreInput = {
   steps?: string[];
   /** Care tied to an animal group etc.; set when created from that page. */
   link?: { type: ChoreLinkType; id: string } | null;
+  /** Supplies used every time it's done ("2 scoops of layer feed"). */
+  supplies?: { inventoryId: string; qty: number }[];
 };
+
+export type ChoreSupply = { inventoryId: string; qty: number; name: string; unit: string; onHand: number };
+
+/** What a chore takes off the shelf each time it's done. */
+export async function choreSuppliesFor(choreId: string): Promise<ChoreSupply[]> {
+  const rows = await db
+    .select({ inventoryId: choreSupplies.inventoryId, qty: choreSupplies.qty, name: inventory.name, unit: inventory.unit, onHand: inventory.qty })
+    .from(choreSupplies)
+    .innerJoin(inventory, eq(inventory.id, choreSupplies.inventoryId))
+    .where(eq(choreSupplies.choreId, choreId));
+  return rows.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Replace a chore's supply list. Unknown supplies and zero amounts are dropped; repeats are added up. */
+async function setChoreSupplies(choreId: string, list: { inventoryId: string; qty: number }[]): Promise<void> {
+  const want = new Map<string, number>();
+  for (const x of list) if (x.qty > 0) want.set(x.inventoryId, (want.get(x.inventoryId) ?? 0) + x.qty);
+  const known = want.size ? await db.select({ id: inventory.id }).from(inventory).where(inArray(inventory.id, [...want.keys()])) : [];
+  const rows = known.map((k) => ({ choreId, inventoryId: k.id, qty: want.get(k.id)! }));
+  const del = db.delete(choreSupplies).where(eq(choreSupplies.choreId, choreId));
+  if (rows.length) await db.batch([del, db.insert(choreSupplies).values(rows)]);
+  else await del;
+}
+
+/** What a chore's supply use is charged to: its herd if it's a care chore, else the chore itself. */
+function supplyRef(chore: Pick<ChoreRow, 'id' | 'linkType' | 'linkId'>): SupplyRef {
+  return chore.linkType === 'animal_group' && chore.linkId ? { type: 'animal_group', id: chore.linkId } : { type: 'chore', id: chore.id };
+}
 
 export async function addChore(user: SessionUser, data: ChoreInput): Promise<ChoreRow> {
   if (!can(user, 'work.manage')) throw new DataError('Only managers and admins can add chores.', 403);
@@ -87,6 +119,7 @@ export async function addChore(user: SessionUser, data: ChoreInput): Promise<Cho
     linkId: data.link?.id ?? null,
   });
   await setChoreAssignees(id, data.assigneeIds ?? []);
+  if (data.supplies?.length) await setChoreSupplies(id, data.supplies);
   await logActivity(user.id, `added chore "${data.name.trim()}"`, { href: `/chores/${id}` });
   await pushAssigned(user.id, data.assigneeIds ?? [], 'chore', data.name.trim(), `/chores/${id}`);
   return (await choreById(id))!;
@@ -107,6 +140,7 @@ export async function updateChore(user: SessionUser, id: string, data: Partial<C
   if (Array.isArray(data.steps)) patch.steps = data.steps.filter(Boolean);
 
   await db.update(chores).set(patch).where(eq(chores.id, id));
+  if (Array.isArray(data.supplies)) await setChoreSupplies(id, data.supplies);
   if (Array.isArray(data.assigneeIds)) {
     // Only ping people who weren't already on it — re-saving a form shouldn't
     // re-notify everyone.
@@ -177,9 +211,10 @@ export async function completeChore(
   // Recording the completion and moving the due date are one change: done
   // separately, a failure in between leaves a chore that's logged as done
   // but still shows as due (and gets done twice).
+  const completionId = uid('cc');
   await db.batch([
     db.insert(choreCompletions).values({
-      id: uid('cc'),
+      id: completionId,
       choreId: id,
       completedBy: user.id,
       date: today,
@@ -190,6 +225,18 @@ export async function completeChore(
   ]);
   await stopTimersFor('chore', id); // completing the work stops any running clock
   await logActivity(user.id, `completed chore "${chore.name}"`, { href: `/chores/${id}` });
+
+  // Take what the chore uses off the shelf. Never a reason to refuse the
+  // chore — the animals were fed whatever the app thinks is in the bin — so a
+  // short shelf is drawn to zero and flagged instead.
+  const uses = await db.select({ inventoryId: choreSupplies.inventoryId, qty: choreSupplies.qty }).from(choreSupplies).where(eq(choreSupplies.choreId, id));
+  if (uses.length) {
+    const { drawn, short } = await drawWhatsThere(user, uses, `Chore: ${chore.name}`, supplyRef(chore));
+    if (drawn.length) await db.update(choreCompletions).set({ suppliesUsed: drawn }).where(eq(choreCompletions.id, completionId));
+    if (short.length) {
+      await logActivity(user.id, `"${chore.name}" needed more than was on the shelf: ${short.map((x) => `${x.missing} ${x.unit} of ${x.name}`).join(', ')} — recount or restock`, { href: '/more/supplies' });
+    }
+  }
 }
 
 /** Who may move a chore's date: someone on it, or a manager. */
@@ -260,6 +307,8 @@ export async function sendBackChoreCompletion(user: SessionUser, completionId: s
   await db.delete(choreCompletions).where(eq(choreCompletions.id, completionId));
 
   const chore = await choreById(comp.choreId);
+  // It wasn't done after all: what it took off the shelf goes back.
+  await returnSupplies(user, comp.suppliesUsed, `Sent back: ${chore?.name ?? 'chore'}`, chore ? supplyRef(chore) : null);
   if (chore) {
     const today = todayISO();
     const sentBack: SentBack = { by: user.id, at: Date.now(), reason: reason || '', worker: comp.completedBy };

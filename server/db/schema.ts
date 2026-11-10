@@ -27,6 +27,9 @@ export type Schedule = {
 };
 
 export type ChoreLinkType = 'animal_group';
+export type SupplyRefType = 'animal_group' | 'land_unit' | 'asset' | 'chore';
+/** A supply drawn somewhere: which, how much, and its name/unit at the time (for history). */
+export type SupplyUseRecord = { inventoryId: string; qty: number; name?: string; unit?: string };
 export type TaskRepeat = { every: number; unit: 'days' | 'weeks' | 'months' } | null;
 export type SentBack = { by: string; at: number; reason: string; worker: string | null } | null;
 
@@ -150,6 +153,8 @@ export const choreCompletions = sqliteTable('chore_completions', {
   date: text('date').notNull(),
   notes: text('notes').notNull().default(''),
   photoId: text('photo_id').references(() => attachments.id, { onDelete: 'set null' }),
+  /** Supplies this completion took off the shelf, so sending it back can return them. */
+  suppliesUsed: text('supplies_used', { mode: 'json' }).$type<SupplyUseRecord[]>(),
 }, (t) => ({
   choreIdx: index('chore_completions_chore_idx').on(t.choreId, t.date),
   byIdx: index('chore_completions_by_idx').on(t.completedBy, t.date),
@@ -205,6 +210,8 @@ export const maintenanceLogs = sqliteTable('maintenance_logs', {
   notes: text('notes').notNull().default(''),
   cost: real('cost').notNull().default(0),
   photoId: text('photo_id').references(() => attachments.id, { onDelete: 'set null' }),
+  /** Parts and fluids taken off Supplies for this service. */
+  parts: text('parts', { mode: 'json' }).$type<SupplyUseRecord[]>(),
 }, (t) => ({
   itemIdx: index('maintenance_logs_item_idx').on(t.itemId, t.date),
 }));
@@ -334,8 +341,12 @@ export const inventoryLog = sqliteTable('inventory_log', {
   delta: real('delta').notNull(),
   reason: text('reason').notNull().default(''),
   date: text('date').notNull(),
+  /** What the supplies were used on (a herd, a bed, a machine), for costing. */
+  refType: text('ref_type').$type<SupplyRefType>(),
+  refId: text('ref_id'),
 }, (t) => ({
   itemIdx: index('inventory_log_item_idx').on(t.itemId, t.date),
+  refIdx: index('inventory_log_ref_idx').on(t.refType, t.refId),
 }));
 
 /* ---------------- time tracking ---------------- */
@@ -888,4 +899,13 @@ export const inspectionPhotos = sqliteTable('inspection_photos', {
 }, (t) => ({
   pk: primaryKey({ columns: [t.inspectionId, t.attachmentId] }),
   attachmentIdx: index('inspection_photos_attachment_idx').on(t.attachmentId),
+}));
+
+/** Supplies a chore uses every time it's done ("2 scoops of layer feed"). */
+export const choreSupplies = sqliteTable('chore_supplies', {
+  choreId: text('chore_id').notNull().references(() => chores.id, { onDelete: 'cascade' }),
+  inventoryId: text('inventory_id').notNull().references(() => inventory.id, { onDelete: 'cascade' }),
+  qty: real('qty').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.choreId, t.inventoryId] }),
 }));

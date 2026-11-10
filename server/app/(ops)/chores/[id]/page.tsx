@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
 import { getSessionUser } from '@/lib/auth/session';
-import { choreForViewer, choreCompletionsFor, choreStreak } from '@/lib/data/chores';
+import { choreForViewer, choreCompletionsFor, choreStreak, choreSuppliesFor } from '@/lib/data/chores';
+import { listInventory } from '@/lib/data/inventory';
+import { can } from '@/lib/domain/permissions';
 import { activeTimerFor, totalSeconds } from '@/lib/data/timers';
 import { listUsers } from '@/lib/data/users';
 import { describeSchedule, isActiveSeason } from '@/lib/domain/recurrence';
@@ -16,12 +18,14 @@ export default async function ChoreDetailPage({ params }: { params: { id: string
   const chore = await choreForViewer(user, params.id);
   if (!chore) notFound();
 
-  const [completions, streak, people, timer, timerTotal] = await Promise.all([
+  const [completions, streak, people, timer, timerTotal, supplies, inv] = await Promise.all([
     choreCompletionsFor(params.id),
     choreStreak(params.id),
     listUsers(),
     activeTimerFor(user.id, 'chore', params.id),
     totalSeconds('chore', params.id),
+    choreSuppliesFor(params.id),
+    can(user, 'work.manage') ? listInventory() : Promise.resolve([]),
   ]);
 
   return (
@@ -39,6 +43,8 @@ export default async function ChoreDetailPage({ params }: { params: { id: string
         timerRunning={!!timer}
         timerStartedAt={timer?.start ?? null}
         timerTotalSec={timerTotal}
+        supplies={supplies}
+        supplyOptions={inv.map((i) => ({ id: i.id, name: i.name, unit: i.unit }))}
       />
     </main>
   );

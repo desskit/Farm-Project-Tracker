@@ -56,7 +56,10 @@ export type ChorePayload = {
   open: boolean;
   requirePhoto: boolean;
   steps: string[];
+  supplies: { inventoryId: string; qty: number }[];
 };
+
+export type SupplyOption = { id: string; name: string; unit: string };
 
 /** Shared add/edit form for chores. `onSubmit` returns an error message, or null on success. */
 export function ChoreForm({
@@ -65,8 +68,13 @@ export function ChoreForm({
   submitLabel,
   onCancel,
   onSubmit,
+  supplyOptions = [],
+  initialSupplies = [],
 }: {
   people: PersonRow[];
+  /** Supplies that can be picked under "Uses supplies". Empty hides the section. */
+  supplyOptions?: SupplyOption[];
+  initialSupplies?: { inventoryId: string; qty: number }[];
   initial?: ChoreRow;
   submitLabel: string;
   onCancel?: () => void;
@@ -84,6 +92,7 @@ export function ChoreForm({
   const [open, setOpen] = useState(initial?.open ?? false);
   const [requirePhoto, setRequirePhoto] = useState(initial?.requirePhoto ?? false);
   const [steps, setSteps] = useState((initial?.steps ?? []).join('\n'));
+  const [supplies, setSupplies] = useState(initialSupplies.map((x) => ({ inventoryId: x.inventoryId, qty: String(x.qty) })));
   const [seasonal, setSeasonal] = useState(!!initSchedule?.season);
   const [seasonStart, setSeasonStart] = useState(initSchedule?.season?.start ?? '04-01');
   const [seasonEnd, setSeasonEnd] = useState(initSchedule?.season?.end ?? '10-31');
@@ -116,12 +125,14 @@ export function ChoreForm({
         .split('\n')
         .map((s) => s.trim())
         .filter(Boolean),
+      supplies: supplies.filter((x) => x.inventoryId && Number(x.qty) > 0).map((x) => ({ inventoryId: x.inventoryId, qty: Number(x.qty) })),
     });
     setLoading(false);
     setError(err);
     if (!err && !initial) {
       setName('');
       setSteps('');
+      setSupplies([]);
       setAssigneeIds([]);
     }
   }
@@ -228,6 +239,27 @@ export function ChoreForm({
         <label>Checklist steps (one per line, optional)</label>
         <textarea value={steps} onChange={(e) => setSteps(e.target.value)} rows={3} placeholder="Lock the coop&#10;Water off&#10;Lights out" />
       </div>
+
+      {supplyOptions.length > 0 && (
+        <div className="field">
+          <label>Uses supplies each time (optional)</label>
+          {supplies.map((x, i) => {
+            const unit = supplyOptions.find((o) => o.id === x.inventoryId)?.unit;
+            return (
+              <div className="form-actions" key={i}>
+                <select value={x.inventoryId} aria-label="Supply" onChange={(e) => setSupplies(supplies.map((y, j) => (j === i ? { ...y, inventoryId: e.target.value } : y)))}>
+                  <option value="">Pick a supply…</option>
+                  {supplyOptions.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+                <input type="number" min="0" step="any" inputMode="decimal" value={x.qty} aria-label={`Amount${unit ? ` in ${unit}` : ''}`} placeholder={unit ?? 'amount'} onChange={(e) => setSupplies(supplies.map((y, j) => (j === i ? { ...y, qty: e.target.value } : y)))} />
+                <button type="button" className="btn" onClick={() => setSupplies(supplies.filter((_, j) => j !== i))}>Remove</button>
+              </div>
+            );
+          })}
+          <button type="button" className="btn" onClick={() => setSupplies([...supplies, { inventoryId: '', qty: '' }])}>Add a supply</button>
+          <p className="subtle">Taken off Supplies when the chore is done — e.g. 2 scoops of layer feed.</p>
+        </div>
+      )}
 
       {error && <p className="error-text">{error}</p>}
       <div className="form-actions">

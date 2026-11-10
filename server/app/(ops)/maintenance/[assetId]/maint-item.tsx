@@ -8,7 +8,7 @@ import { fmtDate } from '@/lib/domain/dates';
 import { preparePhoto } from '@/lib/client/photo';
 import { submitQueued } from '@/lib/client/outbox';
 import { TimerControl } from '@/app/_components/timer-control';
-import { Banner, Button, Field, IconButton, Input, Stack, StatusPill, Textarea, type Tone } from '@/components/ui';
+import { Banner, Button, Field, IconButton, Input, Select, Stack, StatusPill, Textarea, type Tone } from '@/components/ui';
 import { EditMaintenanceForm } from './asset-forms';
 import s from './asset.module.css';
 
@@ -67,6 +67,7 @@ export function MaintItem({
                 <strong>{fmtDate(l.date)}</strong> · {nameById.get(l.userId ?? '') ?? 'Unknown'}
                 {l.reading != null ? ` · ${l.reading} ${meterUnit ?? ''}` : ''}
                 {seesMoney && l.cost ? ` · $${l.cost}` : ''}
+                {l.parts?.length ? ` · used ${l.parts.map((p) => `${p.qty} ${p.unit ?? ''} ${p.name ?? 'part'}`.replace(/\s+/g, ' ')).join(', ')}` : ''}
                 {l.notes && <span className={s.muted}> · {l.notes}</span>}
               </span>
               {l.photoId && (
@@ -90,6 +91,16 @@ function LogServiceForm({ item, meterUnit, onClose, onError }: { item: ItemWithL
   const [notes, setNotes] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
+  // Parts come off Supplies. The list is fetched only when someone adds a part.
+  const [supplies, setSupplies] = useState<{ id: string; name: string; unit: string; qty: number }[] | null>(null);
+  const [parts, setParts] = useState<{ inventoryId: string; qty: string }[]>([]);
+  async function addPart() {
+    setParts((p) => [...p, { inventoryId: '', qty: '' }]);
+    if (supplies) return;
+    const res = await fetch('/api/inventory').catch(() => null);
+    const data = res?.ok ? await res.json().catch(() => null) : null;
+    setSupplies(data?.inventory ?? []);
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -99,6 +110,8 @@ function LogServiceForm({ item, meterUnit, onClose, onError }: { item: ItemWithL
     const body: Record<string, unknown> = { notes };
     if (reading !== '') body.reading = Number(reading);
     if (cost !== '') body.cost = Number(cost);
+    const used = parts.filter((p) => p.inventoryId && Number(p.qty) > 0).map((p) => ({ inventoryId: p.inventoryId, qty: Number(p.qty) }));
+    if (used.length) body.parts = used;
     let prepared;
     try {
       if (photo) prepared = await preparePhoto(photo);
@@ -127,6 +140,23 @@ function LogServiceForm({ item, meterUnit, onClose, onError }: { item: ItemWithL
             <Input id={`c-${item.id}`} type="number" step="0.01" min={0} inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} />
           </Field>
         </div>
+        {parts.map((p, i) => {
+          const sup = supplies?.find((x) => x.id === p.inventoryId);
+          return (
+            <div className={s.every} key={i}>
+              <Field label="Part or fluid used" htmlFor={`p-${item.id}-${i}`} hint={sup ? `${sup.qty} ${sup.unit} on hand` : undefined}>
+                <Select id={`p-${item.id}-${i}`} value={p.inventoryId} onChange={(e) => setParts(parts.map((y, j) => (j === i ? { ...y, inventoryId: e.target.value } : y)))}>
+                  <option value="">{supplies ? 'Pick from Supplies…' : 'Loading…'}</option>
+                  {(supplies ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                </Select>
+              </Field>
+              <Field label={`Amount${sup ? ` (${sup.unit})` : ''}`} htmlFor={`q-${item.id}-${i}`}>
+                <Input id={`q-${item.id}-${i}`} type="number" step="any" min={0} inputMode="decimal" value={p.qty} onChange={(e) => setParts(parts.map((y, j) => (j === i ? { ...y, qty: e.target.value } : y)))} />
+              </Field>
+            </div>
+          );
+        })}
+        <div><Button size="sm" variant="ghost" onClick={addPart}>Add a part from Supplies</Button></div>
         {item.requirePhoto && (
           <label className={s.photo}>
             <Camera aria-hidden />

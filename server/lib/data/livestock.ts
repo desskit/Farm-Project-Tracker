@@ -359,7 +359,7 @@ export async function logEvent(user: SessionUser, groupId: string, d: EventInput
   if (animal && (d.type === 'death' || d.type === 'sale')) ops.push(db.update(animals).set({ status: d.type === 'death' ? 'dead' : 'sold' }).where(eq(animals.id, animal.id)));
   if (breeding) ops.push(db.update(breedings).set({ status: 'born' }).where(eq(breedings.id, breeding.id)));
   await runBatch(ops);
-  if (usesSupply) await consumeSupplies(user, [{ inventoryId: d.inventoryId!, qty: d.qtyUsed! }], `${EVENT_LABEL[d.type]}: ${g.name}`);
+  if (usesSupply) await consumeSupplies(user, [{ inventoryId: d.inventoryId!, qty: d.qtyUsed! }], `${EVENT_LABEL[d.type]}: ${g.name}`, { type: 'animal_group', id: groupId });
 
   const who = animal ? animalLabel(animal) : g.name;
   const what = d.type === 'birth' ? `${count} born in ${g.name}` : d.type === 'death' || d.type === 'sale' || d.type === 'purchase' ? `${EVENT_LABEL[d.type].toLowerCase()} — ${animal ? who : `${count} from ${g.name}`}` : `${EVENT_LABEL[d.type].toLowerCase()} for ${who}`;

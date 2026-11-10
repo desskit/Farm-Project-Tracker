@@ -1,14 +1,15 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import type { PersonRow } from '@/lib/data/users';
-import { ChoreForm, type ChorePayload } from './chore-form';
+import { ChoreForm, type ChorePayload, type SupplyOption } from './chore-form';
 
-export function AddChoreCard({ people }: { people: PersonRow[] }) {
+export function AddChoreCard({ people, supplyOptions }: { people: PersonRow[]; supplyOptions: SupplyOption[] }) {
   const router = useRouter();
   return (
     <div className="card">
       <ChoreForm
         people={people}
+        supplyOptions={supplyOptions}
         submitLabel="Add chore"
         onSubmit={async (payload: ChorePayload) => {
           const res = await fetch('/api/chores', {

@@ -81,18 +81,24 @@ function money(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
-function bodyFor(stage: ReminderStage, amount: number, dueDate: string, today: string): string {
-  const amt = money(amount);
+/** What the charge is called in a reminder: "Rent", or the utility / late-fee label. */
+function chargeName(c: { kind: string; label: string }): string {
+  return c.kind === 'rent' ? 'Rent' : c.label || (c.kind === 'late_fee' ? 'Late fee' : 'A charge');
+}
+
+function bodyFor(stage: ReminderStage, amount: number, dueDate: string, today: string, what = 'Rent'): string {
+  const amt = what === 'Rent' ? money(amount) : `${what}: ${money(amount)}`;
   if (stage === 'due') return `${amt} is due today.`;
   if (stage === 'upcoming') return `${amt} is due ${fmtDate(dueDate)}.`;
   const late = Math.abs(diffDays(dueDate, today));
   return `${amt} was due ${fmtDate(dueDate)} — ${late} day${late === 1 ? '' : 's'} ago.`;
 }
 
-function subjectFor(stage: ReminderStage, month: string): string {
-  if (stage === 'due') return `Rent due today · ${monthLabel(month)}`;
-  if (stage === 'upcoming') return `Rent due soon · ${monthLabel(month)}`;
-  return `Rent overdue · ${monthLabel(month)}`;
+function subjectFor(stage: ReminderStage, month: string, what = 'Rent'): string {
+  const tail = what === 'Rent' ? ` · ${monthLabel(month)}` : '';
+  if (stage === 'due') return `${what} due today${tail}`;
+  if (stage === 'upcoming') return `${what} due soon${tail}`;
+  return `${what} overdue${tail}`;
 }
 
 /**
@@ -109,8 +115,8 @@ export async function runRentReminders(
   // Make sure this month's charges exist before deciding what to remind about.
   await ensureRentCharges();
 
-  // Rent and late fees are chased; utility shares just sit on the rent page.
-  const charges = await db.select().from(rentCharges).where(and(ne(rentCharges.status, 'verified'), ne(rentCharges.kind, 'utility')));
+  // Rent, late fees and utility shares are all chased, each under its own name.
+  const charges = await db.select().from(rentCharges).where(ne(rentCharges.status, 'verified'));
   if (!charges.length) return result;
 
   const people = await db.select({ id: users.id, name: users.name, email: users.email, active: users.active }).from(users);
@@ -127,7 +133,7 @@ export async function runRentReminders(
     const renterReachable = !!person && person.active;
 
     if (stage === 'overdue' && person) {
-      overdueForManagers.push({ name: person.name, amount: c.amount, dueDate: c.dueDate });
+      overdueForManagers.push({ name: c.kind === 'rent' ? person.name : `${person.name} · ${chargeName(c)}`, amount: c.amount, dueDate: c.dueDate });
     }
 
     // Someone who has already marked it paid shouldn't be chased; the charge
@@ -136,12 +142,13 @@ export async function runRentReminders(
     if (!shouldSend(stage, c.reminderStage, c.reminderSentOn, today)) continue;
 
     const prefs = await getPrefs(c.userId);
-    const body = bodyFor(stage, c.amount, c.dueDate, today);
+    const what = chargeName(c);
+    const body = bodyFor(stage, c.amount, c.dueDate, today, what);
     let delivered = false;
 
     if (prefs.eventPush && ch.pushReady()) {
       await ch.sendPush(c.userId, {
-        title: stage === 'overdue' ? 'Rent overdue' : 'Rent reminder',
+        title: stage === 'overdue' ? `${what} overdue` : `${what} reminder`,
         body,
         url: '/more/rent',
       });
@@ -149,7 +156,7 @@ export async function runRentReminders(
     }
     if (prefs.email !== 'off' && ch.emailReady() && person.email) {
       const html = rentReminderEmail(person.name, body, stage === 'overdue');
-      if (await ch.sendEmail(person.email, subjectFor(stage, c.month), html)) delivered = true;
+      if (await ch.sendEmail(person.email, subjectFor(stage, c.month, what), html)) delivered = true;
     }
 
     // Only record the reminder if something actually went out, so a channel

@@ -206,7 +206,7 @@ export async function addPlantings(user: SessionUser, unitId: string, d: Plantin
     status: date <= today ? 'growing' : 'planned', inventoryId: d.inventoryId || null, seedQty: seedEach || null,
     series, notes: d.notes ?? '', userId: user.id,
   })));
-  if (seedEach && sownNow) await consumeSupplies(user, [{ inventoryId: d.inventoryId!, qty: seedEach * sownNow }], `Sowed ${d.crop.trim()} in ${unit.name}`);
+  if (seedEach && sownNow) await consumeSupplies(user, [{ inventoryId: d.inventoryId!, qty: seedEach * sownNow }], `Sowed ${d.crop.trim()} in ${unit.name}`, { type: 'land_unit', id: unitId });
   await logActivity(user.id, `${sownNow ? 'planted' : 'planned'} ${d.crop.trim()} in ${unit.name}${dates.length > 1 ? ` (${dates.length} sowings)` : ''}`, { href: href(unitId), audience: 'land.view' });
   publishChange('land');
   return ids;
@@ -227,7 +227,7 @@ export async function setPlantingStatus(user: SessionUser, id: string, status: P
     if (p.inventoryId && p.seedQty) await checkSupplies([{ inventoryId: p.inventoryId, qty: p.seedQty }]);
   }
   await db.update(plantings).set(patch).where(eq(plantings.id, id));
-  if (sowing && p.inventoryId && p.seedQty) await consumeSupplies(user, [{ inventoryId: p.inventoryId, qty: p.seedQty }], `Sowed ${p.crop}`);
+  if (sowing && p.inventoryId && p.seedQty) await consumeSupplies(user, [{ inventoryId: p.inventoryId, qty: p.seedQty }], `Sowed ${p.crop}`, { type: 'land_unit', id: p.unitId });
   publishChange('land');
 }
 
@@ -326,7 +326,7 @@ export async function logLandEvent(user: SessionUser, unitId: string, d: LandEve
     id, unitId, type: d.type, date, inventoryId: d.inventoryId || null, qtyUsed: uses.length ? d.qtyUsed! : null,
     phiUntil: d.type === 'spray' ? phiUntil(date, d.phiDays) : null, cost: d.cost ?? null, notes: d.notes?.trim() ?? '', userId: user.id,
   });
-  if (uses.length) await consumeSupplies(user, uses, `${LAND_EVENT_LABEL[d.type]}: ${unit.name}`);
+  if (uses.length) await consumeSupplies(user, uses, `${LAND_EVENT_LABEL[d.type]}: ${unit.name}`, { type: 'land_unit', id: unitId });
   await logActivity(user.id, `logged ${LAND_EVENT_LABEL[d.type].toLowerCase()} — ${unit.name}`, { href: href(unitId), audience: d.cost ? 'finance.view' : 'land.view' });
   publishChange('land');
   return id;

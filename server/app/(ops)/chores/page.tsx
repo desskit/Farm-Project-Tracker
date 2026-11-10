@@ -3,6 +3,7 @@ import { Camera, CheckSquare, Moon, Repeat, Undo2 } from 'lucide-react';
 import { getSessionUser } from '@/lib/auth/session';
 import { listChores, type ChoreRow } from '@/lib/data/chores';
 import { listUsers } from '@/lib/data/users';
+import { listInventory } from '@/lib/data/inventory';
 import { describeSchedule, isActiveSeason } from '@/lib/domain/recurrence';
 import { bucketForDate } from '@/lib/domain/dashboard';
 import { relativeLabel, todayISO } from '@/lib/domain/dates';
@@ -22,7 +23,7 @@ export default async function ChoresPage({ searchParams }: { searchParams: { sho
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
 
-  const [chores, people] = await Promise.all([listChores(user), listUsers()]);
+  const [chores, people, inv] = await Promise.all([listChores(user), listUsers(), can(user, 'work.manage') ? listInventory() : Promise.resolve([])]);
   const today = todayISO();
   const nameById = new Map(people.map((p) => [p.id, p.name]));
   const isManager = can(user, 'work.manage');
@@ -66,7 +67,7 @@ export default async function ChoresPage({ searchParams }: { searchParams: { sho
       {isManager && (
         <section id="new" className={s.add}>
           <h2 className={s.h2}>Add a chore</h2>
-          <AddChoreCard people={people} />
+          <AddChoreCard people={people} supplyOptions={inv.map((i) => ({ id: i.id, name: i.name, unit: i.unit }))} />
         </section>
       )}
     </main>

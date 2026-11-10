@@ -43,6 +43,7 @@ export const logServiceSchema = z.object({
   notes: z.string().optional(),
   cost: z.number().nullable().optional(),
   photoId: z.string().nullable().optional(),
+  parts: z.array(z.object({ inventoryId: z.string().max(64), qty: z.number().positive().max(1e6) })).max(20).optional(),
 });
 
 export const sendBackSchema = z.object({ reason: z.string().optional() });

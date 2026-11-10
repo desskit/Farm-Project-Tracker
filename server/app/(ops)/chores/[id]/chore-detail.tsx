@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AlarmClock, Camera, ChevronLeft, Flame, Hand, Image as ImageIcon, Pencil, SkipForward, Trash2, Undo2 } from 'lucide-react';
-import type { ChoreRow, ChoreCompletionRow } from '@/lib/data/chores';
+import type { ChoreRow, ChoreCompletionRow, ChoreSupply } from '@/lib/data/chores';
 import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
 import type { Bucket } from '@/lib/domain/dashboard';
@@ -15,7 +15,7 @@ import { TimerControl } from '@/app/_components/timer-control';
 import { can } from '@/lib/domain/permissions';
 import { AvatarStack, Banner, Button, Card, Dialog, Field, IconButton, Input, PageHeader, Stack, StatusPill, type Tone } from '@/components/ui';
 import { useDialogs } from '@/components/ui/dialogs';
-import { ChoreForm, type ChorePayload } from '../chore-form';
+import { ChoreForm, type ChorePayload, type SupplyOption } from '../chore-form';
 import s from './chore-detail.module.css';
 
 const BUCKET: Record<Bucket, { tone: Tone; label: string }> = {
@@ -27,8 +27,11 @@ const BUCKET: Record<Bucket, { tone: Tone; label: string }> = {
 
 export function ChoreDetail({
   chore, completions, streak, people, currentUser, scheduleLabel, outOfSeason, bucket, dueLabel,
-  timerRunning, timerStartedAt, timerTotalSec,
+  timerRunning, timerStartedAt, timerTotalSec, supplies, supplyOptions,
 }: {
+  /** What this chore takes off the shelf each time. */
+  supplies: ChoreSupply[];
+  supplyOptions: SupplyOption[];
   chore: ChoreRow;
   completions: ChoreCompletionRow[];
   streak: number;
@@ -115,6 +118,8 @@ export function ChoreDetail({
           <ChoreForm
             people={people}
             initial={chore}
+            supplyOptions={supplyOptions}
+            initialSupplies={supplies}
             submitLabel="Save"
             onSubmit={async (payload: ChorePayload) => {
               const res = await fetch(`/api/chores/${chore.id}`, {
@@ -168,6 +173,12 @@ export function ChoreDetail({
           {chore.requirePhoto && <span className={s.flag}><Camera aria-hidden /> photo needed</span>}
           {streak >= 2 && <span className={s.streak}><Flame aria-hidden /> {streak}-day streak</span>}
         </div>
+        {supplies.length > 0 && (
+          <p className={s.muted}>
+            Uses {supplies.map((x) => `${x.qty} ${x.unit} ${x.name}`).join(', ')}
+            {supplies.some((x) => x.onHand < x.qty) ? ' — the shelf is short' : ''}
+          </p>
+        )}
         <div className={s.people}>
           {chore.assigneeIds.length ? (
             <>

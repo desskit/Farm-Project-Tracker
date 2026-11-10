@@ -14,6 +14,7 @@ import { logActivity } from './activity';
 import { stopTimersFor } from './timers';
 import { publishChange } from '@/lib/realtime/bus';
 import { DataError } from './errors';
+import { checkSupplies, consumeSupplies, returnSupplies } from './consumption';
 import { can } from '@/lib/domain/permissions';
 import { assertOwnUpload } from './attachment-access';
 
@@ -196,7 +197,7 @@ export async function assetCostTotal(assetId: string): Promise<number> {
 export async function logService(
   user: SessionUser,
   itemId: string,
-  data: { date?: string; reading?: number | null; notes?: string; cost?: number | null; photoId?: string | null },
+  data: { date?: string; reading?: number | null; notes?: string; cost?: number | null; photoId?: string | null; parts?: { inventoryId: string; qty: number }[] },
 ): Promise<void> {
   await assertOwnUpload(user, data.photoId);
   const item = await maintenanceById(itemId);
@@ -205,6 +206,10 @@ export async function logService(
   const date = data.date || todayISO();
   const reading = data.reading == null ? null : Number(data.reading);
   const asset = await assetById(item.assetId);
+  // Parts must be on the shelf: checked before anything is written.
+  const parts = (data.parts ?? []).filter((p) => p.qty > 0);
+  const partRows = await checkSupplies(parts);
+  const logId = uid('ml');
   const patch: Partial<typeof maintenanceItems.$inferInsert> = { lastDoneDate: date, sentBack: null };
   if (item.intervalType === 'calendar') {
     patch.nextDueDate = item.intervalUnit === 'days' ? addDays(date, item.intervalValue) : addMonths(date, item.intervalValue);
@@ -217,7 +222,7 @@ export async function logService(
   // change — all or nothing, so a service can't be recorded without moving
   // the item's next due date (or vice versa).
   const logInsert = db.insert(maintenanceLogs).values({
-    id: uid('ml'),
+    id: logId,
     itemId,
     userId: user.id,
     date,
@@ -225,6 +230,7 @@ export async function logService(
     notes: data.notes || '',
     cost: data.cost ? Number(data.cost) : 0,
     photoId: data.photoId || null,
+    parts: parts.length ? parts.map((p) => ({ ...p, name: partRows.get(p.inventoryId)?.name, unit: partRows.get(p.inventoryId)?.unit })) : null,
   });
   const itemUpdate = db.update(maintenanceItems).set(patch).where(eq(maintenanceItems.id, itemId));
   if (reading != null && asset?.meterUnit) {
@@ -236,6 +242,7 @@ export async function logService(
   } else {
     await db.batch([logInsert, itemUpdate]);
   }
+  if (parts.length) await consumeSupplies(user, parts, `${item.name}${asset ? ` on ${asset.name}` : ''}`, { type: 'asset', id: item.assetId });
   await stopTimersFor('maintenance', itemId); // finishing the service stops any running clock
   await logActivity(user.id, `logged "${item.name}"${asset ? ` on ${asset.name}` : ''}`, { href: `/maintenance/${item.assetId}` });
 }
@@ -247,6 +254,7 @@ export async function sendBackService(user: SessionUser, logId: string, reason?:
   if (!log) throw new DataError('No such service log.', 404);
   const item = await maintenanceById(log.itemId);
   await db.delete(maintenanceLogs).where(eq(maintenanceLogs.id, logId));
+  await returnSupplies(user, log.parts, `Sent back: ${item?.name ?? 'service'}`, item ? { type: 'asset', id: item.assetId } : null);
   if (item) {
     const patch: Partial<typeof maintenanceItems.$inferInsert> = {};
     if (item.intervalType === 'calendar') {
