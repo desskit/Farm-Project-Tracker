@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { ChevronLeft, Package } from 'lucide-react';
 import { getSessionUser } from '@/lib/auth/session';
-import { listInventory, inventoryValue, type InventoryRow } from '@/lib/data/inventory';
+import { listInventory, inventoryValue, supplyRunways, RUNWAY_WARN_DAYS, type InventoryRow } from '@/lib/data/inventory';
+import { runwayLabel } from '@/lib/domain/supplies';
 import { can } from '@/lib/domain/permissions';
 import { Card, EmptyState, ListRow, PageHeader, StatusPill } from '@/components/ui';
 import { AddSupplyCard } from './add-supply-card';
@@ -12,8 +13,10 @@ export default async function SuppliesPage() {
   if (!user) return null; // middleware already guards this route
   const manages = can(user, 'supplies.manage');
   const seesMoney = can(user, 'finance.view');
-  const items = await listInventory();
-  const isLow = (i: InventoryRow) => i.qty <= i.reorderAt;
+  const [items, runways] = await Promise.all([listInventory(), supplyRunways()]);
+  const soon = (i: InventoryRow) => (runways.get(i.id) ?? Infinity) <= RUNWAY_WARN_DAYS;
+  const isLow = (i: InventoryRow) => i.qty <= i.reorderAt || soon(i);
+  const left = (i: InventoryRow) => runwayLabel(runways.get(i.id) ?? null);
   const low = items.filter(isLow);
   const totalValue = seesMoney ? inventoryValue(items) : 0;
 
@@ -23,10 +26,10 @@ export default async function SuppliesPage() {
       href={`/more/supplies/${i.id}`}
       lead={<Package />}
       title={i.name}
-      meta={`${i.category} · reorder at ${i.reorderAt} ${i.unit}${seesMoney && i.unitCost != null ? ` · $${i.unitCost.toFixed(2)}/${i.unit}` : ''}`}
+      meta={`${i.category} · reorder at ${i.reorderAt} ${i.unit}${left(i) ? ` · ${left(i)}` : ''}${seesMoney && i.unitCost != null ? ` · $${i.unitCost.toFixed(2)}/${i.unit}` : ''}`}
       trail={
         <span className={s.qty}>
-          {isLow(i) && <StatusPill tone="overdue">Low</StatusPill>}
+          {isLow(i) && <StatusPill tone="overdue">{i.qty <= i.reorderAt ? 'Low' : 'Running out'}</StatusPill>}
           <strong>{i.qty}</strong> {i.unit}
         </span>
       }

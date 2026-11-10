@@ -5,6 +5,8 @@ import { LogoutButton } from '@/app/_components/logout-button';
 import { ROLE_BLURB, ROLE_LABEL } from '@/lib/domain/permissions';
 import { Card, PageHeader } from '@/components/ui';
 import { ChangePasswordForm } from './change-password-form';
+import { CalendarLink } from './calendar-link';
+import { hasCalendarToken } from '@/lib/data/calendar-feed';
 import s from './account.module.css';
 
 export default async function AccountPage() {
@@ -27,6 +29,9 @@ export default async function AccountPage() {
       </Card>
       <Card title="Change password">
         <ChangePasswordForm />
+      </Card>
+      <Card title="Calendar on your phone">
+        <CalendarLink exists={await hasCalendarToken(user.id)} />
       </Card>
     </main>
   );

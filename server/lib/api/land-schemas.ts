@@ -13,6 +13,7 @@ export const unitSchema = z.object({
   area: z.number().min(0).max(1e9).nullable().optional(),
   areaUnit: z.enum(['sqft', 'acre']).optional(),
   restDays: z.number().int().min(1).max(365).optional(),
+  grazeDays: z.number().int().min(1).max(365).nullable().optional(),
   notes: text(2000).optional(),
 });
 export const unitPatchSchema = unitSchema.omit({ kind: true, parentId: true }).partial().extend({ active: z.boolean().optional() });

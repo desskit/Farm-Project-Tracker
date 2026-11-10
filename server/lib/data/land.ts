@@ -22,7 +22,7 @@ import { addDays, fmtDate, todayISO } from '@/lib/domain/dates';
 import { can, type Cap } from '@/lib/domain/permissions';
 import type { SessionUser } from '@/lib/auth/session';
 import { LAND_EVENT_LABEL, LAND_KINDS, expectedHarvest, isLandKind, phiUntil, successionDates, type LandEventType, type LandKind } from '@/lib/domain/garden';
-import { paddockStatus, type PaddockState } from '@/lib/domain/grazing';
+import { daysOn, nextPaddock, overstayDays, paddockStatus, type PaddockState } from '@/lib/domain/grazing';
 import { publishChange } from '@/lib/realtime/bus';
 import { logActivity } from './activity';
 import { checkSupplies, consumeSupplies } from './consumption';
@@ -147,7 +147,7 @@ export async function landAlerts(from = todayISO(), days = 7) {
 
 /* ---------------- places ---------------- */
 
-export type UnitInput = { kind: LandKind; name: string; parentId?: string | null; area?: number | null; areaUnit?: 'sqft' | 'acre'; restDays?: number; notes?: string };
+export type UnitInput = { kind: LandKind; name: string; parentId?: string | null; area?: number | null; areaUnit?: 'sqft' | 'acre'; restDays?: number; grazeDays?: number | null; notes?: string };
 
 export async function createUnit(user: SessionUser, d: UnitInput): Promise<string> {
   need(user, 'land.manage', 'lay out land');
@@ -162,7 +162,7 @@ export async function createUnit(user: SessionUser, d: UnitInput): Promise<strin
   const id = uid('lu');
   await db.insert(landUnits).values({
     id, kind: d.kind, name: d.name.trim(), parentId, area: d.area ?? null, areaUnit: d.areaUnit ?? (d.kind === 'bed' || d.kind === 'garden' ? 'sqft' : 'acre'),
-    restDays: d.restDays ?? 30, notes: d.notes ?? '',
+    restDays: d.restDays ?? 30, grazeDays: d.grazeDays ?? null, notes: d.notes ?? '',
   });
   publishChange('land');
   return id;
@@ -176,6 +176,7 @@ export async function updateUnit(user: SessionUser, id: string, d: Partial<Omit<
   if (d.area !== undefined) patch.area = d.area;
   if (d.areaUnit) patch.areaUnit = d.areaUnit;
   if (d.restDays !== undefined) patch.restDays = d.restDays;
+  if (d.grazeDays !== undefined) patch.grazeDays = d.grazeDays;
   if (d.notes !== undefined) patch.notes = d.notes;
   if (d.active !== undefined) patch.active = d.active;
   if (Object.keys(patch).length) await db.update(landUnits).set(patch).where(eq(landUnits.id, id));
@@ -360,6 +361,27 @@ export async function moveGroup(user: SessionUser, groupId: string, toUnitId: st
   publishChange('land');
   publishChange('animals');
   return id;
+}
+
+export type GrazingAdvice = { groupId: string; groupName: string; unitId: string; unitName: string; daysHere: number; over: number; next: { id: string; name: string; rested: number | null } | null };
+
+/**
+ * For each group on tracked ground: how long it's been there, whether that's
+ * past the paddock's target stay, and the best place to go next.
+ */
+export async function grazingAdvice(today = todayISO()): Promise<GrazingAdvice[]> {
+  const units = await listUnits();
+  const options = units.filter((u) => u.grazing && (u.kind === 'paddock' || u.kind === 'field' || (u.kind === 'pasture' && !units.some((c) => c.parentId === u.id))))
+    .map((u) => ({ id: u.id, name: u.name, parentId: u.parentId, state: u.grazing!.state, rested: u.grazing!.rested }));
+  const out: GrazingAdvice[] = [];
+  for (const u of units) {
+    for (const g of u.groupsHere) {
+      const daysHere = daysOn(g.movedOn, today) ?? 0;
+      const next = nextPaddock(options, { id: u.id, parentId: u.parentId });
+      out.push({ groupId: g.id, groupName: g.name, unitId: u.id, unitName: u.name, daysHere, over: overstayDays(daysHere, u.grazeDays), next: next ? { id: next.id, name: next.name, rested: next.rested } : null });
+    }
+  }
+  return out;
 }
 
 /** Places a group can be moved to, for pickers. */

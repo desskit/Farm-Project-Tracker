@@ -7,10 +7,12 @@ export function WeatherControls({
   isManager,
   hasLocation,
   current,
+  thresholds,
 }: {
   isManager: boolean;
   hasLocation: boolean;
   current: { lat: number | null; lon: number | null; label: string };
+  thresholds: { frostF: number; heatF: number; rainIn: number };
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -19,6 +21,23 @@ export function WeatherControls({
   const [label, setLabel] = useState(current.label || '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const [th, setTh] = useState({ frostF: String(thresholds.frostF), heatF: String(thresholds.heatF), rainIn: String(thresholds.rainIn) });
+
+  async function saveThresholds(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    const res = await fetch('/api/weather/thresholds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ frostF: Number(th.frostF), heatF: Number(th.heatF), rainIn: Number(th.rainIn) }),
+    });
+    setBusy(false);
+    if (!res.ok) return setError((await res.json().catch(() => ({}))).error || 'Could not save.');
+    setAlertsOpen(false);
+    router.refresh();
+  }
 
   async function refresh() {
     setBusy(true);
@@ -83,8 +102,40 @@ export function WeatherControls({
             {hasLocation ? 'Change location' : 'Set location'}
           </button>
         )}
+        {isManager && hasLocation && (
+          <button className="btn small ghost" onClick={() => setAlertsOpen((v) => !v)}>
+            Alert settings
+          </button>
+        )}
       </div>
       {error && <p className="error-text">{error}</p>}
+
+      {alertsOpen && isManager && (
+        <div className={`card ${w.card}`}>
+          <div className="notice">
+            People get a notification when the forecast crosses these: frost to those who see the land (when something
+            is growing), heat to those who see the animals, heavy rain and high fire danger to whoever manages the work.
+          </div>
+          <form onSubmit={saveThresholds}>
+            <div className="field">
+              <label>Warn of frost at or below (°F)</label>
+              <input type="number" step="1" value={th.frostF} onChange={(e) => setTh({ ...th, frostF: e.target.value })} />
+            </div>
+            <div className="field">
+              <label>Warn of heat at or above (°F)</label>
+              <input type="number" step="1" value={th.heatF} onChange={(e) => setTh({ ...th, heatF: e.target.value })} />
+            </div>
+            <div className="field">
+              <label>Warn of rain at or above (inches in a day)</label>
+              <input type="number" step="0.1" min="0.1" value={th.rainIn} onChange={(e) => setTh({ ...th, rainIn: e.target.value })} />
+            </div>
+            <div className="form-actions">
+              <button type="button" className="btn" onClick={() => setAlertsOpen(false)}>Cancel</button>
+              <button type="submit" disabled={busy} className="btn primary">{busy ? 'Saving…' : 'Save'}</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {open && isManager && (
         <div className={`card ${w.card}`}>

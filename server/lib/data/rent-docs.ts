@@ -34,6 +34,7 @@ export type RentDocRow = {
   uploaderName: string;
   date: string;
   ts: number;
+  expiresOn: string | null;
 };
 
 
@@ -62,6 +63,7 @@ export async function listRentDocs(user: SessionUser, renterId: string): Promise
       uploaderName: users.name,
       date: rentDocs.date,
       ts: rentDocs.ts,
+      expiresOn: rentDocs.expiresOn,
     })
     .from(rentDocs)
     .leftJoin(users, eq(users.id, rentDocs.uploadedBy))
@@ -87,7 +89,7 @@ export async function docCountsByRenter(renterIds: string[]): Promise<Record<str
 export async function addRentDoc(
   user: SessionUser,
   renterId: string,
-  data: { name: string; docType: RentDocType; attachmentId: string },
+  data: { name: string; docType: RentDocType; attachmentId: string; expiresOn?: string | null },
 ): Promise<void> {
   await assertOwnUpload(user, data.attachmentId);
   assertAccess(user, renterId);
@@ -102,6 +104,7 @@ export async function addRentDoc(
     attachmentId: data.attachmentId,
     uploadedBy: user.id,
     date: todayISO(),
+    expiresOn: data.expiresOn || null,
   });
   // Deliberately vague: the activity feed is farm-wide, and which paperwork a
   // renter filed isn't everyone's business.

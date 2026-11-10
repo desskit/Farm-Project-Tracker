@@ -6,7 +6,7 @@ import type { CalendarItem, CalendarKind } from '@/lib/data/calendar';
 import s from './calendar.module.css';
 
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-const KIND_LABEL: Record<CalendarKind, string> = { chore: 'Chore', maintenance: 'Upkeep', task: 'Task', rent: 'Rent', animals: 'Animals', land: 'Land' };
+const KIND_LABEL: Record<CalendarKind, string> = { chore: 'Chore', maintenance: 'Upkeep', task: 'Task', rent: 'Rent', animals: 'Animals', land: 'Land', papers: 'Papers' };
 
 /**
  * Month grid with dots for each day's items. Tapping a day lists that day's

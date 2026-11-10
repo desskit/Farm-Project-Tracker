@@ -2,11 +2,12 @@
  * Inventory (Supplies) data-access layer — ported from js/store.js's inventory
  * functions. Managers manage items; anyone can log usage/restock.
  */
-import { eq } from 'drizzle-orm';
+import { and, eq, gte, lt } from 'drizzle-orm';
 import { db } from '@/db';
 import { inventory, inventoryLog, type SupplyRefType } from '@/db/schema';
 import { uid } from '@/lib/ids';
-import { todayISO } from '@/lib/domain/dates';
+import { addDays, todayISO } from '@/lib/domain/dates';
+import { runwayDays } from '@/lib/domain/supplies';
 import type { SessionUser } from '@/lib/auth/session';
 import { logActivity } from './activity';
 import { publishChange } from '@/lib/realtime/bus';
@@ -26,8 +27,28 @@ export async function inventoryById(id: string): Promise<InventoryRow | null> {
   const rows = await db.select().from(inventory).where(eq(inventory.id, id)).limit(1);
   return rows[0] ?? null;
 }
+/** Days each supply will last at its recent rate of use (only supplies with recent use appear). */
+export async function supplyRunways(today = todayISO()): Promise<Map<string, number>> {
+  const [items, uses] = await Promise.all([
+    db.select({ id: inventory.id, qty: inventory.qty }).from(inventory),
+    db.select({ itemId: inventoryLog.itemId, date: inventoryLog.date, delta: inventoryLog.delta }).from(inventoryLog)
+      .where(and(lt(inventoryLog.delta, 0), gte(inventoryLog.date, addDays(today, -27)))),
+  ]);
+  const out = new Map<string, number>();
+  for (const it of items) {
+    const days = runwayDays(it.qty, uses.filter((u) => u.itemId === it.id).map((u) => ({ date: u.date, amount: -u.delta })), today);
+    if (days != null) out.set(it.id, days);
+  }
+  return out;
+}
+
+/** Running out within this many days counts as needing a reorder, whatever the reorder point says. */
+export const RUNWAY_WARN_DAYS = 7;
+
+/** Supplies to reorder: at or under their reorder point, or about to run out at the current rate. */
 export async function lowStockItems(): Promise<InventoryRow[]> {
-  return (await listInventory()).filter((i) => i.qty <= i.reorderAt);
+  const [items, runways] = await Promise.all([listInventory(), supplyRunways()]);
+  return items.filter((i) => i.qty <= i.reorderAt || (runways.get(i.id) ?? Infinity) <= RUNWAY_WARN_DAYS);
 }
 
 export type InventoryInput = { name: string; category?: string; unit?: string; qty?: number; reorderAt?: number; notes?: string; unitCost?: number | null; meatWithdrawalDays?: number | null; milkWithdrawalDays?: number | null };

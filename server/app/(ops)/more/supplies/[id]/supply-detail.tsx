@@ -8,6 +8,7 @@ import type { InventoryRow, InventoryLogRow } from '@/lib/data/inventory';
 import type { PersonRow } from '@/lib/data/users';
 import type { SessionUser } from '@/lib/auth/session';
 import { fmtDate } from '@/lib/domain/dates';
+import { runwayDays, runwayLabel } from '@/lib/domain/supplies';
 import { can } from '@/lib/domain/permissions';
 import { Banner, Button, Card, Field, IconButton, Input, NumberStepper, PageHeader, Stack, StatusPill, Textarea } from '@/components/ui';
 import { useDialogs } from '@/components/ui/dialogs';
@@ -26,6 +27,9 @@ export function SupplyDetail({ item, log, people, currentUser }: { item: Invento
   const [busy, setBusy] = useState<'use' | 'restock' | null>(null);
   const [editing, setEditing] = useState(false);
   const low = item.qty <= item.reorderAt;
+  // "About 9 days left", from how fast it's been used lately.
+  const today = new Date().toLocaleDateString('en-CA');
+  const left = runwayLabel(runwayDays(item.qty, log.filter((l) => l.delta < 0).map((l) => ({ date: l.date, amount: -l.delta })), today));
 
   async function adjust(kind: 'use' | 'restock') {
     if (!(amount > 0)) return setError('Enter an amount above zero.');
@@ -81,6 +85,7 @@ export function SupplyDetail({ item, log, people, currentUser }: { item: Invento
         </div>
         <p className={s.muted}>
           Reorder at {item.reorderAt} {item.unit}
+          {left && ` · ${left} at the recent rate`}
           {seesMoney && item.unitCost != null && ` · $${item.unitCost.toFixed(2)}/${item.unit} · $${(item.qty * item.unitCost).toFixed(2)} on hand`}
         </p>
         {editing && manages && <EditSupplyForm item={item} onDone={() => setEditing(false)} />}

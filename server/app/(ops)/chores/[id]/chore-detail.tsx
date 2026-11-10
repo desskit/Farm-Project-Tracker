@@ -13,7 +13,7 @@ import { submitQueued } from '@/lib/client/outbox';
 import { useMutation } from '@/lib/client/mutate';
 import { TimerControl } from '@/app/_components/timer-control';
 import { can } from '@/lib/domain/permissions';
-import { AvatarStack, Banner, Button, Card, Dialog, Field, IconButton, Input, PageHeader, Stack, StatusPill, type Tone } from '@/components/ui';
+import { AvatarStack, Banner, Button, ButtonLink, Card, Dialog, Field, IconButton, Input, PageHeader, Stack, StatusPill, type Tone } from '@/components/ui';
 import { useDialogs } from '@/components/ui/dialogs';
 import { ChoreForm, type ChorePayload, type SupplyOption } from '../chore-form';
 import s from './chore-detail.module.css';
@@ -199,6 +199,9 @@ export function ChoreDetail({
             <Button size="sm" variant="secondary" loading={action.busy} onClick={() => action.run({ url: `/api/chores/${chore.id}/release`, label: `Stepped off ${chore.name}` })}>
               Step off
             </Button>
+          )}
+          {chore.linkType === 'animal_group' && chore.linkId && (
+            <ButtonLink href={`/farm/animals/${chore.linkId}`} size="sm" variant="ghost">Open the animals · log a treatment</ButtonLink>
           )}
           {!chore.done && (onIt || isManager) && <RescheduleButtons choreId={chore.id} name={chore.name} repeats={chore.schedule.type !== 'once'} />}
         </div>

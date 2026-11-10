@@ -40,7 +40,7 @@ export default async function UnitPage({ params }: { params: { id: string } }) {
       title={unit.name}
       subtitle={[LAND_KINDS[k].label, unit.area ? `${unit.area} ${unit.areaUnit === 'acre' ? 'ac' : 'sq ft'}` : '', d.parent ? `in ${d.parent.name}` : '', unit.active ? '' : 'archived'].filter(Boolean).join(' · ')}
       back={d.parent ? `/farm/land/${d.parent.id}` : '/farm/land'}
-      actions={manage ? <EditUnit unit={{ id: unit.id, name: unit.name, area: unit.area, restDays: unit.restDays, notes: unit.notes, active: unit.active, grazes }} /> : undefined}
+      actions={manage ? <EditUnit unit={{ id: unit.id, name: unit.name, area: unit.area, restDays: unit.restDays, grazeDays: unit.grazeDays, notes: unit.notes, active: unit.active, grazes }} /> : undefined}
     >
       {unit.phiUntil && (
         <Banner tone="warn" title="Pre-harvest interval">Sprayed — nothing harvested here before <strong>{fmtDate(unit.phiUntil)}</strong>.</Banner>

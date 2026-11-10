@@ -6,7 +6,8 @@
  */
 import 'server-only';
 import { db } from '@/db';
-import { chores, maintenanceItems, projectTasks, rentCharges, users } from '@/db/schema';
+import { isNotNull } from 'drizzle-orm';
+import { assetDocs, chores, maintenanceItems, projectTasks, rentCharges, rentDocs, users } from '@/db/schema';
 import { nextOccurrenceAfter } from '@/lib/domain/recurrence';
 import type { SessionUser } from '@/lib/auth/session';
 import { can } from '@/lib/domain/permissions';
@@ -18,7 +19,7 @@ import { landAlerts } from './land';
 import { leaseIdsFor } from './rentals';
 import { todayISO } from '@/lib/domain/dates';
 
-export type CalendarKind = 'chore' | 'maintenance' | 'task' | 'rent' | 'animals' | 'land';
+export type CalendarKind = 'chore' | 'maintenance' | 'task' | 'rent' | 'animals' | 'land' | 'papers';
 export type CalendarItem = { date: string; kind: CalendarKind; id: string; title: string; href: string };
 
 export async function calendarItems(viewer: SessionUser, fromISO: string, toISO: string): Promise<CalendarItem[]> {
@@ -104,6 +105,19 @@ export async function calendarItems(viewer: SessionUser, fromISO: string, toISO:
       for (const [d, what] of [[w.milkUntil, 'milk/eggs OK'], [w.meatUntil, 'meat OK']] as const) {
         if (d && within(d)) out.push({ date: d, kind: 'animals', id: `${w.id}-${what}`, title: `${w.groupName}: ${what}`, href: `/farm/animals/${w.groupId}` });
       }
+    }
+  }
+
+  // Papers running out: equipment papers for the farm; a tenant's own (or all, for rental managers).
+  if (can(viewer, 'farm.view')) {
+    const docs = await db.select({ id: assetDocs.id, name: assetDocs.name, assetId: assetDocs.assetId, on: assetDocs.expiresOn }).from(assetDocs).where(isNotNull(assetDocs.expiresOn));
+    for (const d of docs) if (within(d.on!)) out.push({ date: d.on!, kind: 'papers', id: d.id, title: `${d.name} expires`, href: `/maintenance/${d.assetId}` });
+  }
+  {
+    const docs = await db.select({ id: rentDocs.id, name: rentDocs.name, userId: rentDocs.userId, on: rentDocs.expiresOn }).from(rentDocs).where(isNotNull(rentDocs.expiresOn));
+    for (const d of docs) {
+      if (d.userId !== viewer.id && !can(viewer, 'rentals.manage')) continue;
+      if (within(d.on!)) out.push({ date: d.on!, kind: 'papers', id: d.id, title: `${d.name} expires`, href: '/more/rent' });
     }
   }
 

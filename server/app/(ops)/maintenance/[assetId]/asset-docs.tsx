@@ -15,14 +15,14 @@ export function AssetDocs({ assetId, docs, currentUser }: { assetId: string; doc
     <DocumentList<AssetDocType>
       title="Documents"
       intro="Receipts, manuals and warranties, kept with the equipment."
-      docs={docs.map((d) => ({ id: d.id, name: d.name, kind: d.docType, attachmentId: d.attachmentId, uploaderName: d.uploaderName, date: d.date, canDelete: d.uploadedBy === currentUser.id || manages }))}
+      docs={docs.map((d) => ({ id: d.id, name: d.name, kind: d.docType, attachmentId: d.attachmentId, uploaderName: d.uploaderName, date: d.date, expiresOn: d.expiresOn, canDelete: d.uploadedBy === currentUser.id || manages }))}
       kinds={KINDS}
       defaultKind="receipt"
       pdfKind="manual"
       placeholder="e.g. Purchase receipt"
       deleteUrl={(id) => `/api/asset-docs/${id}`}
-      upload={async ({ name, kind, attachmentId }) => {
-        const res = await fetch(`/api/assets/${assetId}/docs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, docType: kind, attachmentId }) });
+      upload={async ({ name, kind, attachmentId, expiresOn }) => {
+        const res = await fetch(`/api/assets/${assetId}/docs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, docType: kind, attachmentId, expiresOn }) });
         return res.ok ? null : (await res.json().catch(() => ({}))).error || 'Could not save the document.';
       }}
     />

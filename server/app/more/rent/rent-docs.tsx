@@ -28,13 +28,13 @@ export function RentDocs({
     <DocumentList<RentDocType>
       id={showHeading ? `documents-${renterId}` : 'documents'}
       title={showHeading ? renterName : 'Your documents'}
-      docs={docs.map((d) => ({ id: d.id, name: d.name, kind: d.docType, attachmentId: d.attachmentId, uploaderName: d.uploaderName, date: d.date, canDelete: d.uploadedBy === currentUser.id || d.userId === currentUser.id || seesAll }))}
+      docs={docs.map((d) => ({ id: d.id, name: d.name, kind: d.docType, attachmentId: d.attachmentId, uploaderName: d.uploaderName, date: d.date, expiresOn: d.expiresOn, canDelete: d.uploadedBy === currentUser.id || d.userId === currentUser.id || seesAll }))}
       kinds={KINDS}
       defaultKind="lease"
       placeholder="e.g. 2026 lease — signed"
       deleteUrl={(id) => `/api/rent-docs/${id}`}
-      upload={async ({ name, kind, attachmentId }) => {
-        const res = await fetch('/api/rent-docs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: renterId, name, docType: kind, attachmentId }) });
+      upload={async ({ name, kind, attachmentId, expiresOn }) => {
+        const res = await fetch('/api/rent-docs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: renterId, name, docType: kind, attachmentId, expiresOn }) });
         return res.ok ? null : (await res.json().catch(() => ({}))).error || 'Could not save the document.';
       }}
     />

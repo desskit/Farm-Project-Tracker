@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { getSessionUser } from '@/lib/auth/session';
 import { groupDetail, listGroups } from '@/lib/data/livestock';
 import { listInventory } from '@/lib/data/inventory';
-import { grazeableUnits } from '@/lib/data/land';
+import { grazeableUnits, grazingAdvice } from '@/lib/data/land';
 import { MoveGroupCard } from '../../land/[id]/unit-client';
 import { DataError } from '@/lib/data/errors';
 import { can } from '@/lib/domain/permissions';
@@ -22,10 +22,11 @@ export default async function GroupPage({ params }: { params: { id: string } }) 
   const manage = can(user, 'animals.manage');
   const log = can(user, 'animals.log');
   const moves = can(user, 'land.log');
-  const [supplies, groups, paddocks] = await Promise.all([
+  const [supplies, groups, paddocks, advice] = await Promise.all([
     log ? listInventory() : Promise.resolve([]),
     manage ? listGroups() : Promise.resolve([]),
     moves ? grazeableUnits() : Promise.resolve([]),
+    moves ? grazingAdvice() : Promise.resolve([]),
   ]);
   const { group, species } = d;
   const info = SPECIES[species];
@@ -70,10 +71,10 @@ export default async function GroupPage({ params }: { params: { id: string } }) 
       )}
 
       {moves && paddocks.length > 0 && (
-        <MoveGroupCard groupId={group.id} current={group.landUnitId} movedOn={group.movedOn} units={paddocks} today={today} />
+        <MoveGroupCard groupId={group.id} current={group.landUnitId} movedOn={group.movedOn} units={paddocks} today={today} advice={advice.find((a) => a.groupId === group.id) ?? null} />
       )}
 
-      <CareCard groupId={group.id} groupName={group.name} chores={d.care} canAdd={can(user, 'work.manage')} />
+      <CareCard groupId={group.id} groupName={group.name} species={species} chores={d.care} canAdd={can(user, 'work.manage')} />
 
       <AnimalsCard
         groupId={group.id}

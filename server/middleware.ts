@@ -21,6 +21,7 @@ const PUBLIC_PREFIXES = [
   '/api/auth/forgot-password',
   '/api/invite',
   '/api/health',
+  '/api/calendar/feed',
   '/manifest.webmanifest',
   '/icon.svg',
   '/sw.js',

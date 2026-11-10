@@ -13,7 +13,7 @@ import { Banner, Button, Card, Field, IconButton, Input, Select, Stack } from '@
 import { useDialogs } from '@/components/ui/dialogs';
 import s from './patterns.module.css';
 
-export type DocItem = { id: string; name: string; kind: string; attachmentId: string; uploaderName: string; date: string; canDelete: boolean };
+export type DocItem = { id: string; name: string; kind: string; attachmentId: string; uploaderName: string; date: string; canDelete: boolean; expiresOn?: string | null };
 
 export function DocumentList<K extends string>({
   title, intro, docs, kinds, defaultKind, pdfKind, placeholder, upload, deleteUrl, id,
@@ -27,7 +27,7 @@ export function DocumentList<K extends string>({
   pdfKind?: K;
   placeholder: string;
   /** Saves the record once the file is uploaded; returns an error message or null. */
-  upload: (f: { name: string; kind: K; attachmentId: string }) => Promise<string | null>;
+  upload: (f: { name: string; kind: K; attachmentId: string; expiresOn: string | null }) => Promise<string | null>;
   deleteUrl: (docId: string) => string;
   id?: string;
 }) {
@@ -36,6 +36,8 @@ export function DocumentList<K extends string>({
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState('');
   const [kind, setKind] = useState<K>(defaultKind);
+  const [expiresOn, setExpiresOn] = useState('');
+  const today = new Date().toLocaleDateString('en-CA');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,11 +55,12 @@ export function DocumentList<K extends string>({
     setError(null);
     try {
       const attachmentId = await uploadPhoto(file);
-      const err = await upload({ name: name.trim() || file.name, kind, attachmentId });
+      const err = await upload({ name: name.trim() || file.name, kind, attachmentId, expiresOn: expiresOn || null });
       if (err) return setError(err);
       setFile(null);
       setName('');
       setKind(defaultKind);
+      setExpiresOn('');
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed.');
@@ -87,6 +90,7 @@ export function DocumentList<K extends string>({
                   <span>
                     <strong>{d.name}</strong>
                     <span className={s.pickMeta}>{kindLabel.get(d.kind) ?? d.kind} · {d.uploaderName} · {fmtDate(d.date)}</span>
+                    {d.expiresOn && <span className={d.expiresOn < today ? s.low : s.pickMeta}>{d.expiresOn < today ? 'Expired' : 'Expires'} {fmtDate(d.expiresOn)}</span>}
                   </span>
                 </a>
                 {d.canDelete && <IconButton label="Delete document" onClick={() => onDelete(d.id)}><Trash2 /></IconButton>}
@@ -111,6 +115,9 @@ export function DocumentList<K extends string>({
                     <Select id={`${id ?? title}-kind`} value={kind} onChange={(e) => setKind(e.target.value as K)}>
                       {kinds.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
                     </Select>
+                  </Field>
+                  <Field label="Expires (optional)" htmlFor={`${id ?? title}-exp`} hint="For insurance, registrations, warranties: you’re reminded before it runs out.">
+                    <Input id={`${id ?? title}-exp`} type="date" value={expiresOn} onChange={(e) => setExpiresOn(e.target.value)} />
                   </Field>
                 </div>
                 <Button type="submit" block loading={busy}>Add document</Button>

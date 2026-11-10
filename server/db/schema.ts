@@ -27,6 +27,7 @@ export type Schedule = {
 };
 
 export type ChoreLinkType = 'animal_group';
+export type RenewalStage = 'month' | 'week' | 'expired';
 export type SupplyRefType = 'animal_group' | 'land_unit' | 'asset' | 'chore';
 /** A supply drawn somewhere: which, how much, and its name/unit at the time (for history). */
 export type SupplyUseRecord = { inventoryId: string; qty: number; name?: string; unit?: string };
@@ -248,6 +249,9 @@ export const assetDocs = sqliteTable('asset_docs', {
   uploadedBy: text('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
   date: text('date').notNull(),
   ts: integer('ts').notNull().default(now),
+  /** When the paper runs out (insurance, registration, warranty). Reminded at 30 days, 7 days and after. */
+  expiresOn: text('expires_on'),
+  reminderStage: text('reminder_stage').$type<RenewalStage>(),
 }, (t) => ({
   assetIdx: index('asset_docs_asset_idx').on(t.assetId),
 }));
@@ -438,6 +442,9 @@ export const rentDocs = sqliteTable('rent_docs', {
   uploadedBy: text('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
   date: text('date').notNull(),
   ts: integer('ts').notNull().default(now),
+  /** When the paper runs out (insurance, registration, warranty). Reminded at 30 days, 7 days and after. */
+  expiresOn: text('expires_on'),
+  reminderStage: text('reminder_stage').$type<RenewalStage>(),
 }, (t) => ({
   userIdx: index('rent_docs_user_idx').on(t.userId),
   attachmentIdx: index('rent_docs_attachment_idx').on(t.attachmentId),
@@ -701,6 +708,8 @@ export const landUnits = sqliteTable('land_units', {
   areaUnit: text('area_unit').$type<'sqft' | 'acre'>().notNull().default('sqft'),
   /** Paddocks: days of rest wanted between grazings. */
   restDays: integer('rest_days').notNull().default(30),
+  /** Paddocks: how many days a group should stay before moving on (null = no target). */
+  grazeDays: integer('graze_days'),
   notes: text('notes').notNull().default(''),
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
   createdAt: integer('created_at').notNull().default(now),
@@ -909,3 +918,10 @@ export const choreSupplies = sqliteTable('chore_supplies', {
 }, (t) => ({
   pk: primaryKey({ columns: [t.choreId, t.inventoryId] }),
 }));
+
+/** One secret calendar-feed link per person (the token itself is never stored, only its hash). */
+export const calendarTokens = sqliteTable('calendar_tokens', {
+  userId: text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull().unique(),
+  createdAt: integer('created_at').notNull().default(now),
+});

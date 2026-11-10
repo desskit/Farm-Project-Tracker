@@ -66,3 +66,41 @@ export function weekTrend(daily: { date: string; amount: number }[], today: stri
   }
   return { thisWeek, lastWeek, pct: lastWeek > 0 ? Math.round(((thisWeek - lastWeek) / lastWeek) * 100) : null };
 }
+
+/**
+ * Starting points for routine health care, per species: common intervals, not
+ * veterinary advice. Each becomes an ordinary repeating chore linked to the
+ * group, so the interval and wording can be changed afterwards.
+ */
+export type HealthTemplate = { name: string; everyDays: number };
+const SMALL_RUMINANT: HealthTemplate[] = [
+  { name: 'Hoof trim', everyDays: 56 },
+  { name: 'Worm check (eyelids / body condition)', everyDays: 30 },
+  { name: 'CDT booster', everyDays: 365 },
+];
+const EQUINE: HealthTemplate[] = [
+  { name: 'Farrier / hoof trim', everyDays: 42 },
+  { name: 'Deworm (or fecal count)', everyDays: 90 },
+  { name: 'Annual vaccinations', everyDays: 365 },
+  { name: 'Teeth check', everyDays: 365 },
+];
+const POULTRY: HealthTemplate[] = [
+  { name: 'Check for mites and lice', everyDays: 30 },
+  { name: 'Deep-clean the coop', everyDays: 90 },
+];
+const CAMELID: HealthTemplate[] = [
+  { name: 'Toenail trim', everyDays: 90 },
+  { name: 'Shearing', everyDays: 365 },
+  { name: 'CDT booster', everyDays: 365 },
+];
+export const HEALTH_TEMPLATES: Record<Species, HealthTemplate[]> = {
+  chicken: POULTRY, duck: POULTRY, turkey: POULTRY, goose: POULTRY,
+  goat: SMALL_RUMINANT,
+  sheep: [...SMALL_RUMINANT, { name: 'Shearing', everyDays: 365 }],
+  cattle: [{ name: 'Annual vaccinations', everyDays: 365 }, { name: 'Deworm', everyDays: 180 }, { name: 'Hoof and body check', everyDays: 180 }],
+  pig: [{ name: 'Deworm', everyDays: 180 }, { name: 'Hoof and tusk check', everyDays: 180 }],
+  horse: EQUINE, donkey: EQUINE,
+  alpaca: CAMELID, llama: CAMELID,
+  rabbit: [{ name: 'Nail trim', everyDays: 42 }, { name: 'Teeth and weight check', everyDays: 90 }],
+  other: [],
+};

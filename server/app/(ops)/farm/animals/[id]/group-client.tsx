@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Baby, HeartPulse, Pencil, Plus, Repeat, Scale, Skull, StickyNote, Syringe, Tag, Trash2, Truck, Wallet } from 'lucide-react';
 import type { AnimalRow, EventView } from '@/lib/data/livestock';
 import type { BreedingStatus } from '@/db/schema';
-import { EVENT_LABEL, PRODUCT_UNIT, weekTrend, type AnimalEventType, type ProductKind } from '@/lib/domain/livestock';
+import { EVENT_LABEL, HEALTH_TEMPLATES, PRODUCT_UNIT, weekTrend, type AnimalEventType, type ProductKind, type Species } from '@/lib/domain/livestock';
 import { addDays, fmtDate } from '@/lib/domain/dates';
 import { useMutation } from '@/lib/client/mutate';
 import { Banner, Button, Card, Dialog, EmptyState, Field, IconButton, Input, ListRow, Segmented, Select, StatusPill, Switch, Textarea } from '@/components/ui';
@@ -224,7 +224,7 @@ const CARE_SCHEDULES = {
   monthly: 'Every month',
 } as const;
 
-export function CareCard({ groupId, groupName, chores, canAdd }: { groupId: string; groupName: string; chores: { id: string; name: string; nextDue: string }[]; canAdd: boolean }) {
+export function CareCard({ groupId, groupName, species, chores, canAdd }: { groupId: string; groupName: string; species: Species; chores: { id: string; name: string; nextDue: string }[]; canAdd: boolean }) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
@@ -252,7 +252,16 @@ export function CareCard({ groupId, groupName, chores, canAdd }: { groupId: stri
   }
 
   return (
-    <Card title="Care chores" action={canAdd && !adding ? <Button size="sm" variant="ghost" icon={<Plus />} onClick={() => setAdding(true)}>Add</Button> : undefined} flush={!adding}>
+    <Card
+      title="Care chores"
+      action={canAdd && !adding ? (
+        <span className={s.actions}>
+          <HealthScheduleButton groupId={groupId} groupName={groupName} species={species} existing={chores.map((c) => c.name)} />
+          <Button size="sm" variant="ghost" icon={<Plus />} onClick={() => setAdding(true)}>Add</Button>
+        </span>
+      ) : undefined}
+      flush={!adding}
+    >
       {adding ? (
         <form className={s.form} onSubmit={onSubmit}>
           <Field label="Chore" htmlFor="care-name"><Input id="care-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={`Feed & water ${groupName}`} required maxLength={120} /></Field>
@@ -274,6 +283,61 @@ export function CareCard({ groupId, groupName, chores, canAdd }: { groupId: stri
         chores.map((c) => <ListRow key={c.id} href={`/chores/${c.id}`} lead={<Repeat />} title={c.name} meta={`Next ${fmtDate(c.nextDue)}`} />)
       )}
     </Card>
+  );
+}
+
+/** Routine health care from the species' usual list: tick what applies and each becomes a repeating chore. */
+function HealthScheduleButton({ groupId, groupName, species, existing }: { groupId: string; groupName: string; species: Species; existing: string[] }) {
+  const router = useRouter();
+  const templates = HEALTH_TEMPLATES[species];
+  const [open, setOpen] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [first, setFirst] = useState(() => new Date().toLocaleDateString('en-CA'));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!templates.length) return null;
+  const have = (name: string) => existing.some((e) => e.toLowerCase().startsWith(name.toLowerCase()));
+  const every = (d: number) => (d % 365 === 0 ? (d === 365 ? 'yearly' : `every ${d / 365} years`) : d % 7 === 0 ? `every ${d / 7} weeks` : `every ${d} days`);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    for (const t of templates.filter((x) => picked.has(x.name))) {
+      const err = await send('/api/chores', 'POST', { name: `${t.name} — ${groupName}`, schedule: { type: 'everyNDays', n: t.everyDays }, nextDue: first, open: true, link: { type: 'animal_group', id: groupId } });
+      if (err) {
+        setBusy(false);
+        return setError(err);
+      }
+    }
+    setBusy(false);
+    setOpen(false);
+    setPicked(new Set());
+    router.refresh();
+  }
+
+  return (
+    <>
+      <Button size="sm" variant="ghost" icon={<HeartPulse />} onClick={() => setOpen(true)}>Health schedule</Button>
+      <Dialog sheet open={open} onClose={() => setOpen(false)} title="Health schedule">
+        <form className={s.form} onSubmit={onSubmit}>
+          <p className={s.muted}>Common routine care for this kind of animal. Tick what you do; each becomes a repeating chore you can edit. Follow your vet’s advice on timing.</p>
+          {templates.map((t) => (
+            <Switch
+              key={t.name}
+              label={t.name}
+              hint={have(t.name) ? 'Already on the list' : every(t.everyDays)}
+              checked={picked.has(t.name)}
+              disabled={have(t.name)}
+              onChange={(v) => setPicked((p) => { const n = new Set(p); if (v) n.add(t.name); else n.delete(t.name); return n; })}
+            />
+          ))}
+          <Field label="First due" htmlFor="hs-first"><Input id="hs-first" type="date" value={first} onChange={(e) => setFirst(e.target.value)} required /></Field>
+          {error && <Banner tone="danger">{error}</Banner>}
+          <Button type="submit" block loading={busy} disabled={picked.size === 0}>Add {picked.size || ''} to the chore list</Button>
+        </form>
+      </Dialog>
+    </>
   );
 }
 

@@ -101,7 +101,7 @@ export function GrazingCard({
 }
 
 /** On an animal group's page: where they are and a one-tap move. */
-export function MoveGroupCard({ groupId, current, movedOn, units, today }: { groupId: string; current: string | null; movedOn: string | null; units: { id: string; name: string }[]; today: string }) {
+export function MoveGroupCard({ groupId, current, movedOn, units, today, advice }: { groupId: string; current: string | null; movedOn: string | null; units: { id: string; name: string }[]; today: string; advice?: { over: number; next: { id: string; name: string; rested: number | null } | null } | null }) {
   const m = useMutation();
   const [to, setTo] = useState('');
   const here = units.find((u) => u.id === current);
@@ -114,6 +114,16 @@ export function MoveGroupCard({ groupId, current, movedOn, units, today }: { gro
     <Card title="Grazing">
       <div className={s.form}>
         <p className={s.muted}>{here ? <>On <Link href={`/farm/land/${here.id}`}>{here.name}</Link>{movedOn ? ` for ${daysOn(movedOn, today)} days` : ''}</> : 'Not on a tracked paddock.'}</p>
+        {advice && advice.over > 0 && <Banner tone="warn">{advice.over} day{advice.over === 1 ? '' : 's'} past this paddock’s target stay — time to move.</Banner>}
+        {advice?.next && (
+          <div className={s.quickRow}>
+            <span className={s.quickName}>
+              <strong>Suggested next: {advice.next.name}</strong>
+              <small>{advice.next.rested == null ? 'Not grazed yet' : `Rested ${advice.next.rested} days`}</small>
+            </span>
+            <Button size="sm" variant="secondary" loading={m.busy} onClick={() => m.run({ url: `/api/animals/groups/${groupId}/move`, body: { toUnitId: advice.next!.id }, label: 'Moved animals' })}>Move there</Button>
+          </div>
+        )}
         <form className={s.quickRow} onSubmit={onSubmit}>
           <Select value={to} onChange={(e) => setTo(e.target.value)} aria-label="Move to">
             <option value="">Move to…</option>
@@ -469,16 +479,16 @@ function LandEventForm({ type, unitId, supplies, today, onDone }: { type: LandEv
 
 /* ---------------- settings ---------------- */
 
-export function EditUnit({ unit }: { unit: { id: string; name: string; area: number | null; restDays: number; notes: string; active: boolean; grazes: boolean } }) {
+export function EditUnit({ unit }: { unit: { id: string; name: string; area: number | null; restDays: number; grazeDays: number | null; notes: string; active: boolean; grazes: boolean } }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ name: unit.name, area: unit.area == null ? '' : String(unit.area), restDays: String(unit.restDays), notes: unit.notes, active: unit.active });
+  const [f, setF] = useState({ name: unit.name, area: unit.area == null ? '' : String(unit.area), restDays: String(unit.restDays), grazeDays: unit.grazeDays == null ? '' : String(unit.grazeDays), notes: unit.notes, active: unit.active });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const err = await send(`/api/land/${unit.id}`, 'PATCH', { name: f.name, area: f.area ? Number(f.area) : null, restDays: Number(f.restDays) || 30, notes: f.notes, active: f.active });
+    const err = await send(`/api/land/${unit.id}`, 'PATCH', { name: f.name, area: f.area ? Number(f.area) : null, restDays: Number(f.restDays) || 30, grazeDays: f.grazeDays ? Number(f.grazeDays) : null, notes: f.notes, active: f.active });
     setBusy(false);
     if (err) return setError(err);
     setOpen(false);
@@ -493,6 +503,7 @@ export function EditUnit({ unit }: { unit: { id: string; name: string; area: num
           <div className={s.two}>
             <Field label="Size" htmlFor="eu-area"><Input id="eu-area" type="number" inputMode="decimal" min="0" step="any" value={f.area} onChange={(e) => setF({ ...f, area: e.target.value })} /></Field>
             {unit.grazes && <Field label="Rest days" htmlFor="eu-rest"><Input id="eu-rest" type="number" inputMode="numeric" min="1" value={f.restDays} onChange={(e) => setF({ ...f, restDays: e.target.value })} /></Field>}
+            {unit.grazes && <Field label="Days to graze" htmlFor="eu-graze" hint="Blank = no target. Past this, the group is flagged to move."><Input id="eu-graze" type="number" inputMode="numeric" min="1" value={f.grazeDays} onChange={(e) => setF({ ...f, grazeDays: e.target.value })} /></Field>}
           </div>
           <Field label="Notes" htmlFor="eu-notes"><Textarea id="eu-notes" rows={3} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
           <Switch label="In use (turn off to archive)" checked={f.active} onChange={(v) => setF({ ...f, active: v })} />

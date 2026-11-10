@@ -24,3 +24,25 @@ export function paddockStatus(
 export function daysOn(movedOn: string | null, today: string): number | null {
   return movedOn ? Math.max(0, daysBetween(movedOn, today)) : null;
 }
+
+export type PaddockOption = { id: string; name: string; parentId: string | null; state: PaddockState; rested: number | null };
+
+/**
+ * Where to move next: a paddock that's ready, preferring the same pasture and
+ * the one rested longest (never-grazed ground counts as rested longest).
+ */
+export function nextPaddock(options: PaddockOption[], current: { id: string | null; parentId: string | null }): PaddockOption | null {
+  const ok = options.filter((p) => p.id !== current.id && (p.state === 'ready' || p.state === 'unused'));
+  if (!ok.length) return null;
+  const score = (p: PaddockOption) => (p.rested ?? Number.MAX_SAFE_INTEGER);
+  return ok.sort((a, b) => {
+    const same = Number(b.parentId === current.parentId) - Number(a.parentId === current.parentId);
+    return same || score(b) - score(a) || a.name.localeCompare(b.name, undefined, { numeric: true });
+  })[0];
+}
+
+/** Days past the paddock's target stay, or 0 if within it (or no target set). */
+export function overstayDays(daysHere: number | null, grazeDays: number | null | undefined): number {
+  if (daysHere == null || !grazeDays || grazeDays <= 0) return 0;
+  return Math.max(0, daysHere - grazeDays);
+}

@@ -5,3 +5,5 @@
 .main { display: grid; gap: 2px; min-width: 0; }
 .muted { color: var(--c-text-muted); font-size: var(--text-sm); }
 .signout { margin-top: var(--space-3); }
+.link { display: block; word-break: break-all; font-size: var(--text-sm); margin: var(--space-2) 0; }
+.actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }

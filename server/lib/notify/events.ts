@@ -130,6 +130,11 @@ export async function pushRequest(
   await notify(userIds, actorId, payload);
 }
 
+/** A plain push to a set of people (honours each person's notification switch). */
+export async function pushToPeople(userIds: string[], payload: { title: string; body: string; url?: string }, exceptUserId: string | null = null): Promise<void> {
+  await notify([...new Set(userIds)], exceptUserId, payload);
+}
+
 /** Upkeep that has just come due, as one summary push. */
 export async function pushUpkeepDue(userIds: string[], names: string[]): Promise<void> {
   if (!names.length) return;

@@ -1,9 +1,9 @@
 import { CloudSun } from 'lucide-react';
-import { Card, EmptyState } from '@/components/ui';
+import { Banner, Card, EmptyState } from '@/components/ui';
 import { Screen } from '@/components/patterns/screen';
 import t from '../time/time.module.css';
 import { getSessionUser } from '@/lib/auth/session';
-import { getWeather, dayFire, weatherEmoji } from '@/lib/data/weather';
+import { getWeather, currentWeatherAlerts, getWeatherThresholds, dayFire, weatherEmoji } from '@/lib/data/weather';
 import { WeatherControls } from './weather-controls';
 import { can } from '@/lib/domain/permissions';
 
@@ -13,7 +13,7 @@ export default async function WeatherPage() {
   const user = await getSessionUser();
   if (!user) return null; // middleware already guards this route
   const isManager = can(user, 'work.manage');
-  const w = await getWeather();
+  const [w, alerts, thresholds] = await Promise.all([getWeather(), currentWeatherAlerts(), getWeatherThresholds()]);
 
   const days = (w.forecast ?? []).slice(0, 7);
   const fires = days.map(dayFire);
@@ -72,10 +72,17 @@ export default async function WeatherPage() {
         </div>
       )}
 
+      {alerts.length > 0 && (
+        <Banner tone="warn" title="Heads up">
+          {alerts.map((a) => `${a.title}: ${a.detail}`).join(' ')}
+        </Banner>
+      )}
+
       <WeatherControls
         isManager={isManager}
         hasLocation={w.lat != null}
         current={{ lat: w.lat, lon: w.lon, label: w.label }}
+        thresholds={thresholds}
       />
 
       <p className={t.muted}>

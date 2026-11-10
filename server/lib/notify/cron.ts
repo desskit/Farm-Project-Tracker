@@ -14,6 +14,8 @@ import { runBackup } from '@/lib/backup';
 import { runRentReminders } from './rent-reminders';
 import { runUpkeepAlerts } from './upkeep-alerts';
 import { runLeaseJobs } from './lease-jobs';
+import { runWeatherAlerts } from './weather-alerts';
+import { runRenewalReminders } from './renewals';
 import { getWeather, refreshForecast } from '@/lib/data/weather';
 
 const g = globalThis as unknown as { __fptCronStarted?: boolean };
@@ -67,6 +69,12 @@ export function startCron(): void {
   // Rent reminders, once a day at 07:00 local — early enough to act on, late
   // enough not to arrive overnight. The job records what it has already sent,
   // so a restart during the day can't re-nag anyone.
+  // Papers about to run out (insurance, registrations, warranties): 07:20.
+  cron.schedule('20 7 * * *', () => {
+    runRenewalReminders()
+      .then((r) => r.sent && console.log(`[cron] renewal reminders: ${r.sent}`))
+      .catch((e) => console.error('[cron] renewal reminders failed', e));
+  });
   // Late fees first, so the 07:00 reminders already include them.
   cron.schedule('50 6 * * *', () => {
     runLeaseJobs()
@@ -96,6 +104,12 @@ export function startCron(): void {
   cron.schedule('25 */3 * * *', () => {
     getWeather()
       .then((w) => (w.lat != null ? refreshForecast() : null))
+      .then((w) => {
+        // Alerts go out in waking hours only; a 3 a.m. frost warning helps nobody.
+        const h = new Date().getHours();
+        return w && h >= 6 && h <= 21 ? runWeatherAlerts() : null;
+      })
+      .then((r) => r?.sent && console.log(`[cron] weather alerts: ${r.sent}`))
       .catch((e) => console.error('[cron] weather refresh failed', e));
   });
   // Catch up immediately at boot too, in case the server was off overnight.

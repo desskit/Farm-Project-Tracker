@@ -30,6 +30,7 @@ export type AssetDocRow = {
   uploaderName: string;
   date: string;
   ts: number;
+  expiresOn: string | null;
 };
 
 
@@ -45,6 +46,7 @@ export async function listAssetDocs(assetId: string): Promise<AssetDocRow[]> {
       uploaderName: users.name,
       date: assetDocs.date,
       ts: assetDocs.ts,
+      expiresOn: assetDocs.expiresOn,
     })
     .from(assetDocs)
     .leftJoin(users, eq(users.id, assetDocs.uploadedBy))
@@ -70,7 +72,7 @@ export async function docCountsByAsset(assetIds: string[]): Promise<Record<strin
 export async function addAssetDoc(
   user: SessionUser,
   assetId: string,
-  data: { name: string; docType: AssetDocType; attachmentId: string },
+  data: { name: string; docType: AssetDocType; attachmentId: string; expiresOn?: string | null },
 ): Promise<void> {
   await assertOwnUpload(user, data.attachmentId);
   const name = (data.name || '').trim() || 'Document';
@@ -82,6 +84,7 @@ export async function addAssetDoc(
     attachmentId: data.attachmentId,
     uploadedBy: user.id,
     date: todayISO(),
+    expiresOn: data.expiresOn || null,
   });
   await logActivity(user.id, `filed a document on an asset`);
   publishChange('asset');

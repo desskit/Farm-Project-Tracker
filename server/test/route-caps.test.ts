@@ -12,10 +12,11 @@ import path from 'node:path';
 import { CAPS } from '@/lib/domain/permissions';
 
 const API = path.resolve(__dirname, '../app/api');
-const PUBLIC = ['auth/login', 'auth/logout', 'auth/forgot-password', 'invite/[token]', 'health'];
+const PUBLIC = ['auth/login', 'auth/logout', 'auth/forgot-password', 'invite/[token]', 'health', 'calendar/feed/[token]'];
 const ANY_SIGNED_IN = [
   'attachments', 'attachments/[id]', 'auth/change-password', 'events', 'prefs', 'push/public-key', 'push/subscribe',
   'preview/stop',
+  'calendar/token', // each person's own calendar link
   'requests/[id]/comments', // the sender or a handler; requestForViewer decides
   'rent/[id]/mark', 'rent/[id]/reopen', 'rent/[id]/verify', 'rent/assign', 'rent/stop', 'rent-docs', 'rent-docs/[id]',
 ];

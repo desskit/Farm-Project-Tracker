@@ -1,6 +1,7 @@
 /** Rentals: lease coverage, lease reminder stages, inspection comparison. Pure. */
 import { diffDays } from './dates';
-import type { Condition, InspectionItem } from '@/db/schema';
+import type { Condition, InspectionItem, RenewalStage } from '@/db/schema';
+export type { RenewalStage };
 
 export const RENTAL_KIND_LABEL = { house: 'House', apartment: 'Apartment', room: 'Room', cabin: 'Cabin', rv: 'RV spot', other: 'Other' } as const;
 export const UTILITY_LABEL = { electric: 'Electric', water: 'Water', gas: 'Gas', propane: 'Propane', internet: 'Internet', trash: 'Trash', other: 'Other' } as const;
@@ -54,4 +55,14 @@ export function compareInspections(before: InspectionItem[], after: InspectionIt
       notes: a.get(area)?.notes ?? '',
     };
   });
+}
+
+/** Which renewal reminder a paper with this expiry date is due: a month out, a week out, or after it lapsed. */
+export function renewalStage(expiresOn: string | null | undefined, today: string): RenewalStage | null {
+  if (!expiresOn) return null;
+  const left = diffDays(expiresOn, today);
+  if (left < 0) return 'expired';
+  if (left <= 7) return 'week';
+  if (left <= 30) return 'month';
+  return null;
 }

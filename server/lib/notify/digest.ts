@@ -15,7 +15,9 @@ import { capsFor } from '@/lib/auth/session';
 import { can } from '@/lib/domain/permissions';
 import { fmtDate, todayISO } from '@/lib/domain/dates';
 import { livestockAlerts } from '@/lib/data/livestock';
-import { landAlerts } from '@/lib/data/land';
+import { grazingAdvice, landAlerts } from '@/lib/data/land';
+import { lowStockItems, supplyRunways } from '@/lib/data/inventory';
+import { runwayLabel } from '@/lib/domain/supplies';
 
 /** The digest's animal lines, built once per tick and shown to people who can see animals. */
 export async function animalDigestLines(today = todayISO()): Promise<string[]> {
@@ -30,6 +32,15 @@ export async function animalDigestLines(today = todayISO()): Promise<string[]> {
   return lines;
 }
 
+/** Supplies about to run out at the current rate, or already under their reorder point. */
+export async function supplyDigestLines(): Promise<string[]> {
+  const [low, runways] = await Promise.all([lowStockItems(), supplyRunways()]);
+  return low.map((i) => {
+    const left = runwayLabel(runways.get(i.id) ?? null);
+    return `${i.name}: ${i.qty} ${i.unit} on hand${left ? `, ${left}` : ''}`;
+  });
+}
+
 /** The digest's garden & pasture lines. */
 export async function landDigestLines(today = todayISO()): Promise<string[]> {
   const l = await landAlerts(today, 3);
@@ -37,6 +48,7 @@ export async function landDigestLines(today = todayISO()): Promise<string[]> {
     ...l.ready.map((p) => `${p.crop} ready ${p.ready <= today ? 'now' : `around ${fmtDate(p.ready)}`} — ${p.unitName}`),
     ...l.toSow.map((p) => `Sow ${p.crop} in ${p.unitName}${p.sownOn > today ? ` on ${fmtDate(p.sownOn)}` : ''}`),
     ...l.sprays.map((x) => `${x.unitName}: no harvest until ${fmtDate(x.until)} (${x.what})`),
+    ...(await grazingAdvice(today)).filter((g) => g.over > 0).map((g) => `${g.groupName} have been on ${g.unitName} ${g.daysHere} days${g.next ? ` — ${g.next.name} is ready` : ''}`),
   ];
 }
 
@@ -54,6 +66,7 @@ export async function runDigestTick(now = new Date()): Promise<{ sent: number }>
   let sent = 0;
   let animals: string[] | null = null;
   let land: string[] | null = null;
+  let supplies: string[] | null = null;
   for (const u of allUsers) {
     const prefs = await getPrefs(u.id);
     if (prefs.digestHour !== hour) continue;
@@ -67,11 +80,12 @@ export async function runDigestTick(now = new Date()): Promise<{ sent: number }>
     const total = b.overdue.length + b.today.length + b.upcoming.length;
     const animalLines = can({ role: u.role, caps }, 'animals.view') ? (animals ??= await animalDigestLines()) : [];
     const landLines = can({ role: u.role, caps }, 'land.view') ? (land ??= await landDigestLines()) : [];
-    if (total === 0 && !animalLines.length && !landLines.length) continue;
+    const supplyLines = can({ role: u.role, caps }, 'supplies.manage') ? (supplies ??= await supplyDigestLines()) : [];
+    if (total === 0 && !animalLines.length && !landLines.length && !supplyLines.length) continue;
 
     if (wantsEmail && emailConfigured() && u.email) {
       const subject = `Farm Tracker · ${b.overdue.length} overdue, ${b.today.length} due today`;
-      if (await sendMail(u.email, subject, digestEmail(u.name, b, { animals: animalLines, land: landLines }))) sent++;
+      if (await sendMail(u.email, subject, digestEmail(u.name, b, { animals: animalLines, land: landLines, supplies: supplyLines }))) sent++;
     }
     if (prefs.push && pushConfigured()) {
       const dueNow = b.overdue.length + b.today.length;

@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { getWeather, dayFire, weatherEmoji } from '@/lib/data/weather';
+import { getWeather, currentWeatherAlerts, dayFire, weatherEmoji } from '@/lib/data/weather';
+import { Banner } from '@/components/ui';
 
 /**
  * Compact 7-day forecast + fire-danger strip for the top of the dashboard,
@@ -14,8 +15,15 @@ export async function WeatherWidget() {
   const days = w.forecast.slice(0, 7);
   const fires = days.map(dayFire);
   const today = fires[0];
+  const alerts = await currentWeatherAlerts();
 
   return (
+    <>
+    {alerts.length > 0 && (
+      <Banner tone="warn" title={alerts.map((a) => a.title).filter((t, i, all) => all.indexOf(t) === i).join(' · ')}>
+        {alerts.map((a) => a.detail).join(' ')}
+      </Banner>
+    )}
     <Link href="/more/weather" className="card wx-card wx-widget">
       <div className="wx-head">
         <span>🌤️ {w.label || '7-day forecast'}</span>
@@ -37,5 +45,6 @@ export async function WeatherWidget() {
         })}
       </div>
     </Link>
+    </>
   );
 }
