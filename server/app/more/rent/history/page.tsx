@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Wallet } from 'lucide-react';
 import { getSessionUser } from '@/lib/auth/session';
@@ -42,9 +43,12 @@ export default async function RentHistoryPage({ searchParams }: { searchParams: 
           rows.map((c) => (
             <div className={s.kv} key={c.id}>
               <span className={s.kvLabel}>
-                {monthLabel(c.month)}
+                {c.kind === 'rent' ? monthLabel(c.month) : c.label || monthLabel(c.month)}
                 {c.status === 'verified' ? (
-                  <StatusPill tone="done">Paid{c.verifiedAt ? ` ${fmtDate(c.verifiedAt)}` : ''}</StatusPill>
+                  <>
+                    <StatusPill tone="done">Paid{c.verifiedAt ? ` ${fmtDate(c.verifiedAt)}` : ''}</StatusPill>
+                    <Link href={`/more/rent/receipt/${c.id}`}>Receipt</Link>
+                  </>
                 ) : c.status === 'marked' ? (
                   <StatusPill tone="info">Marked paid</StatusPill>
                 ) : (

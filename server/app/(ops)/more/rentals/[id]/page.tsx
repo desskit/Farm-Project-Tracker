@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { MessageSquareWarning } from 'lucide-react';
 import { getSessionUser } from '@/lib/auth/session';
@@ -8,9 +9,9 @@ import { DataError } from '@/lib/data/errors';
 import { can } from '@/lib/domain/permissions';
 import { CHARGE_KIND_LABEL, RENTAL_KIND_LABEL } from '@/lib/domain/rentals';
 import { fmtDate, monthLabel, todayISO } from '@/lib/domain/dates';
-import { Card, EmptyState, ListRow, StatusPill } from '@/components/ui';
+import { ButtonLink, Card, EmptyState, ListRow, StatusPill } from '@/components/ui';
 import { Screen } from '@/components/patterns/screen';
-import { EditRentalUnit, InspectionsCard, LeaseCard, UtilitiesCard } from './unit-client';
+import { DepositCard, EditRentalUnit, InspectionsCard, LeaseCard, UtilitiesCard } from './unit-client';
 import s from '../../../farm/animals/animals.module.css';
 
 const money = (n: number) => `$${n.toFixed(2)}`;
@@ -36,7 +37,17 @@ export default async function RentalUnitPage({ params }: { params: { id: string 
       {unit.notes && <p>{unit.notes}</p>}
       <LeaseCard unitId={unit.id} lease={d.current} people={people} today={today} />
 
-      <Card title="Charges" flush>
+      {d.deposit && (
+        <DepositCard
+          leaseId={d.deposit.leaseId}
+          entries={d.deposit.entries.map((x) => ({ id: x.id, date: x.date, kind: x.kind, amount: x.amount, reason: x.reason }))}
+          balance={d.deposit.balance}
+          worse={[...new Set(d.comparisons.flatMap((c) => c.changes.filter((x) => x.worse).map((x) => x.area)))]}
+          today={today}
+        />
+      )}
+
+      <Card title="Charges" action={d.current || d.past[0] ? <ButtonLink href={`/more/rent/statement/${(d.current ?? d.past[0]).id}`} size="sm" variant="ghost">Statement</ButtonLink> : undefined} flush>
         {d.charges.length === 0 ? (
           <EmptyState title="No charges yet">Rent appears here each month once a lease is running.</EmptyState>
         ) : (
@@ -44,7 +55,7 @@ export default async function RentalUnitPage({ params }: { params: { id: string 
             <div key={c.id} className={s.event}>
               <span className={s.eventMain}>
                 <strong>{money(c.amount)} · {c.kind === 'rent' ? `Rent ${monthLabel(c.month)}` : c.label || CHARGE_KIND_LABEL[c.kind]}</strong>
-                <small>Due {fmtDate(c.dueDate)}</small>
+                <small>Due {fmtDate(c.dueDate)}{c.status === 'verified' ? <> · <Link href={`/more/rent/receipt/${c.id}`}>receipt</Link></> : null}</small>
               </span>
               <StatusPill tone={c.status === 'verified' ? 'done' : c.status === 'marked' ? 'info' : c.dueDate < today ? 'overdue' : 'upcoming'}>
                 {c.status === 'verified' ? 'Paid' : c.status === 'marked' ? 'Marked paid' : 'Unpaid'}

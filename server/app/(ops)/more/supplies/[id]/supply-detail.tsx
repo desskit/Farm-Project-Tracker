@@ -22,6 +22,8 @@ export function SupplyDetail({ item, log, people, currentUser }: { item: Invento
   const nameById = new Map(people.map((p) => [p.id, p.name]));
   const [amount, setAmount] = useState(1);
   const [reason, setReason] = useState('');
+  const [paid, setPaid] = useState('');
+  const [vendor, setVendor] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [queued, setQueued] = useState<string | null>(null);
   const [busy, setBusy] = useState<'use' | 'restock' | null>(null);
@@ -40,12 +42,13 @@ export function SupplyDetail({ item, log, people, currentUser }: { item: Invento
     // Stock is drawn at the barn; the server keys this write so a replay can't count twice.
     const r = await submitQueued({
       url: `/api/inventory/${item.id}/adjust`,
-      body: { delta, reason },
+      body: kind === 'restock' ? { delta, reason, cost: paid.trim() === '' ? null : Number(paid), vendor: vendor || null } : { delta, reason },
       label: `${kind === 'use' ? 'Used' : 'Restocked'} ${amount} ${item.unit} of ${item.name}`,
     });
     setBusy(null);
     if (!r.ok && !r.queued) return setError(r.error);
     setReason('');
+    setPaid('');
     setAmount(1);
     if (r.ok) router.refresh();
     else setQueued('Saved on this device — it will sync when you’re back online.');
@@ -97,6 +100,14 @@ export function SupplyDetail({ item, log, people, currentUser }: { item: Invento
           <Field label="Note (optional)" htmlFor="sup-note">
             <Input id="sup-note" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. fed the flock, bought 5 bags" />
           </Field>
+          <div className={s.two}>
+            <Field label="If restocking: total paid ($)" htmlFor="sup-paid" hint="Updates the cost per unit.">
+              <Input id="sup-paid" type="number" step="0.01" min={0} inputMode="decimal" value={paid} onChange={(e) => setPaid(e.target.value)} />
+            </Field>
+            <Field label="Bought from" htmlFor="sup-vendor">
+              <Input id="sup-vendor" value={vendor} onChange={(e) => setVendor(e.target.value)} maxLength={80} placeholder="Feed store" />
+            </Field>
+          </div>
           {error && <Banner tone="danger">{error}</Banner>}
           {queued && <Banner tone="ok">{queued}</Banner>}
           <div className={s.actions}>
@@ -116,6 +127,8 @@ export function SupplyDetail({ item, log, people, currentUser }: { item: Invento
               <span className={s.histMain}>
                 {nameById.get(l.userId ?? '') ?? 'Unknown'}
                 {l.reason && <span className={s.muted}> · {l.reason}</span>}
+                {l.vendor && <span className={s.muted}> · {l.vendor}</span>}
+                {seesMoney && l.cost != null && <span className={s.muted}> · ${l.cost.toFixed(2)}</span>}
               </span>
               <span className={s.muted}>{fmtDate(l.date)}</span>
             </div>

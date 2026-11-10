@@ -435,3 +435,71 @@ export function EditRentalUnit({ unit }: { unit: { id: string; name: string; kin
     </>
   );
 }
+
+/* ---------------- deposit ---------------- */
+
+type DepositEntry = { id: string; date: string; kind: 'received' | 'deduction' | 'refund'; amount: number; reason: string };
+const DEPOSIT_LABEL = { received: 'Received', deduction: 'Deduction', refund: 'Refunded' } as const;
+
+/** The deposit's ins and outs. `worse` pre-fills a deduction's reason from the move-out inspection. */
+export function DepositCard({ leaseId, entries, balance, worse, today }: { leaseId: string; entries: DepositEntry[]; balance: number; worse: string[]; today: string }) {
+  const router = useRouter();
+  const { confirm: askConfirm } = useDialogs();
+  const [kind, setKind] = useState<DepositEntry['kind'] | null>(null);
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function open(k: DepositEntry['kind']) {
+    setKind(k);
+    setError(null);
+    setAmount(k === 'refund' && balance > 0 ? balance.toFixed(2) : '');
+    setReason(k === 'deduction' && worse.length ? `Move-out inspection: ${worse.join(', ')}` : '');
+  }
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    const err = await send(`/api/rentals/leases/${leaseId}/deposit`, 'POST', { kind, amount: Number(amount), date: today, reason });
+    setBusy(false);
+    if (err) return setError(err);
+    setKind(null);
+    router.refresh();
+  }
+
+  return (
+    <Card title="Deposit" action={<StatusPill tone={balance > 0 ? 'info' : 'neutral'}>{money(balance)} held</StatusPill>} flush>
+      <div className={`${s.actions} ${s.event}`}>
+        <Button size="sm" variant="secondary" onClick={() => open('received')}>Received</Button>
+        <Button size="sm" variant="secondary" disabled={balance <= 0} onClick={() => open('deduction')}>Deduct</Button>
+        <Button size="sm" variant="secondary" disabled={balance <= 0} onClick={() => open('refund')}>Refund</Button>
+      </div>
+      {entries.map((x) => (
+        <div key={x.id} className={s.event}>
+          <span className={s.eventMain}>
+            <strong>{x.kind === 'received' ? '+' : '−'}{money(x.amount)} · {DEPOSIT_LABEL[x.kind]}</strong>
+            {x.reason && <span>{x.reason}</span>}
+            <small>{fmtDate(x.date)}</small>
+          </span>
+          <IconButton label="Remove entry" onClick={async () => {
+            if (!(await askConfirm('Remove this deposit entry?'))) return;
+            const err = await send(`/api/rentals/deposit/${x.id}`, 'DELETE');
+            if (err) setError(err);
+            else router.refresh();
+          }}><Trash2 /></IconButton>
+        </div>
+      ))}
+      {error && !kind && <Banner tone="danger">{error}</Banner>}
+      <Dialog sheet open={kind !== null} onClose={() => setKind(null)} title={kind ? `Deposit: ${DEPOSIT_LABEL[kind].toLowerCase()}` : ''}>
+        <form className={s.form} onSubmit={onSubmit}>
+          <Field label="Amount ($)" htmlFor="dp-amt"><Input id="dp-amt" type="number" inputMode="decimal" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required /></Field>
+          <Field label={kind === 'deduction' ? 'What for (the tenant sees this)' : 'Note (optional)'} htmlFor="dp-why">
+            <Textarea id="dp-why" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} required={kind === 'deduction'} />
+          </Field>
+          {error && <Banner tone="danger">{error}</Banner>}
+          <Button type="submit" block loading={busy}>Save</Button>
+        </form>
+      </Dialog>
+    </Card>
+  );
+}

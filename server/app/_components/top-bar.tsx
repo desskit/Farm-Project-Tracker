@@ -7,7 +7,7 @@ import s from './top-bar.module.css';
 /** Slim brand bar on every page. Sign out lives in More / Me. */
 export function TopBar({ user }: { user: SessionUser }) {
   return (
-    <header className={s.bar}>
+    <header className={s.bar} data-noprint>
       <div className={s.inner}>
         <Link href="/" className={s.brand}>
           <span className={s.mark}><Sprout aria-hidden /></span>

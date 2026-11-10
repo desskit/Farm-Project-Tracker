@@ -13,7 +13,7 @@ import { and, desc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { db } from '@/db';
 import {
-  animalEvents, animalGroups, animals, breedings, chores, inventory, productionLogs, users,
+  animalEvents, animalGroups, animals, breedings, chores, inventory, productionLogs, sales, users,
   type AnimalGroupKind, type AnimalSex, type BreedingStatus, type ProductKind,
 } from '@/db/schema';
 import { uid } from '@/lib/ids';
@@ -358,6 +358,13 @@ export async function logEvent(user: SessionUser, groupId: string, d: EventInput
   if (delta) ops.push(db.update(animalGroups).set({ headCount: sql`${animalGroups.headCount} + ${delta}` }).where(eq(animalGroups.id, groupId)));
   if (animal && (d.type === 'death' || d.type === 'sale')) ops.push(db.update(animals).set({ status: d.type === 'death' ? 'dead' : 'sold' }).where(eq(animals.id, animal.id)));
   if (breeding) ops.push(db.update(breedings).set({ status: 'born' }).where(eq(breedings.id, breeding.id)));
+  // Selling an animal for money is income: it goes in the sales log as well.
+  if (d.type === 'sale' && (d.cost ?? 0) > 0) {
+    ops.push(db.insert(sales).values({
+      id: uid('sl'), date, kind: 'animal', item: animal ? animalLabel(animal) : `${count} from ${g.name}`, qty: count, unit: 'head',
+      amount: d.cost!, paid: true, paidOn: date, groupId, animalEventId: id, notes: d.notes?.trim() ?? '', userId: user.id,
+    }));
+  }
   await runBatch(ops);
   if (usesSupply) await consumeSupplies(user, [{ inventoryId: d.inventoryId!, qty: d.qtyUsed! }], `${EVENT_LABEL[d.type]}: ${g.name}`, { type: 'animal_group', id: groupId });
 

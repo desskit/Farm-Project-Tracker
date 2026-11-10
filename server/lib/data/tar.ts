@@ -66,3 +66,30 @@ async function* tarStream(root: string, top: string): AsyncGenerator<Buffer> {
 export function tarGzStream(root: string, top: string): Readable {
   return Readable.from(tarStream(root, top)).pipe(createGzip());
 }
+
+export type TarEntry = { name: string; path?: string; content?: string | Buffer };
+
+async function* entryStream(entries: AsyncIterable<TarEntry> | Iterable<TarEntry>, top: string): AsyncGenerator<Buffer> {
+  for await (const e of entries) {
+    if (e.path) {
+      const st = await fs.stat(e.path).catch(() => null);
+      if (!st?.isFile()) continue; // a receipt whose file has gone is skipped, not fatal
+      yield tarHeader(`${top}/${e.name}`, st.size, st.mtimeMs);
+      for await (const chunk of createReadStream(e.path)) yield chunk as Buffer;
+      const pad = (512 - (st.size % 512)) % 512;
+      if (pad) yield Buffer.alloc(pad, 0);
+    } else {
+      const buf = Buffer.isBuffer(e.content) ? e.content : Buffer.from(e.content ?? '', 'utf8');
+      yield tarHeader(`${top}/${e.name}`, buf.length, Date.now());
+      yield buf;
+      const pad = (512 - (buf.length % 512)) % 512;
+      if (pad) yield Buffer.alloc(pad, 0);
+    }
+  }
+  yield Buffer.alloc(1024, 0);
+}
+
+/** Streams an explicit list of entries (files on disk or text made on the spot) as a gzipped tar. */
+export function tarGzEntries(entries: AsyncIterable<TarEntry> | Iterable<TarEntry>, top: string): Readable {
+  return Readable.from(entryStream(entries, top)).pipe(createGzip());
+}

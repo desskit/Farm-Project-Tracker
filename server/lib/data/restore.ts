@@ -44,6 +44,8 @@ export async function restoreBackup(admin: SessionUser, backup: Backup): Promise
   await transaction(async (tx) => {
     // Delete content, children before parents (safe whether or not FKs are on).
     for (const t of [
+      schema.sales,
+      schema.depositEntries,
       schema.guideLinks,
       schema.guidePhotos,
       schema.guides,
@@ -158,6 +160,8 @@ export async function restoreBackup(admin: SessionUser, backup: Backup): Promise
       [schema.harvests, 'harvests'],
       [schema.landEvents, 'landEvents'],
       [schema.grazingMoves, 'grazingMoves'],
+      [schema.sales, 'sales'],
+      [schema.depositEntries, 'depositEntries'],
       [schema.choreSupplies, 'choreSupplies'],
       [schema.notices, 'notices'],
       [schema.contacts, 'contacts'],

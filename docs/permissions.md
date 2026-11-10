@@ -33,6 +33,7 @@ by default as shown. Admins can see this table in the app at More → Who sees w
 | Log harvests, plantings, sprays and grazing moves (`land.log`) | ✓ | ✓ | ✓ | ✓ | off\* | — |
 | Lay out beds and paddocks, plan plantings (`land.manage`) | ✓ | ✓ | on\* | off\* | — | — |
 | Manage rental units, leases, utilities and inspections (`rentals.manage`) | ✓ | ✓ | — | — | — | — |
+| Record what the farm sells (eggs, produce, animals) (`sales.log`) | ✓ | ✓ | ✓ | off\* | — | — |
 
 ## Roles
 

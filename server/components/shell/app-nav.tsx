@@ -27,7 +27,7 @@ export function AppNav({ items, actions, overdue }: { items: NavItem[]; actions:
 
   return (
     <>
-      <nav className={s.nav} aria-label="Main">
+      <nav className={s.nav} aria-label="Main" data-noprint>
         {items.map((item) => {
           const Icon = ICONS[item.icon];
           if (item.key === 'log') {

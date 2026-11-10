@@ -64,6 +64,13 @@ export const DATASETS = {
       FROM rent_charges rc JOIN users u ON u.id = rc.user_id LEFT JOIN leases l ON l.id = rc.lease_id LEFT JOIN rental_units ru ON ru.id = l.unit_id
       WHERE rc.due_date BETWEEN ${f} AND ${t} ORDER BY rc.due_date, ru.name`,
   },
+  sales: {
+    label: 'Sales', about: 'What was sold, to whom, paid or owed', cap: 'finance.view',
+    query: (f, t) => sql`SELECT s.date AS "Date", s.kind AS "Kind", s.item AS "What", s.qty AS "Amount", s.unit AS "Unit", s.amount AS "Total", s.buyer AS "Buyer",
+      CASE WHEN s.paid THEN 'paid' ELSE 'owed' END AS "Status", COALESCE(g.name, lu.name, '') AS "From", u.name AS "Recorded by"
+      FROM sales s LEFT JOIN animal_groups g ON g.id = s.group_id LEFT JOIN land_units lu ON lu.id = s.land_unit_id LEFT JOIN users u ON u.id = s.user_id
+      WHERE s.date BETWEEN ${f} AND ${t} ORDER BY s.date`,
+  },
   production: {
     label: 'Eggs, milk & wool', about: 'Daily production by group', cap: 'animals.view',
     query: (f, t) => sql`SELECT pl.date AS "Date", g.name AS "Group", pl.kind AS "Product", sum(pl.amount) AS "Amount"

@@ -2,12 +2,13 @@
  * Inventory (Supplies) data-access layer — ported from js/store.js's inventory
  * functions. Managers manage items; anyone can log usage/restock.
  */
-import { and, eq, gte, lt } from 'drizzle-orm';
+import { and, eq, gt, gte, lt } from 'drizzle-orm';
 import { db } from '@/db';
 import { inventory, inventoryLog, type SupplyRefType } from '@/db/schema';
 import { uid } from '@/lib/ids';
 import { addDays, todayISO } from '@/lib/domain/dates';
 import { runwayDays } from '@/lib/domain/supplies';
+import { suggestedBuy, weightedUnitCost } from '@/lib/domain/money';
 import type { SessionUser } from '@/lib/auth/session';
 import { logActivity } from './activity';
 import { publishChange } from '@/lib/realtime/bus';
@@ -40,6 +41,28 @@ export async function supplyRunways(today = todayISO()): Promise<Map<string, num
     if (days != null) out.set(it.id, days);
   }
   return out;
+}
+
+export type ShoppingLine = { id: string; name: string; unit: string; qty: number; reorderAt: number; daysLeft: number | null; buy: number; lastVendor: string | null; lastUnitPrice: number | null; estCost: number | null };
+
+/** What to buy: everything low or nearly out, how much, and where it was last bought and for how much. */
+export async function shoppingList(today = todayISO()): Promise<ShoppingLine[]> {
+  const [low, runways, buys, uses] = await Promise.all([
+    lowStockItems(),
+    supplyRunways(today),
+    db.select({ itemId: inventoryLog.itemId, delta: inventoryLog.delta, cost: inventoryLog.cost, vendor: inventoryLog.vendor, date: inventoryLog.date }).from(inventoryLog).where(gt(inventoryLog.delta, 0)),
+    db.select({ itemId: inventoryLog.itemId, delta: inventoryLog.delta }).from(inventoryLog).where(and(lt(inventoryLog.delta, 0), gte(inventoryLog.date, addDays(today, -27)))),
+  ]);
+  return low.map((i) => {
+    const last = buys.filter((b) => b.itemId === i.id && (b.cost != null || b.vendor)).sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+    const perDay = uses.filter((u) => u.itemId === i.id).reduce((n, u) => n - u.delta, 0) / 28;
+    const buy = suggestedBuy(i.qty, i.reorderAt, perDay || null);
+    const lastUnitPrice = last?.cost != null && last.delta > 0 ? Math.round((last.cost / last.delta) * 100) / 100 : i.unitCost;
+    return {
+      id: i.id, name: i.name, unit: i.unit, qty: i.qty, reorderAt: i.reorderAt, daysLeft: runways.get(i.id) ?? null, buy,
+      lastVendor: last?.vendor ?? null, lastUnitPrice: lastUnitPrice ?? null, estCost: lastUnitPrice != null ? Math.round(buy * lastUnitPrice * 100) / 100 : null,
+    };
+  }).sort((a, b) => (a.lastVendor ?? '~').localeCompare(b.lastVendor ?? '~') || a.name.localeCompare(b.name));
 }
 
 /** Running out within this many days counts as needing a reorder, whatever the reorder point says. */
@@ -103,15 +126,18 @@ export async function deleteInventoryItem(user: SessionUser, id: string): Promis
 /** Anyone can use/restock; each adjustment is logged with who/when. */
 export type SupplyRef = { type: SupplyRefType; id: string };
 
-export async function adjustStock(user: SessionUser, id: string, delta: number, reason?: string, opts: { ref?: SupplyRef | null } = {}): Promise<number> {
+export async function adjustStock(user: SessionUser, id: string, delta: number, reason?: string, opts: { ref?: SupplyRef | null; cost?: number | null; vendor?: string | null } = {}): Promise<number> {
   const it = await inventoryById(id);
   if (!it) throw new DataError('No such item.', 404);
   const d = Number(delta);
   if (!isFinite(d) || d === 0) throw new DataError('Enter a non-zero amount.', 400);
   if (it.qty + d < 0) throw new DataError(`Only ${it.qty} ${it.unit} on hand.`, 400);
   const qty = it.qty + d;
-  await db.update(inventory).set({ qty }).where(eq(inventory.id, id));
-  await db.insert(inventoryLog).values({ id: uid('il'), itemId: id, delta: d, reason: reason || '', userId: user.id, date: todayISO(), refType: opts.ref?.type ?? null, refId: opts.ref?.id ?? null });
+  // Buying more at a known price moves the cost per unit to the new average.
+  const paid = d > 0 && opts.cost != null && opts.cost >= 0 ? opts.cost : null;
+  const unitCost = paid != null ? weightedUnitCost(it.qty, it.unitCost, d, paid) : it.unitCost;
+  await db.update(inventory).set({ qty, unitCost }).where(eq(inventory.id, id));
+  await db.insert(inventoryLog).values({ id: uid('il'), itemId: id, delta: d, reason: reason || '', userId: user.id, date: todayISO(), refType: opts.ref?.type ?? null, refId: opts.ref?.id ?? null, cost: paid, vendor: d > 0 ? opts.vendor?.trim() || null : null });
   await logActivity(user.id, `${d > 0 ? 'restocked' : 'used'} ${Math.abs(d)} ${it.unit} of ${it.name}`, { href: `/more/supplies/${id}` });
   // Only on the adjustment that crosses the line, so a shelf that sits low
   // doesn't nag on every draw.

@@ -583,7 +583,10 @@ a.tap-link:hover .item-title { color: var(--brand); }
 .qr-img svg { width: 100%; height: auto; display: block; }
 .qr-url { font-size: 12px; color: var(--muted); word-break: break-all; margin: 0 0 8px; }
 @media print {
-  .no-print, .nav, .topbar { display: none !important; }
+  .no-print, .nav, .topbar, [data-noprint] { display: none !important; }
+  body, body.has-rail { padding: 0 !important; margin: 0 !important; background: #fff !important; }
+  main { padding-bottom: 0 !important; max-width: none !important; }
+  a { color: inherit !important; text-decoration: none !important; }
   .view { padding: 0 !important; }
   .qr-card { border: none !important; box-shadow: none !important; }
 }

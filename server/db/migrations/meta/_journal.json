@@ -176,6 +176,13 @@
       "when": 1794290625052,
       "tag": "0024_people",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1794291150911,
+      "tag": "0025_money",
+      "breakpoints": true
     }
   ]
 }

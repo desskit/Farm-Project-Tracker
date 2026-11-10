@@ -1,5 +1,5 @@
 import {
-  Boxes, CalendarCheck, ClipboardList, FileText, Home, LayoutGrid, ListChecks, MessageSquareWarning, MoreHorizontal,
+  Boxes, CalendarCheck, CircleDollarSign, ClipboardList, FileText, Home, LayoutGrid, ListChecks, MessageSquareWarning, MoreHorizontal,
   Package, PawPrint, Plus, Sprout, Repeat, StickyNote, Timer, Tractor, User, Wallet, Wrench, type LucideIcon,
 } from 'lucide-react';
 import type { IconName } from '@/lib/domain/nav';
@@ -24,5 +24,6 @@ export const ICONS: Record<IconName, LucideIcon> = {
   requests: MessageSquareWarning,
   animals: PawPrint,
   land: Sprout,
+  sale: CircleDollarSign,
 };
 export { Boxes, CalendarCheck };

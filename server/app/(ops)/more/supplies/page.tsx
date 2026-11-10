@@ -4,7 +4,7 @@ import { getSessionUser } from '@/lib/auth/session';
 import { listInventory, inventoryValue, supplyRunways, RUNWAY_WARN_DAYS, type InventoryRow } from '@/lib/data/inventory';
 import { runwayLabel } from '@/lib/domain/supplies';
 import { can } from '@/lib/domain/permissions';
-import { Card, EmptyState, ListRow, PageHeader, StatusPill } from '@/components/ui';
+import { ButtonLink, Card, EmptyState, ListRow, PageHeader, StatusPill } from '@/components/ui';
 import { AddSupplyCard } from './add-supply-card';
 import s from './supplies.module.css';
 
@@ -45,7 +45,7 @@ export default async function SuppliesPage() {
       />
       <p className={s.tip}>Tip: the (+) button logs supplies used from any screen, in two taps.</p>
       {low.length > 0 && (
-        <Card title={`Reorder (${low.length})`} flush>
+        <Card title={`Reorder (${low.length})`} action={<ButtonLink href="/more/supplies/shopping" size="sm" variant="ghost">Shopping list</ButtonLink>} flush>
           {low.map(row)}
         </Card>
       )}

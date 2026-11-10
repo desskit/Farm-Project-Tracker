@@ -5,7 +5,7 @@
 import { can, type Subject } from './permissions';
 
 export type IconName =
-  | 'today' | 'work' | 'add' | 'farm' | 'more' | 'me' | 'chores' | 'projects' | 'upkeep' | 'animals' | 'land'
+  | 'today' | 'work' | 'add' | 'farm' | 'more' | 'me' | 'chores' | 'projects' | 'upkeep' | 'animals' | 'land' | 'sale'
   | 'supplies' | 'assets' | 'note' | 'timer' | 'rent' | 'docs' | 'requests';
 
 export type NavItem = {
@@ -60,6 +60,7 @@ export function quickActions(v: Subject): { key: string; label: string; hint: st
   if (can(v, 'supplies.use')) out.push({ key: 'supplies', label: 'Use supplies', hint: 'Feed, fuel, parts', href: '/more/supplies', icon: 'supplies' });
   if (can(v, 'animals.log')) out.push({ key: 'animals', label: 'Log animals', hint: 'Eggs, milk, treatments', href: '/farm/animals', icon: 'animals' });
   if (can(v, 'land.log')) out.push({ key: 'land', label: 'Garden & land', hint: 'Harvest, plant, move stock', href: '/farm/land', icon: 'land' });
+  if (can(v, 'sales.log')) out.push({ key: 'sale', label: 'Record a sale', hint: 'Eggs, produce, animals', href: '/more/sales', icon: 'sale' });
   if (can(v, 'work.do')) out.push({ key: 'upkeep', label: 'Log upkeep', hint: 'Service, reading', href: '/maintenance', icon: 'upkeep' });
   if (can(v, 'work.manage')) {
     out.push({ key: 'chore', label: 'New chore', hint: 'One-off or repeating', href: '/chores#new', icon: 'chores' });

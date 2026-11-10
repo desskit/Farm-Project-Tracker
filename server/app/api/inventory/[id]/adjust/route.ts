@@ -5,7 +5,7 @@ import { adjustStock } from '@/lib/data/inventory';
 import { errorResponse } from '@/lib/api/errors';
 import { idempotencyKey, withIdempotency } from '@/lib/api/idempotency';
 
-const schema = z.object({ delta: z.number(), reason: z.string().optional() });
+const schema = z.object({ delta: z.number(), reason: z.string().optional(), cost: z.number().min(0).max(1e7).nullable().optional(), vendor: z.string().max(80).nullable().optional() });
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
@@ -14,7 +14,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (!parsed.success) return NextResponse.json({ error: 'Enter a non-zero amount.' }, { status: 400 });
     // Stock moves are relative, so a replay would double-count the draw.
     return await withIdempotency(user.id, idempotencyKey(req), async () => {
-      const qty = await adjustStock(user, params.id, parsed.data.delta, parsed.data.reason);
+      const qty = await adjustStock(user, params.id, parsed.data.delta, parsed.data.reason, { cost: parsed.data.cost, vendor: parsed.data.vendor });
       return { status: 200, body: { ok: true, qty } };
     });
   } catch (e) {

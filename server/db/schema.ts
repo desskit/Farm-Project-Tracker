@@ -351,6 +351,9 @@ export const inventoryLog = sqliteTable('inventory_log', {
   /** What the supplies were used on (a herd, a bed, a machine), for costing. */
   refType: text('ref_type').$type<SupplyRefType>(),
   refId: text('ref_id'),
+  /** Restocks: what was paid in total, and where it was bought. */
+  cost: real('cost'),
+  vendor: text('vendor'),
 }, (t) => ({
   itemIdx: index('inventory_log_item_idx').on(t.itemId, t.date),
   refIdx: index('inventory_log_ref_idx').on(t.refType, t.refId),
@@ -990,3 +993,48 @@ export const contacts = sqliteTable('contacts', {
   /** Also shown to tenants in the renter portal (e.g. after-hours plumber). */
   showTenants: integer('show_tenants', { mode: 'boolean' }).notNull().default(false),
 });
+
+/* ---------------- money in ---------------- */
+
+export type SaleKind = 'eggs' | 'milk' | 'produce' | 'animal' | 'hay' | 'other';
+
+/** Something the farm sold. Optionally tied to the herd or ground it came from, for profit by enterprise. */
+export const sales = sqliteTable('sales', {
+  id: text('id').primaryKey(),
+  date: text('date').notNull(),
+  kind: text('kind').$type<SaleKind>().notNull(),
+  item: text('item').notNull().default(''),
+  qty: real('qty'),
+  unit: text('unit').notNull().default(''),
+  amount: real('amount').notNull(),
+  buyer: text('buyer').notNull().default(''),
+  paid: integer('paid', { mode: 'boolean' }).notNull().default(true),
+  paidOn: text('paid_on'),
+  groupId: text('group_id').references(() => animalGroups.id, { onDelete: 'set null' }),
+  landUnitId: text('land_unit_id').references(() => landUnits.id, { onDelete: 'set null' }),
+  /** Set when the sale was recorded as an animal "sale" event; removing the event removes this. */
+  animalEventId: text('animal_event_id').references(() => animalEvents.id, { onDelete: 'cascade' }),
+  notes: text('notes').notNull().default(''),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at').notNull().default(now),
+}, (t) => ({
+  dateIdx: index('sales_date_idx').on(t.date),
+  owedIdx: index('sales_owed_idx').on(t.paid),
+}));
+
+export type DepositKind = 'received' | 'deduction' | 'refund';
+
+/** Money in and out of a lease's security deposit. Balance = received − deductions − refunds. */
+export const depositEntries = sqliteTable('deposit_entries', {
+  id: text('id').primaryKey(),
+  leaseId: text('lease_id').notNull().references(() => leases.id, { onDelete: 'cascade' }),
+  date: text('date').notNull(),
+  kind: text('kind').$type<DepositKind>().notNull(),
+  amount: real('amount').notNull(),
+  reason: text('reason').notNull().default(''),
+  inspectionId: text('inspection_id').references(() => inspections.id, { onDelete: 'set null' }),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at').notNull().default(now),
+}, (t) => ({
+  leaseIdx: index('deposit_entries_lease_idx').on(t.leaseId, t.date),
+}));

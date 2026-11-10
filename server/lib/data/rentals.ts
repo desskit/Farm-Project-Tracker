@@ -12,13 +12,14 @@ import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { db } from '@/db';
 import {
-  inspectionPhotos, inspections, leaseTenants, leases, maintenanceRequests, rentCharges, rentalUnits, users, utilityAccounts, utilityBills,
+  depositEntries, inspectionPhotos, inspections, leaseTenants, leases, maintenanceRequests, rentCharges, rentalUnits, users, utilityAccounts, utilityBills,
   type InspectionItem, type InspectionKind, type RentalKind, type UtilityKind,
 } from '@/db/schema';
 import { uid } from '@/lib/ids';
 import { addDays, currentMonthKey, fmtDate, monthLabel, todayISO } from '@/lib/domain/dates';
 import { can } from '@/lib/domain/permissions';
 import { UTILITY_LABEL, compareInspections, lateFeeDue, leaseStage, type LeaseStage } from '@/lib/domain/rentals';
+import { depositBalance, type DepositKind } from '@/lib/domain/money';
 import type { SessionUser } from '@/lib/auth/session';
 import { publishChange } from '@/lib/realtime/bus';
 import { logActivity } from './activity';
@@ -143,6 +144,8 @@ export async function rentalUnitDetail(id: string) {
     comparisons,
     requests: reqs,
     charges,
+    // The deposit follows the current lease, or the last one while it's being settled.
+    deposit: leaseViews[0] ? { leaseId: (leaseViews.find((l) => l.status === 'active') ?? leaseViews[0]).id, ...(await depositLedger((leaseViews.find((l) => l.status === 'active') ?? leaseViews[0]).id)) } : null,
   };
 }
 
@@ -207,6 +210,8 @@ export async function createLease(user: SessionUser, unitId: string, d: LeaseInp
       deposit: d.deposit ?? null, lateFee: d.lateFee ?? null, graceDays: d.graceDays ?? 5, noticeDays: d.noticeDays ?? 60, notes: d.notes ?? '',
     }),
     ...tenants.map((t) => db.insert(leaseTenants).values({ leaseId: id, userId: t, isPrimary: t === primary })),
+    // A deposit on the lease starts its ledger as received (remove the entry if it hasn't been).
+    ...((d.deposit ?? 0) > 0 ? [db.insert(depositEntries).values({ id: uid('de'), leaseId: id, date: d.startDate, kind: 'received', amount: d.deposit!, reason: 'Deposit on the lease', userId: user.id })] : []),
   ]);
   await logActivity(user.id, `started a lease on ${unit.name}`, { audience: 'finance.view', href: `/more/rentals/${unitId}` });
   publishChange('rent');
@@ -269,6 +274,36 @@ export async function endLease(user: SessionUser, id: string, endDate = todayISO
   ]);
   const unit = await unitOr404(l.unitId);
   await logActivity(user.id, `ended the lease on ${unit.name}`, { audience: 'finance.view', href: `/more/rentals/${l.unitId}` });
+  publishChange('rent');
+}
+
+/* ---------------- deposits ---------------- */
+
+export type DepositRow = typeof depositEntries.$inferSelect;
+
+/** A lease's deposit ledger and what's still held. */
+export async function depositLedger(leaseId: string): Promise<{ entries: DepositRow[]; balance: number }> {
+  const entries = await db.select().from(depositEntries).where(eq(depositEntries.leaseId, leaseId)).orderBy(desc(depositEntries.date), desc(depositEntries.createdAt));
+  return { entries, balance: depositBalance(entries) };
+}
+
+export async function addDepositEntry(user: SessionUser, leaseId: string, d: { kind: DepositKind; amount: number; date?: string; reason?: string; inspectionId?: string | null }): Promise<string> {
+  need(user);
+  const l = await leaseOr404(leaseId);
+  if (!(d.amount > 0)) throw new DataError('Enter an amount.', 400);
+  const { balance } = await depositLedger(leaseId);
+  if (d.kind !== 'received' && d.amount > balance + 0.005) throw new DataError(`Only $${balance.toFixed(2)} of the deposit is held.`, 400);
+  if (d.kind === 'deduction' && !d.reason?.trim()) throw new DataError('Say what the deduction is for — the tenant sees it.', 400);
+  const id = uid('de');
+  await db.insert(depositEntries).values({ id, leaseId, date: d.date || todayISO(), kind: d.kind, amount: d.amount, reason: d.reason?.trim() ?? '', inspectionId: d.inspectionId || null, userId: user.id });
+  await logActivity(user.id, `recorded a deposit ${d.kind}`, { audience: 'finance.view', href: `/more/rentals/${l.unitId}` });
+  publishChange('rent');
+  return id;
+}
+
+export async function deleteDepositEntry(user: SessionUser, id: string): Promise<void> {
+  need(user);
+  await db.delete(depositEntries).where(eq(depositEntries.id, id));
   publishChange('rent');
 }
 

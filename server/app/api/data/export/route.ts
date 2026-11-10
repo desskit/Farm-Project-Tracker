@@ -59,6 +59,8 @@ export async function GET() {
       guidePhotos,
       guideLinks,
       contacts,
+      sales,
+      depositEntries,
     ] = await Promise.all([
       db.select().from(schema.chores),
       db.select().from(schema.choreCompletions),
@@ -105,6 +107,8 @@ export async function GET() {
       db.select().from(schema.guidePhotos),
       db.select().from(schema.guideLinks),
       db.select().from(schema.contacts),
+      db.select().from(schema.sales),
+      db.select().from(schema.depositEntries),
     ]);
 
     const backup = {
@@ -156,6 +160,8 @@ export async function GET() {
       guidePhotos,
       guideLinks,
       contacts,
+      sales,
+      depositEntries,
     };
 
     return new NextResponse(JSON.stringify(backup, null, 2), {

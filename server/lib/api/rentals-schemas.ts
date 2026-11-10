@@ -38,6 +38,14 @@ export const utilitySchema = z.object({
 export const utilityPatchSchema = utilitySchema.omit({ kind: true }).partial().extend({ active: z.boolean().optional() });
 export const billSchema = z.object({ period: z.string().regex(/^\d{4}-\d{2}$/), amount: z.number().positive().max(1e6), notes: text(500).optional() });
 
+export const depositSchema = z.object({
+  kind: z.enum(['received', 'deduction', 'refund']),
+  amount: z.number().positive().max(1e7),
+  date: date.optional(),
+  reason: text(300).optional(),
+  inspectionId: id.nullable().optional(),
+});
+
 export const inspectionSchema = z.object({
   kind: z.enum(['move_in', 'move_out', 'routine']),
   date,

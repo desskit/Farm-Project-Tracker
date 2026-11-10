@@ -1,4 +1,4 @@
-import { Activity, Bell, BookOpen, Building2, CalendarDays, CloudSun, Database, FileSpreadsheet, KeyRound, LockKeyhole, Megaphone, MessageSquareWarning, Package, Phone, Receipt, Search, ShieldCheck, Timer, Tractor, Trophy, UserCog, Users, Wallet } from 'lucide-react';
+import { Activity, Bell, BookOpen, Building2, CalendarDays, CircleDollarSign, CloudSun, Database, FileSpreadsheet, KeyRound, LockKeyhole, Megaphone, MessageSquareWarning, Package, Phone, Receipt, Scale, Search, ShieldCheck, Timer, Tractor, Trophy, UserCog, Users, Wallet } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { getSessionUser } from '@/lib/auth/session';
 import { lowStockItems } from '@/lib/data/inventory';
@@ -41,7 +41,9 @@ export default async function MorePage() {
   if (can(user, 'rentals.manage')) money.push({ href: '/more/rentals', icon: <Building2 />, label: 'Rentals', sub: 'Units, leases, utilities, inspections' });
   if (can(user, 'requests.create') || can(user, 'requests.manage'))
     money.push({ href: '/requests', icon: <MessageSquareWarning />, label: 'Requests', sub: can(user, 'requests.manage') ? 'Things to fix' : 'Report a problem' });
+  if (can(user, 'sales.log') || seesMoney) money.push({ href: '/more/sales', icon: <CircleDollarSign />, label: 'Sales', sub: seesMoney ? 'What the farm sold, and who owes' : 'Record what you sell' });
   if (seesMoney) money.push({ href: '/more/spend', icon: <Receipt />, label: 'Spending', sub: 'Farm costs' });
+  if (seesMoney) money.push({ href: '/more/profit', icon: <Scale />, label: 'Profit', sub: 'Money in and costs, by herd, garden and rentals' });
 
   const admin: Row[] = [];
   if (can(user, 'people.manage')) {

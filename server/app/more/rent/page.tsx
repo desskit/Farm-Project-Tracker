@@ -4,7 +4,7 @@ import { ButtonLink, PageHeader } from '@/components/ui';
 import s from './rent.module.css';
 import { getSessionUser } from '@/lib/auth/session';
 import { rentChargesForMonth, rentSummary, rentAssignmentFor } from '@/lib/data/rent';
-import { leaseIdsFor } from '@/lib/data/rentals';
+import { activeLeaseFor, depositLedger, leaseIdsFor } from '@/lib/data/rentals';
 import { listRentDocs, docCountsByRenter } from '@/lib/data/rent-docs';
 import { listUsers } from '@/lib/data/users';
 import { currentMonthKey, monthLabel } from '@/lib/domain/dates';
@@ -17,6 +17,9 @@ export default async function RentPage() {
   if (!user) return null; // middleware already guards this route
   const isManager = can(user, 'finance.view');
   const mk = currentMonthKey();
+  // A tenant's own lease: for their statement link and deposit line.
+  const myLease = await activeLeaseFor(user.id);
+  const myDeposit = myLease ? await depositLedger(myLease.id) : null;
 
   const [allCharges, people] = await Promise.all([rentChargesForMonth(mk), listUsers()]);
   const myLeases = isManager ? [] : await leaseIdsFor(user.id);
@@ -52,6 +55,7 @@ export default async function RentPage() {
         actions={
           <>
             {can(user, 'rentals.manage') && <ButtonLink href="/more/rentals" size="sm" variant="ghost" icon={<Building2 />}>Units</ButtonLink>}
+            {myLease && <ButtonLink href={`/more/rent/statement/${myLease.id}`} size="sm" variant="ghost">Statement</ButtonLink>}
             <ButtonLink href="/more/rent/history" size="sm" variant="ghost" icon={<History />}>History</ButtonLink>
           </>
         }
@@ -64,6 +68,13 @@ export default async function RentPage() {
         assignments={assignments}
         currentUser={user}
       />
+
+      {myDeposit && myDeposit.entries.length > 0 && (
+        <p className={s.docsIntro}>
+          Deposit held: <strong>${myDeposit.balance.toFixed(2)}</strong>
+          {myDeposit.entries.some((e) => e.kind === 'deduction') ? ' (after deductions — see your statement)' : ''}
+        </p>
+      )}
 
       {showDocs && (
         <section className={s.section} id="documents-section">
