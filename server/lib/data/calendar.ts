@@ -101,6 +101,9 @@ export async function calendarItems(viewer: SessionUser, fromISO: string, toISO:
     for (const b of a.births) {
       if (within(b.dueOn)) out.push({ date: b.dueOn, kind: 'animals', id: b.id, title: `${b.dam ?? b.groupName} due (around)`, href: `/farm/animals/${b.groupId}` });
     }
+    for (const h of a.hatches) {
+      if (within(h.date)) out.push({ date: h.date, kind: 'animals', id: h.id, title: h.label, href: '/farm/animals' });
+    }
     for (const w of a.withdrawals) {
       for (const [d, what] of [[w.milkUntil, 'milk/eggs OK'], [w.meatUntil, 'meat OK']] as const) {
         if (d && within(d)) out.push({ date: d, kind: 'animals', id: `${w.id}-${what}`, title: `${w.groupName}: ${what}`, href: `/farm/animals/${w.groupId}` });

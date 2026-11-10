@@ -13,21 +13,22 @@ import { and, desc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { db } from '@/db';
 import {
-  animalEvents, animalGroups, animals, breedings, chores, inventory, productionLogs, sales, users,
+  animalEvents, animalGroups, animals, breedings, chores, hatches, inventory, productionLogs, sales, users,
   type AnimalGroupKind, type AnimalSex, type BreedingStatus, type ProductKind,
 } from '@/db/schema';
 import { uid } from '@/lib/ids';
-import { addDays, todayISO } from '@/lib/domain/dates';
+import { addDays, fmtDate, todayISO } from '@/lib/domain/dates';
 import { can, type Cap } from '@/lib/domain/permissions';
 import type { SessionUser } from '@/lib/auth/session';
 import {
-  COUNT_SIGN, EVENT_LABEL, SPECIES, expectedDue, isSpecies, weekTrend, withdrawalUntil,
+  COUNT_SIGN, EVENT_LABEL, HATCHING, SPECIES, expectedDue, hatchSchedule, isSpecies, weekTrend, withdrawalUntil,
   type AnimalEventType, type Species,
 } from '@/lib/domain/livestock';
 import { publishChange } from '@/lib/realtime/bus';
 import { logActivity } from './activity';
 import { checkSupplies, consumeSupplies } from './consumption';
 import { DataError } from './errors';
+import { assertOwnUpload } from './attachment-access';
 
 export type GroupRow = typeof animalGroups.$inferSelect;
 export type AnimalRow = typeof animals.$inferSelect;
@@ -150,7 +151,13 @@ export async function groupDetail(id: string) {
 export async function livestockAlerts(from = todayISO(), days = 14) {
   const until = addDays(from, days);
   const groups = await db.select({ id: animalGroups.id, name: animalGroups.name }).from(animalGroups).where(eq(animalGroups.active, true));
-  if (!groups.length) return { births: [], withdrawals: [], eggs: null };
+  const incubating = await db.select().from(hatches).where(eq(hatches.status, 'incubating'));
+  const hatchSteps = incubating.flatMap((h) =>
+    (isSpecies(h.species) ? hatchSchedule(h.species, h.setOn) : [])
+      .filter((s) => s.date >= from && s.date <= until)
+      .map((s) => ({ id: `${h.id}-${s.key}`, hatchId: h.id, label: `${s.label}${h.label ? ` (${h.label})` : ''} · ${h.eggsSet} eggs`, date: s.date })),
+  ).sort((a, b) => a.date.localeCompare(b.date));
+  if (!groups.length) return { births: [], withdrawals: [], eggs: null, hatches: hatchSteps };
   const name = new Map(groups.map((g) => [g.id, g.name]));
   const [due, wd, eggs] = await Promise.all([
     db.select({ b: breedings, damName: animals.name, damTag: animals.tag }).from(breedings).leftJoin(animals, eq(animals.id, breedings.damId))
@@ -167,8 +174,94 @@ export async function livestockAlerts(from = todayISO(), days = 14) {
     withdrawals: wd
       .filter((w) => name.has(w.groupId))
       .map((w) => ({ id: w.id, groupId: w.groupId, groupName: name.get(w.groupId)!, what: w.invName || w.notes || 'Treatment', meatUntil: w.meatUntil && w.meatUntil > from ? w.meatUntil : null, milkUntil: w.milkUntil && w.milkUntil > from ? w.milkUntil : null })),
+    hatches: hatchSteps,
     eggs: eggs.length ? { ...weekTrend(eggs.map((e) => ({ date: e.date, amount: Number(e.amount) })), from), today: Number(eggs.find((e) => e.date === from)?.amount ?? 0) } : null,
   };
+}
+
+/**
+ * The first day meat is clear of withdrawal for an animal (its own treatments
+ * plus any given to the whole group), or for the whole group when no animal is
+ * named. Null when nothing is in force.
+ */
+export async function meatClearDate(groupId: string, animalId: string | null): Promise<string | null> {
+  const rows = await db.select({ animalId: animalEvents.animalId, until: animalEvents.meatUntil }).from(animalEvents)
+    .where(and(eq(animalEvents.groupId, groupId), sql`${animalEvents.meatUntil} IS NOT NULL`));
+  return rows.filter((r) => !animalId || r.animalId == null || r.animalId === animalId).map((r) => r.until!).sort().pop() ?? null;
+}
+
+/** One animal's page: its record, history, weights, family and when its meat is clear. */
+export async function animalDetail(id: string) {
+  const [animal] = await db.select().from(animals).where(eq(animals.id, id)).limit(1);
+  if (!animal) throw new DataError('No such animal.', 404);
+  const group = await groupOr404(animal.groupId);
+  const [events, family, offspring, bred] = await Promise.all([
+    db.select({ e: animalEvents, userName: users.name, supplyName: inventory.name, supplyUnit: inventory.unit }).from(animalEvents)
+      .leftJoin(users, eq(users.id, animalEvents.userId)).leftJoin(inventory, eq(inventory.id, animalEvents.inventoryId))
+      .where(eq(animalEvents.animalId, id)).orderBy(desc(animalEvents.date), desc(animalEvents.createdAt)).limit(100),
+    [animal.damId, animal.sireId].some(Boolean)
+      ? db.select({ id: animals.id, name: animals.name, tag: animals.tag }).from(animals).where(inArray(animals.id, [animal.damId, animal.sireId].filter((x): x is string => !!x)))
+      : Promise.resolve([]),
+    db.select({ id: animals.id, name: animals.name, tag: animals.tag, birthDate: animals.birthDate, status: animals.status }).from(animals).where(or(eq(animals.damId, id), eq(animals.sireId, id))),
+    db.select().from(breedings).where(eq(breedings.damId, id)).orderBy(desc(breedings.bredOn)),
+  ]);
+  const label = (a: { name: string; tag: string }) => animalLabel(a);
+  const views = events.map((r): EventView => ({ ...r.e, userName: r.userName, animalName: null, supplyName: r.supplyName, supplyUnit: r.supplyUnit }));
+  const clear = await meatClearDate(animal.groupId, id);
+  return {
+    animal,
+    label: label(animal),
+    group,
+    species: (isSpecies(group.species) ? group.species : 'other') as Species,
+    events: views,
+    weights: views.filter((e) => e.type === 'weight' && e.weight != null).map((e) => ({ date: e.date, weight: e.weight! })).reverse(),
+    dam: family.find((f) => f.id === animal.damId) ? { id: animal.damId!, label: label(family.find((f) => f.id === animal.damId)!) } : null,
+    sire: family.find((f) => f.id === animal.sireId) ? { id: animal.sireId!, label: label(family.find((f) => f.id === animal.sireId)!) } : null,
+    offspring: offspring.map((o) => ({ id: o.id, label: label(o), birthDate: o.birthDate, status: o.status })).sort((a, b) => (b.birthDate ?? '').localeCompare(a.birthDate ?? '')),
+    breedings: bred,
+    meatClear: clear && clear > todayISO() ? clear : null,
+  };
+}
+
+/* ---------------- hatches ---------------- */
+
+export type HatchRow = typeof hatches.$inferSelect;
+
+export async function listHatches(opts: { all?: boolean } = {}): Promise<(HatchRow & { groupName: string | null })[]> {
+  const rows = await db.select({ h: hatches, groupName: animalGroups.name }).from(hatches).leftJoin(animalGroups, eq(animalGroups.id, hatches.groupId)).orderBy(desc(hatches.setOn)).limit(40);
+  return rows.map((r) => ({ ...r.h, groupName: r.groupName })).filter((h) => opts.all || h.status === 'incubating');
+}
+
+export async function addHatch(user: SessionUser, d: { species: string; setOn: string; eggsSet: number; groupId?: string | null; label?: string; notes?: string }): Promise<string> {
+  need(user, 'animals.log', 'log animals');
+  if (!isSpecies(d.species) || !HATCHING.includes(d.species)) throw new DataError('Pick chickens, ducks, turkeys or geese.', 400);
+  if (d.setOn > todayISO()) throw new DataError('That date hasn’t happened yet.', 400);
+  if (d.groupId) await groupOr404(d.groupId);
+  const id = uid('ht');
+  await db.insert(hatches).values({ id, species: d.species, setOn: d.setOn, eggsSet: Math.max(1, Math.floor(d.eggsSet)), groupId: d.groupId || null, label: d.label?.trim() ?? '', notes: d.notes ?? '', userId: user.id });
+  publishChange('animals');
+  return id;
+}
+
+/** Candling result, a failed clutch, or the hatch itself — which adds the chicks to a flock as a birth. */
+export async function updateHatch(user: SessionUser, id: string, d: { fertile?: number | null; status?: 'failed'; hatched?: number; groupId?: string | null }): Promise<void> {
+  need(user, 'animals.log', 'log animals');
+  const [h] = await db.select().from(hatches).where(eq(hatches.id, id)).limit(1);
+  if (!h) throw new DataError('No such hatch.', 404);
+  if (h.status !== 'incubating') throw new DataError('This clutch is already finished.', 400);
+  if (d.hatched != null) {
+    const n = Math.max(0, Math.floor(d.hatched));
+    const groupId = d.groupId || h.groupId;
+    if (n > 0 && !groupId) throw new DataError('Pick the flock the chicks are joining.', 400);
+    if (n > 0) await logEvent(user, groupId!, { type: 'birth', count: n, notes: `Hatched from ${h.eggsSet} eggs set ${fmtDate(h.setOn)}` });
+    await db.update(hatches).set({ hatched: n, status: n > 0 ? 'hatched' : 'failed', groupId: groupId ?? null }).where(eq(hatches.id, id));
+  } else {
+    const patch: Partial<typeof hatches.$inferInsert> = {};
+    if (d.fertile !== undefined) patch.fertile = d.fertile == null ? null : Math.max(0, Math.min(h.eggsSet, Math.floor(d.fertile)));
+    if (d.status === 'failed') patch.status = 'failed';
+    if (Object.keys(patch).length) await db.update(hatches).set(patch).where(eq(hatches.id, id));
+  }
+  publishChange('animals');
 }
 
 /* ---------------- groups & animals ---------------- */
@@ -211,7 +304,7 @@ export async function updateGroup(user: SessionUser, id: string, d: Partial<Grou
   publishChange('animals');
 }
 
-export type AnimalInput = { tag?: string; name?: string; sex?: AnimalSex; breed?: string; birthDate?: string | null; damId?: string | null; sireId?: string | null; notes?: string };
+export type AnimalInput = { tag?: string; name?: string; sex?: AnimalSex; breed?: string; birthDate?: string | null; damId?: string | null; sireId?: string | null; notes?: string; photoId?: string | null };
 
 /**
  * Give one animal its own record. `arrived` says whether it's already counted
@@ -257,6 +350,10 @@ export async function updateAnimal(user: SessionUser, id: string, d: AnimalInput
   if (d.damId !== undefined) patch.damId = d.damId || null;
   if (d.sireId !== undefined) patch.sireId = d.sireId || null;
   if (d.notes !== undefined) patch.notes = d.notes;
+  if (d.photoId !== undefined && d.photoId !== a.photoId) {
+    await assertOwnUpload(user, d.photoId);
+    patch.photoId = d.photoId || null;
+  }
   if (patch.name === '' && (patch.tag ?? a.tag) === '') throw new DataError('Give it a name or a tag.', 400);
   const ops: BatchItem<'sqlite'>[] = [];
   // Moving a living animal moves one head from one group to the other.
@@ -310,7 +407,7 @@ export type EventInput = {
 };
 
 export async function logEvent(user: SessionUser, groupId: string, d: EventInput): Promise<string> {
-  need(user, d.type === 'sale' || d.type === 'purchase' ? 'animals.manage' : 'animals.log', d.type === 'sale' ? 'record sales' : d.type === 'purchase' ? 'record purchases' : 'log animals');
+  need(user, d.type === 'sale' || d.type === 'purchase' || d.type === 'slaughter' ? 'animals.manage' : 'animals.log', d.type === 'sale' ? 'record sales' : d.type === 'purchase' ? 'record purchases' : d.type === 'slaughter' ? 'record processing' : 'log animals');
   const g = await groupOr404(groupId);
   const today = todayISO();
   const date = d.date || today;
@@ -331,6 +428,11 @@ export async function logEvent(user: SessionUser, groupId: string, d: EventInput
     throw new DataError('Some of these have their own records — pick which animal it was.', 400);
   }
   if (d.type === 'weight' && !(d.weight && d.weight > 0)) throw new DataError('Enter the weight.', 400);
+  // No butchering inside a meat withdrawal: the animal's own treatments, or any given to the whole group.
+  if (d.type === 'slaughter') {
+    const clear = await meatClearDate(groupId, animal?.id ?? null);
+    if (clear && clear > date) throw new DataError(`Not yet — a treatment’s meat withdrawal runs until ${fmtDate(clear)}.`, 409);
+  }
 
   const usesSupply = (d.type === 'treatment' || d.type === 'vaccination') && d.inventoryId && (d.qtyUsed ?? 0) > 0;
   const supplies = usesSupply ? await checkSupplies([{ inventoryId: d.inventoryId!, qty: d.qtyUsed! }]) : new Map();
@@ -350,13 +452,13 @@ export async function logEvent(user: SessionUser, groupId: string, d: EventInput
     db.insert(animalEvents).values({
       id, groupId, animalId: animal?.id ?? null, type: d.type, date, countDelta: delta,
       inventoryId: supply?.id ?? null, qtyUsed: usesSupply ? d.qtyUsed! : null,
-      weight: d.type === 'weight' ? d.weight! : null, cost: d.cost ?? null,
+      weight: d.type === 'weight' || (d.type === 'slaughter' && d.weight) ? d.weight! : null, cost: d.cost ?? null,
       meatUntil: treat ? withdrawalUntil(date, meatDays) : null, milkUntil: treat ? withdrawalUntil(date, milkDays) : null,
       notes: d.notes?.trim() ?? '', userId: user.id,
     }),
   ];
   if (delta) ops.push(db.update(animalGroups).set({ headCount: sql`${animalGroups.headCount} + ${delta}` }).where(eq(animalGroups.id, groupId)));
-  if (animal && (d.type === 'death' || d.type === 'sale')) ops.push(db.update(animals).set({ status: d.type === 'death' ? 'dead' : 'sold' }).where(eq(animals.id, animal.id)));
+  if (animal && (d.type === 'death' || d.type === 'sale' || d.type === 'slaughter')) ops.push(db.update(animals).set({ status: d.type === 'death' ? 'dead' : d.type === 'sale' ? 'sold' : 'processed' }).where(eq(animals.id, animal.id)));
   if (breeding) ops.push(db.update(breedings).set({ status: 'born' }).where(eq(breedings.id, breeding.id)));
   // Selling an animal for money is income: it goes in the sales log as well.
   if (d.type === 'sale' && (d.cost ?? 0) > 0) {
@@ -369,7 +471,7 @@ export async function logEvent(user: SessionUser, groupId: string, d: EventInput
   if (usesSupply) await consumeSupplies(user, [{ inventoryId: d.inventoryId!, qty: d.qtyUsed! }], `${EVENT_LABEL[d.type]}: ${g.name}`, { type: 'animal_group', id: groupId });
 
   const who = animal ? animalLabel(animal) : g.name;
-  const what = d.type === 'birth' ? `${count} born in ${g.name}` : d.type === 'death' || d.type === 'sale' || d.type === 'purchase' ? `${EVENT_LABEL[d.type].toLowerCase()} — ${animal ? who : `${count} from ${g.name}`}` : `${EVENT_LABEL[d.type].toLowerCase()} for ${who}`;
+  const what = d.type === 'birth' ? `${count} born in ${g.name}` : d.type === 'death' || d.type === 'sale' || d.type === 'purchase' || d.type === 'slaughter' ? `${EVENT_LABEL[d.type].toLowerCase()} — ${animal ? who : `${count} from ${g.name}`}` : `${EVENT_LABEL[d.type].toLowerCase()} for ${who}`;
   await logActivity(user.id, `logged ${what}`, { href: href(groupId), audience: d.type === 'sale' || d.cost ? 'finance.view' : 'animals.view' });
   publishChange('animals');
   return id;
@@ -384,7 +486,7 @@ export async function deleteEvent(user: SessionUser, id: string): Promise<void> 
   if (g.headCount - e.countDelta < 0) throw new DataError('Removing this would leave a negative head count.', 400);
   const ops: BatchItem<'sqlite'>[] = [db.delete(animalEvents).where(eq(animalEvents.id, id))];
   if (e.countDelta) ops.push(db.update(animalGroups).set({ headCount: sql`${animalGroups.headCount} - ${e.countDelta}` }).where(eq(animalGroups.id, e.groupId)));
-  if (e.animalId && (e.type === 'death' || e.type === 'sale')) ops.push(db.update(animals).set({ status: 'active' }).where(eq(animals.id, e.animalId)));
+  if (e.animalId && (e.type === 'death' || e.type === 'sale' || e.type === 'slaughter')) ops.push(db.update(animals).set({ status: 'active' }).where(eq(animals.id, e.animalId)));
   await runBatch(ops);
   publishChange('animals');
 }

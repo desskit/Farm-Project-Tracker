@@ -25,6 +25,7 @@ export async function animalDigestLines(today = todayISO()): Promise<string[]> {
   const lines: string[] = [];
   if (a.eggs) lines.push(`${a.eggs.thisWeek} eggs in the last 7 days${a.eggs.pct != null ? ` (${a.eggs.pct >= 0 ? '+' : ''}${a.eggs.pct}% on the week before)` : ''}`);
   for (const b of a.births) lines.push(`${b.dam ?? b.groupName} due around ${fmtDate(b.dueOn)}`);
+  for (const h of a.hatches) lines.push(`${h.label}: ${fmtDate(h.date)}`);
   for (const w of a.withdrawals) {
     const parts = [w.milkUntil && `milk/eggs until ${fmtDate(w.milkUntil)}`, w.meatUntil && `meat until ${fmtDate(w.meatUntil)}`].filter(Boolean);
     lines.push(`${w.groupName}: withhold ${parts.join(', ')} (${w.what})`);

@@ -27,6 +27,8 @@ import { publishChange } from '@/lib/realtime/bus';
 import { logActivity } from './activity';
 import { checkSupplies, consumeSupplies } from './consumption';
 import { DataError } from './errors';
+import { getSetting, setSetting } from './settings';
+import { isFrostDate, type FrostDates } from '@/lib/domain/crops';
 
 export type UnitRow = typeof landUnits.$inferSelect;
 export type PlantingRow = typeof plantings.$inferSelect;
@@ -391,3 +393,20 @@ export async function grazeableUnits(): Promise<{ id: string; name: string; kind
   return rows.map(({ id, name, kind }) => ({ id, name, kind })).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 }
 
+
+/* ---------------- frost dates ---------------- */
+
+const FROST_KEY = 'frost-dates';
+
+/** The farm's average last spring and first autumn frost ('MM-DD'), once someone has set them. */
+export async function getFrostDates(): Promise<FrostDates | null> {
+  const f = await getSetting<FrostDates>(FROST_KEY);
+  return f && isFrostDate(f.lastSpring) && isFrostDate(f.firstFall) ? f : null;
+}
+
+export async function setFrostDates(user: SessionUser, f: FrostDates): Promise<void> {
+  need(user, 'land.manage', 'set the frost dates');
+  if (!isFrostDate(f.lastSpring) || !isFrostDate(f.firstFall) || f.lastSpring >= f.firstFall) throw new DataError('The last spring frost should come before the first autumn frost.', 400);
+  await setSetting(FROST_KEY, { lastSpring: f.lastSpring, firstFall: f.firstFall });
+  publishChange('land');
+}

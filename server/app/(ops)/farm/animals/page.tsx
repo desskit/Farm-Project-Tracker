@@ -1,14 +1,15 @@
 import { notFound } from 'next/navigation';
 import { Baby, PawPrint } from 'lucide-react';
 import { getSessionUser } from '@/lib/auth/session';
-import { listGroups, livestockAlerts } from '@/lib/data/livestock';
+import { listGroups, listHatches, livestockAlerts } from '@/lib/data/livestock';
 import { can } from '@/lib/domain/permissions';
-import { SPECIES, isSpecies, type ProductKind } from '@/lib/domain/livestock';
-import { fmtDate } from '@/lib/domain/dates';
+import { HATCHING, SPECIES, hatchSchedule, isSpecies, nextHatchStep, type ProductKind } from '@/lib/domain/livestock';
+import { fmtDate, todayISO } from '@/lib/domain/dates';
 import { Card, EmptyState, ListRow, StatusPill } from '@/components/ui';
 import { Screen } from '@/components/patterns/screen';
 import { StatTiles, type Tile } from '@/components/patterns/stat-tiles';
 import { NewGroupButton, ProductionQuickLog } from './animals-client';
+import { HatchesCard } from './hatches';
 import s from './animals.module.css';
 
 export const metadata = { title: 'Animals · Farm Project Tracker' };
@@ -16,7 +17,9 @@ export const metadata = { title: 'Animals · Farm Project Tracker' };
 export default async function AnimalsPage() {
   const user = await getSessionUser();
   if (!user || !can(user, 'animals.view')) notFound();
-  const [groups, alerts] = await Promise.all([listGroups(), livestockAlerts()]);
+  const [groups, alerts, hatches] = await Promise.all([listGroups(), livestockAlerts(), listHatches()]);
+  const today = todayISO();
+  const flocks = groups.filter((g) => isSpecies(g.species) && HATCHING.includes(g.species)).map((g) => ({ id: g.id, name: g.name, species: g.species }));
   const head = groups.reduce((n, g) => n + g.headCount, 0);
   const withholding = groups.filter((g) => g.withholdUntil.meat || g.withholdUntil.milk).length;
 
@@ -50,6 +53,17 @@ export default async function AnimalsPage() {
           ))}
         </Card>
       )}
+
+      <HatchesCard
+        today={today}
+        canLog={can(user, 'animals.log')}
+        flocks={flocks}
+        hatches={hatches.filter((h) => isSpecies(h.species)).map((h) => {
+          const sp = h.species as (typeof HATCHING)[number];
+          const next = nextHatchStep(sp, h.setOn, today);
+          return { id: h.id, species: h.species, label: h.label, setOn: h.setOn, eggsSet: h.eggsSet, fertile: h.fertile, groupId: h.groupId, next: next && { label: next.label.split(':')[0], date: next.date }, due: hatchSchedule(sp, h.setOn).at(-1)!.date };
+        })}
+      />
 
       <Card flush>
         {groups.length === 0 ? (

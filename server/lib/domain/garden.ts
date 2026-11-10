@@ -49,3 +49,46 @@ export function plantingProgress(sownOn: string, ready: string | null, today: st
   const done = daysBetween(sownOn, today);
   return { pct: Math.max(0, Math.min(100, Math.round((done / total) * 100))), ready: today >= ready, daysLeft: Math.max(0, daysBetween(today, ready)) };
 }
+
+/* ---------------- crop rotation ---------------- */
+
+export const CROP_FAMILIES: Record<string, { label: string; crops: string[] }> = {
+  nightshade: { label: 'nightshades', crops: ['tomato', 'pepper', 'chili', 'chile', 'eggplant', 'aubergine', 'potato', 'tomatillo'] },
+  brassica: { label: 'brassicas', crops: ['cabbage', 'broccoli', 'cauliflower', 'kale', 'collard', 'brussels', 'kohlrabi', 'turnip', 'rutabaga', 'radish', 'arugula', 'mustard', 'bok choy', 'pak choi'] },
+  legume: { label: 'legumes', crops: ['bean', 'pea', 'lentil', 'chickpea', 'soy', 'clover', 'vetch', 'fava'] },
+  allium: { label: 'alliums', crops: ['onion', 'garlic', 'leek', 'shallot', 'scallion', 'chive'] },
+  cucurbit: { label: 'cucurbits', crops: ['cucumber', 'squash', 'zucchini', 'courgette', 'pumpkin', 'melon', 'watermelon', 'cantaloupe', 'gourd'] },
+  umbellifer: { label: 'the carrot family', crops: ['carrot', 'parsnip', 'celery', 'celeriac', 'parsley', 'dill', 'fennel', 'cilantro', 'coriander'] },
+  amaranth: { label: 'the beet family', crops: ['beet', 'chard', 'spinach', 'quinoa'] },
+  aster: { label: 'the lettuce family', crops: ['lettuce', 'endive', 'chicory', 'radicchio', 'sunflower', 'artichoke'] },
+  grass: { label: 'grasses', crops: ['corn', 'maize', 'wheat', 'oat', 'barley', 'rye', 'sorghum'] },
+};
+
+/** The rotation family a crop belongs to, matched loosely on its name ("Cherry tomatoes" → nightshade). */
+export function familyOf(crop: string): string | null {
+  const c = crop.toLowerCase();
+  // Longest names first, so "sweet potato" style overlaps resolve to the more specific word.
+  let best: { fam: string; len: number } | null = null;
+  for (const [fam, f] of Object.entries(CROP_FAMILIES)) {
+    for (const name of f.crops) {
+      if (new RegExp(`\\b${name}(e?s)?\\b`).test(c) && (!best || name.length > best.len)) best = { fam, len: name.length };
+    }
+  }
+  if (/sweet potato|yam\b/.test(c)) return null; // not a nightshade, despite the name
+  return best?.fam ?? null;
+}
+
+/**
+ * A warning when the same family grew here too recently, else null. The
+ * usual rule of thumb is to wait `years` (three) before repeating a family.
+ */
+export function rotationWarning(history: { crop: string; sownOn: string }[], crop: string, sowOn: string, years = 3): string | null {
+  const fam = familyOf(crop);
+  if (!fam) return null;
+  const cutoff = `${Number(sowOn.slice(0, 4)) - years}${sowOn.slice(4)}`;
+  const last = history
+    .filter((h) => h.sownOn < sowOn && h.sownOn > cutoff && familyOf(h.crop) === fam)
+    .sort((a, b) => (a.sownOn < b.sownOn ? 1 : -1))[0];
+  if (!last) return null;
+  return `${last.crop} (${CROP_FAMILIES[fam].label}) grew here in ${last.sownOn.slice(0, 4)}. Rotating families for ${years} years helps with pests and disease.`;
+}

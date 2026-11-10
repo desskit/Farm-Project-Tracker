@@ -24,6 +24,7 @@ export const animalSchema = z.object({
   damId: id.nullable().optional(),
   sireId: id.nullable().optional(),
   notes: text(2000).optional(),
+  photoId: id.nullable().optional(),
 });
 export const newAnimalSchema = animalSchema.extend({ arrived: z.enum(['existing', 'born', 'bought']).optional() });
 export const animalPatchSchema = animalSchema.extend({ groupId: id.optional() });
@@ -49,6 +50,21 @@ export const eventSchema = z.object({
   milkDays: z.number().int().min(0).max(1000).nullable().optional(),
   breedingId: id.nullable().optional(),
   notes: text(2000).optional(),
+});
+
+export const hatchSchema = z.object({
+  species: z.enum(['chicken', 'duck', 'turkey', 'goose']),
+  setOn: date,
+  eggsSet: z.number().int().min(1).max(10000),
+  groupId: id.nullable().optional(),
+  label: text(60).optional(),
+  notes: text(500).optional(),
+});
+export const hatchPatchSchema = z.object({
+  fertile: z.number().int().min(0).max(10000).nullable().optional(),
+  status: z.literal('failed').optional(),
+  hatched: z.number().int().min(0).max(10000).optional(),
+  groupId: id.nullable().optional(),
 });
 
 export const breedingSchema = z.object({ damId: id.nullable().optional(), sire: text(80).optional(), bredOn: date, notes: text(1000).optional() });

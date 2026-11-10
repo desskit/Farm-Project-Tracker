@@ -103,7 +103,7 @@ export default async function TodayPage({ searchParams }: { searchParams: { scop
 
 /** Eggs so far, births close, and anything that mustn't be sold or eaten yet. */
 function AnimalsToday({ a }: { a: Awaited<ReturnType<typeof livestockAlerts>> }) {
-  if (!a.eggs && !a.births.length && !a.withdrawals.length) return null;
+  if (!a.eggs && !a.births.length && !a.withdrawals.length && !a.hatches.length) return null;
   const soon = addDays(todayISO(), 7);
   return (
     <Card title="Animals" action={<ButtonLink href="/farm/animals" size="sm" variant="ghost">Open</ButtonLink>} flush>
@@ -117,6 +117,9 @@ function AnimalsToday({ a }: { a: Awaited<ReturnType<typeof livestockAlerts>> })
       )}
       {a.births.filter((b) => b.dueOn <= soon).map((b) => (
         <ListRow key={b.id} href={`/farm/animals/${b.groupId}`} lead={<Baby />} title={`${b.dam ?? b.groupName} due ${relativeLabel(b.dueOn)}`} meta={`Around ${fmtDate(b.dueOn)} · ${b.groupName}`} />
+      ))}
+      {a.hatches.filter((h) => h.date <= soon).map((h) => (
+        <ListRow key={h.id} href="/farm/animals" lead={<Egg />} title={h.label} meta={h.date === todayISO() ? 'Today' : fmtDate(h.date)} />
       ))}
       {a.withdrawals.map((w) => (
         <ListRow

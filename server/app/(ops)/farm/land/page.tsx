@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { Sprout, Wheat } from 'lucide-react';
+import { CalendarDays, Sprout, Wheat } from 'lucide-react';
 import { getSessionUser } from '@/lib/auth/session';
 import { landAlerts, listUnits } from '@/lib/data/land';
 import { can } from '@/lib/domain/permissions';
@@ -42,6 +42,10 @@ export default async function LandPage() {
           ))}
         </Card>
       )}
+
+      <Card flush>
+        <ListRow href="/farm/land/calendar" lead={<CalendarDays />} title="Planting calendar" meta="When to sow what, from your frost dates" />
+      </Card>
 
       <Card flush>
         {top.length === 0 ? (

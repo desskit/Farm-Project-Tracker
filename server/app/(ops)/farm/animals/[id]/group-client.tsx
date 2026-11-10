@@ -1,7 +1,7 @@
 'use client';
 import { useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Baby, HeartPulse, Pencil, Plus, Repeat, Scale, Skull, StickyNote, Syringe, Tag, Trash2, Truck, Wallet } from 'lucide-react';
+import { Baby, Beef, HeartPulse, Pencil, Plus, Repeat, Scale, Skull, StickyNote, Syringe, Tag, Trash2, Truck, Wallet } from 'lucide-react';
 import type { AnimalRow, EventView } from '@/lib/data/livestock';
 import type { BreedingStatus } from '@/db/schema';
 import { EVENT_LABEL, HEALTH_TEMPLATES, PRODUCT_UNIT, weekTrend, type AnimalEventType, type ProductKind, type Species } from '@/lib/domain/livestock';
@@ -86,32 +86,33 @@ type Supply = { id: string; name: string; unit: string; qty: number; meatDays: n
 
 const LOG_ICON: Record<AnimalEventType, JSX.Element> = {
   treatment: <HeartPulse />, vaccination: <Syringe />, weight: <Scale />, birth: <Baby />,
-  death: <Skull />, sale: <Wallet />, purchase: <Truck />, note: <StickyNote />,
+  death: <Skull />, sale: <Wallet />, purchase: <Truck />, slaughter: <Beef />, note: <StickyNote />,
 };
 
 export function LogCard({
-  groupId, animals, supplies, breedings, canManage, today,
-}: { groupId: string; animals: (Opt & { sex: string })[]; supplies: Supply[]; breedings: Opt[]; canManage: boolean; today: string }) {
+  groupId, animals, supplies, breedings, canManage, today, preselect,
+}: { groupId: string; animals: (Opt & { sex: string })[]; supplies: Supply[]; breedings: Opt[]; canManage: boolean; today: string; /** On an animal's own page: every entry is about it. */ preselect?: string }) {
   const [type, setType] = useState<AnimalEventType | null>(null);
-  const types: AnimalEventType[] = ['treatment', 'vaccination', 'weight', 'birth', 'death', 'note', ...(canManage ? (['purchase', 'sale'] as const) : [])];
+  const all: AnimalEventType[] = ['treatment', 'vaccination', 'weight', 'birth', 'death', 'note', ...(canManage ? (['purchase', 'sale', 'slaughter'] as const) : [])];
+  const types = preselect ? all.filter((t) => t !== 'purchase') : all;
   return (
     <Card title="Log">
       <div className={s.logGrid}>
         {types.map((t) => <Button key={t} variant="secondary" icon={LOG_ICON[t]} onClick={() => setType(t)}>{EVENT_LABEL[t]}</Button>)}
       </div>
       <Dialog sheet open={type !== null} onClose={() => setType(null)} title={type ? EVENT_LABEL[type] : ''}>
-        {type && <EventForm key={type} type={type} groupId={groupId} animals={animals} supplies={supplies} breedings={breedings} today={today} onDone={() => setType(null)} />}
+        {type && <EventForm key={type} type={type} groupId={groupId} animals={animals} supplies={supplies} breedings={breedings} today={today} preselect={preselect} onDone={() => setType(null)} />}
       </Dialog>
     </Card>
   );
 }
 
 function EventForm({
-  type, groupId, animals, supplies, breedings, today, onDone,
-}: { type: AnimalEventType; groupId: string; animals: (Opt & { sex: string })[]; supplies: Supply[]; breedings: Opt[]; today: string; onDone: () => void }) {
+  type, groupId, animals, supplies, breedings, today, preselect, onDone,
+}: { type: AnimalEventType; groupId: string; animals: (Opt & { sex: string })[]; supplies: Supply[]; breedings: Opt[]; today: string; preselect?: string; onDone: () => void }) {
   const m = useMutation();
   const [date, setDate] = useState(today);
-  const [animalId, setAnimalId] = useState('');
+  const [animalId, setAnimalId] = useState(preselect ?? '');
   const [count, setCount] = useState('1');
   const [supplyId, setSupplyId] = useState('');
   const [qty, setQty] = useState('');
@@ -123,7 +124,7 @@ function EventForm({
   const [notes, setNotes] = useState('');
 
   const treat = type === 'treatment' || type === 'vaccination';
-  const changesCount = type === 'birth' || type === 'death' || type === 'sale' || type === 'purchase';
+  const changesCount = type === 'birth' || type === 'death' || type === 'sale' || type === 'purchase' || type === 'slaughter';
   const pickAnimal = type !== 'purchase' && animals.length > 0;
   const showCount = changesCount && (type === 'birth' || !animalId);
   const supply = supplies.find((x) => x.id === supplyId);
@@ -148,7 +149,7 @@ function EventForm({
       body.meatDays = numOrNull(meatDays);
       body.milkDays = numOrNull(milkDays);
     }
-    if (type === 'weight') body.weight = numOrNull(weight);
+    if (type === 'weight' || (type === 'slaughter' && weight.trim())) body.weight = numOrNull(weight);
     if (cost.trim()) body.cost = Number(cost);
     if (type === 'birth' && breedingId) body.breedingId = breedingId;
     if (await m.run({ url: `/api/animals/groups/${groupId}/events`, body, label: EVENT_LABEL[type] })) onDone();
@@ -158,7 +159,7 @@ function EventForm({
     <form className={s.form} onSubmit={onSubmit}>
       <div className={s.two}>
         <Field label="Date" htmlFor="ev-date"><Input id="ev-date" type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} required /></Field>
-        {pickAnimal && (
+        {pickAnimal && !preselect && (
           <Field label={type === 'birth' ? 'Mother' : 'Which animal'} htmlFor="ev-animal">
             <Select id="ev-animal" value={animalId} onChange={(e) => setAnimalId(e.target.value)}>
               <option value="">{type === 'birth' ? 'Not recorded' : changesCount ? 'One without its own record' : 'The whole group'}</option>
@@ -178,6 +179,9 @@ function EventForm({
               {breedings.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
             </Select>
           </Field>
+        )}
+        {type === 'slaughter' && (
+          <Field label="Hanging weight (lb, optional)" htmlFor="ev-hw"><Input id="ev-hw" type="number" inputMode="decimal" min="0" step="any" value={weight} onChange={(e) => setWeight(e.target.value)} /></Field>
         )}
         {type === 'weight' && (
           <Field label="Weight (lb)" htmlFor="ev-w"><Input id="ev-w" type="number" inputMode="decimal" min="0" step="any" value={weight} onChange={(e) => setWeight(e.target.value)} required /></Field>
@@ -204,8 +208,8 @@ function EventForm({
         </>
       )}
 
-      {(treat || type === 'sale' || type === 'purchase') && (
-        <Field label={type === 'sale' ? 'Sold for ($)' : 'Cost ($)'} htmlFor="ev-cost"><Input id="ev-cost" type="number" inputMode="decimal" min="0" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} /></Field>
+      {(treat || type === 'sale' || type === 'purchase' || type === 'slaughter') && (
+        <Field label={type === 'sale' ? 'Sold for ($)' : type === 'slaughter' ? 'Processing cost ($)' : 'Cost ($)'} htmlFor="ev-cost"><Input id="ev-cost" type="number" inputMode="decimal" min="0" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} /></Field>
       )}
       <Field label="Notes" htmlFor="ev-notes"><Textarea id="ev-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={type === 'note' ? 'What happened?' : undefined} required={type === 'note'} /></Field>
       {m.error && <Banner tone="danger">{m.error}</Banner>}
@@ -369,7 +373,7 @@ export function AnimalsCard({ groupId, animals, groups, canManage }: { groupId: 
             title={a.name && a.tag ? `${a.name} · #${a.tag}` : label(a)}
             meta={[a.sex !== 'unknown' ? a.sex : '', a.breed, age(a.birthDate)].filter(Boolean).join(' · ') || undefined}
             trail={a.status !== 'active' ? <StatusPill tone="neutral">{a.status}</StatusPill> : undefined}
-            onClick={canManage ? () => setEditing(a) : undefined}
+            href={`/farm/animals/a/${a.id}`}
           />
         ))
       )}
@@ -388,7 +392,7 @@ export function AnimalsCard({ groupId, animals, groups, canManage }: { groupId: 
   );
 }
 
-function AnimalForm({ groupId, animal, others, groups, onDone }: { groupId: string; animal: AnimalRow | null; others: AnimalRow[]; groups: Opt[]; onDone: () => void }) {
+export function AnimalForm({ groupId, animal, others, groups, onDone }: { groupId: string; animal: AnimalRow | null; others: AnimalRow[]; groups: Opt[]; onDone: () => void }) {
   const router = useRouter();
   const [f, setF] = useState({
     name: animal?.name ?? '', tag: animal?.tag ?? '', sex: animal?.sex ?? 'unknown', breed: animal?.breed ?? '',

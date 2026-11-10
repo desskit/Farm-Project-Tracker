@@ -1,10 +1,11 @@
 'use client';
-import { useState, type FormEvent } from 'react';
+import { Fragment, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowRightLeft, Check, Pencil, Plus, Scissors, Sprout, Trash2, Trees, Wheat } from 'lucide-react';
 import type { PlantingStatus } from '@/db/schema';
-import { LAND_EVENT_LABEL, LAND_EVENT_TYPES, expectedHarvest, plantingProgress, type LandEventType } from '@/lib/domain/garden';
+import { LAND_EVENT_LABEL, LAND_EVENT_TYPES, expectedHarvest, plantingProgress, rotationWarning, type LandEventType } from '@/lib/domain/garden';
+import { CROPS, findCrop } from '@/lib/domain/crops';
 import { daysOn, type PaddockState } from '@/lib/domain/grazing';
 import { fmtDate, relativeLabel } from '@/lib/domain/dates';
 import { useMutation } from '@/lib/client/mutate';
@@ -150,7 +151,7 @@ export function PlantingsCard({ unitId, plantings, supplies, canLog, canManage, 
   const act = useAct();
   const { confirm: askConfirm } = useDialogs();
   const current = plantings.filter((p) => p.status === 'planned' || p.status === 'growing').sort((a, b) => a.sownOn.localeCompare(b.sownOn));
-  const old = plantings.filter((p) => p.status === 'harvested' || p.status === 'failed');
+  const old = plantings.filter((p) => p.status === 'harvested' || p.status === 'failed').sort((a, b) => b.sownOn.localeCompare(a.sownOn));
   const list = showOld ? [...current, ...old] : current;
 
   return (
@@ -158,14 +159,19 @@ export function PlantingsCard({ unitId, plantings, supplies, canLog, canManage, 
       {list.length === 0 ? (
         <EmptyState icon={<Sprout />} title="Nothing in the ground">{canLog ? 'Log what you sow or plant — or plan a succession.' : undefined}</EmptyState>
       ) : (
-        list.map((p) => {
+        list.map((p, i) => {
           const prog = p.status === 'growing' ? plantingProgress(p.sownOn, p.expectedHarvest, today) : null;
+          const past = p.status === 'harvested' || p.status === 'failed';
+          const prev = list[i - 1];
+          const yearHead = past && (!prev || !(prev.status === 'harvested' || prev.status === 'failed') || prev.sownOn.slice(0, 4) !== p.sownOn.slice(0, 4));
           const meta =
             p.status === 'planned' ? `Sow ${relativeLabel(p.sownOn)}`
               : p.status === 'growing' ? `${p.method === 'transplant' ? 'Planted' : 'Sown'} ${fmtDate(p.sownOn)}${p.expectedHarvest ? ` · ${prog?.ready ? 'ready now' : `ready ~${fmtDate(p.expectedHarvest)}`}` : ''}`
                 : `${fmtDate(p.sownOn)}`;
           return (
-            <div key={p.id} className={s.event}>
+            <Fragment key={p.id}>
+            {yearHead && <div className={s.yearHead}>{p.sownOn.slice(0, 4)}</div>}
+            <div className={s.event}>
               <span className={s.eventMain}>
                 <strong>{p.crop}{p.variety ? ` (${p.variety})` : ''}</strong>
                 <small>{meta}{p.series ? ' · succession' : ''}{prog?.pct != null && !prog.ready ? ` · ${prog.pct}%` : ''}</small>
@@ -177,6 +183,7 @@ export function PlantingsCard({ unitId, plantings, supplies, canLog, canManage, 
               )}
               {canManage && <IconButton label="Delete planting" onClick={async () => { if (await askConfirm(`Delete this ${p.crop} planting?`)) act.run(send(`/api/land/plantings/${p.id}`, 'DELETE')); }}><Trash2 /></IconButton>}
             </div>
+            </Fragment>
           );
         })
       )}
@@ -185,18 +192,25 @@ export function PlantingsCard({ unitId, plantings, supplies, canLog, canManage, 
       )}
       {act.error && <Banner tone="danger">{act.error}</Banner>}
       <Dialog sheet open={adding} onClose={() => setAdding(false)} title="Plant">
-        {adding && <PlantingForm unitId={unitId} supplies={supplies} today={today} onDone={() => setAdding(false)} />}
+        {adding && <PlantingForm unitId={unitId} supplies={supplies} today={today} history={plantings.filter((p) => p.status !== 'planned').map((p) => ({ crop: p.crop, sownOn: p.sownOn }))} onDone={() => setAdding(false)} />}
       </Dialog>
     </Card>
   );
 }
 
-function PlantingForm({ unitId, supplies, today, onDone }: { unitId: string; supplies: Supply[]; today: string; onDone: () => void }) {
+function PlantingForm({ unitId, supplies, today, history, onDone }: { unitId: string; supplies: Supply[]; today: string; history: { crop: string; sownOn: string }[]; onDone: () => void }) {
   const m = useMutation();
   const [f, setF] = useState({ crop: '', variety: '', method: 'seed', sownOn: today, dtm: '', supplyId: '', seedQty: '', succession: false, every: '14', count: '4', notes: '' });
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
   const ready = expectedHarvest(f.sownOn || today, Number(f.dtm) || null);
   const supply = supplies.find((x) => x.id === f.supplyId);
+  const known = findCrop(f.crop);
+  const rotation = f.crop.trim() ? rotationWarning(history, f.crop, f.sownOn || today) : null;
+  // Picking a crop the library knows fills in its days to maturity, unless one was typed.
+  const setCrop = (e: { target: { value: string } }) => {
+    const c = CROPS.find((x) => x.name.toLowerCase() === e.target.value.trim().toLowerCase());
+    setF({ ...f, crop: e.target.value, dtm: c && !f.dtm ? String(c.dtm) : f.dtm });
+  };
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -211,14 +225,18 @@ function PlantingForm({ unitId, supplies, today, onDone }: { unitId: string; sup
   return (
     <form className={s.form} onSubmit={onSubmit}>
       <div className={s.two}>
-        <Field label="Crop" htmlFor="pl-crop"><Input id="pl-crop" value={f.crop} onChange={set('crop')} required maxLength={80} placeholder="Lettuce" /></Field>
+        <Field label="Crop" htmlFor="pl-crop">
+          <Input id="pl-crop" list="pl-crops" value={f.crop} onChange={setCrop} required maxLength={80} placeholder="Lettuce" />
+          <datalist id="pl-crops">{CROPS.map((c) => <option key={c.name} value={c.name} />)}</datalist>
+        </Field>
         <Field label="Variety" htmlFor="pl-var"><Input id="pl-var" value={f.variety} onChange={set('variety')} maxLength={80} /></Field>
         <Field label="How" htmlFor="pl-method">
           <Select id="pl-method" value={f.method} onChange={set('method')}><option value="seed">Direct seeded</option><option value="transplant">Transplanted</option></Select>
         </Field>
         <Field label={f.succession ? 'First sowing' : 'Sown / planted on'} htmlFor="pl-on" hint="A future date plans it."><Input id="pl-on" type="date" value={f.sownOn} onChange={set('sownOn')} required /></Field>
-        <Field label="Days to maturity" htmlFor="pl-dtm" hint={ready ? `Ready around ${fmtDate(ready)}` : 'From the seed packet'}><Input id="pl-dtm" type="number" inputMode="numeric" min="1" value={f.dtm} onChange={set('dtm')} /></Field>
+        <Field label="Days to maturity" htmlFor="pl-dtm" hint={ready ? `Ready around ${fmtDate(ready)}` : known ? `Usually about ${known.dtm} for ${known.name.toLowerCase()}` : 'From the seed packet'}><Input id="pl-dtm" type="number" inputMode="numeric" min="1" value={f.dtm} onChange={set('dtm')} /></Field>
       </div>
+      {rotation && <Banner tone="warn" title="Rotation">{rotation}</Banner>}
       {supplies.length > 0 && (
         <div className={s.two}>
           <Field label="Seed from Supplies" htmlFor="pl-seed" hint={supply ? `${supply.qty} ${supply.unit} on hand` : undefined}>

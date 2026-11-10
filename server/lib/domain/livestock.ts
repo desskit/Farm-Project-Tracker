@@ -31,15 +31,15 @@ export function isSpecies(v: unknown): v is Species {
 export type ProductKind = 'eggs' | 'milk' | 'wool';
 export const PRODUCT_UNIT: Record<ProductKind, string> = { eggs: 'eggs', milk: 'lb', wool: 'lb' };
 
-export const EVENT_TYPES = ['treatment', 'vaccination', 'weight', 'birth', 'death', 'sale', 'purchase', 'note'] as const;
+export const EVENT_TYPES = ['treatment', 'vaccination', 'weight', 'birth', 'death', 'sale', 'purchase', 'slaughter', 'note'] as const;
 export type AnimalEventType = (typeof EVENT_TYPES)[number];
 export const EVENT_LABEL: Record<AnimalEventType, string> = {
   treatment: 'Treatment', vaccination: 'Vaccination', weight: 'Weight', birth: 'Birth',
-  death: 'Death', sale: 'Sale', purchase: 'Bought', note: 'Note',
+  death: 'Death', sale: 'Sale', purchase: 'Bought', slaughter: 'Processed', note: 'Note',
 };
 /** How each event moves the head count (per animal in `count`). */
 export const COUNT_SIGN: Record<AnimalEventType, -1 | 0 | 1> = {
-  treatment: 0, vaccination: 0, weight: 0, note: 0, birth: 1, purchase: 1, death: -1, sale: -1,
+  treatment: 0, vaccination: 0, weight: 0, note: 0, birth: 1, purchase: 1, death: -1, sale: -1, slaughter: -1,
 };
 
 /** Around when a breeding should give birth / hatch, or null if unknown for the species. */
@@ -104,3 +104,25 @@ export const HEALTH_TEMPLATES: Record<Species, HealthTemplate[]> = {
   rabbit: [{ name: 'Nail trim', everyDays: 42 }, { name: 'Teeth and weight check', everyDays: 90 }],
   other: [],
 };
+
+/** Species whose young come from an incubator. */
+export const HATCHING: Species[] = ['chicken', 'duck', 'turkey', 'goose'];
+
+export type HatchStep = { key: 'candle' | 'lockdown' | 'hatch'; label: string; date: string };
+/**
+ * The dates that matter for a clutch set on `setOn`: candle at a week, stop
+ * turning and raise humidity three days before the due date, then hatch.
+ */
+export function hatchSchedule(species: Species, setOn: string): HatchStep[] {
+  const days = SPECIES[species].gestationDays ?? 21;
+  return [
+    { key: 'candle', label: 'Candle the eggs', date: addDays(setOn, 7) },
+    { key: 'lockdown', label: 'Lockdown: stop turning, raise humidity', date: addDays(setOn, days - 3) },
+    { key: 'hatch', label: 'Hatch day', date: addDays(setOn, days) },
+  ];
+}
+
+/** The next step still ahead (or today), if any. */
+export function nextHatchStep(species: Species, setOn: string, today: string): HatchStep | null {
+  return hatchSchedule(species, setOn).find((s) => s.date >= today) ?? null;
+}

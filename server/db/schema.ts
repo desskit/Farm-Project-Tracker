@@ -605,7 +605,7 @@ export const vaultAccessLog = sqliteTable('vault_access_log', {
 
 export type AnimalGroupKind = 'herd' | 'flock' | 'litter' | 'pen';
 export type AnimalSex = 'female' | 'male' | 'unknown';
-export type AnimalStatus = 'active' | 'sold' | 'dead';
+export type AnimalStatus = 'active' | 'sold' | 'dead' | 'processed';
 
 /**
  * A herd, flock, litter or pen. Location lives here only — a lone horse is a
@@ -639,11 +639,12 @@ export const animals = sqliteTable('animals', {
   sireId: text('sire_id'),
   status: text('status').$type<AnimalStatus>().notNull().default('active'),
   notes: text('notes').notNull().default(''),
+  photoId: text('photo_id').references(() => attachments.id, { onDelete: 'set null' }),
 }, (t) => ({
   groupIdx: index('animals_group_idx').on(t.groupId, t.status),
 }));
 
-export type AnimalEventType = 'treatment' | 'vaccination' | 'weight' | 'birth' | 'death' | 'sale' | 'purchase' | 'note';
+export type AnimalEventType = 'treatment' | 'vaccination' | 'weight' | 'birth' | 'death' | 'sale' | 'purchase' | 'slaughter' | 'note';
 
 export const animalEvents = sqliteTable('animal_events', {
   id: text('id').primaryKey(),
@@ -1037,4 +1038,25 @@ export const depositEntries = sqliteTable('deposit_entries', {
   createdAt: integer('created_at').notNull().default(now),
 }, (t) => ({
   leaseIdx: index('deposit_entries_lease_idx').on(t.leaseId, t.date),
+}));
+
+export type HatchStatus = 'incubating' | 'hatched' | 'failed';
+
+/** A clutch of eggs in the incubator (or under a broody hen): set date, candling, hatch. */
+export const hatches = sqliteTable('hatches', {
+  id: text('id').primaryKey(),
+  /** The flock the chicks will join (can be chosen at hatch). */
+  groupId: text('group_id').references(() => animalGroups.id, { onDelete: 'set null' }),
+  species: text('species').notNull(),
+  label: text('label').notNull().default(''),
+  setOn: text('set_on').notNull(),
+  eggsSet: integer('eggs_set').notNull(),
+  fertile: integer('fertile'),
+  hatched: integer('hatched'),
+  status: text('status').$type<HatchStatus>().notNull().default('incubating'),
+  notes: text('notes').notNull().default(''),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at').notNull().default(now),
+}, (t) => ({
+  statusIdx: index('hatches_status_idx').on(t.status, t.setOn),
 }));
