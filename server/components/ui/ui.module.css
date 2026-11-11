@@ -234,11 +234,11 @@ select.control {
 .fab svg { width: 26px; height: 26px; }
 
 /* ---------- PageHeader ---------- */
-.pageHeader { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) 0 var(--space-3); }
-.pageTitles { flex: 1; min-width: 0; }
+.pageHeader { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-4) 0 var(--space-3); }
+.pageTitles { flex: 1 1 180px; min-width: 0; }
 .pageTitle { margin: 0; font-size: var(--text-2xl); font-weight: 800; letter-spacing: -.01em; }
 .pageSub { margin: 2px 0 0; color: var(--c-text-muted); font-size: var(--text-sm); }
-.pageActions { display: flex; gap: var(--space-2); }
+.pageActions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
 /* ---------- Stack helper ---------- */
 .stack { display: grid; gap: var(--space-3); }

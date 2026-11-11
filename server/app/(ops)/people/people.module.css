@@ -1,17 +1,18 @@
 .wrap { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--gutter) calc(var(--nav-h) + var(--space-8)); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
-.list { display: grid; gap: var(--space-3); }
+.list { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
 .whoLink { display: inline-flex; align-items: center; gap: 6px; min-height: var(--tap); color: var(--c-primary); font-weight: 600; font-size: var(--text-sm); text-decoration: none; }
 .whoLink svg { width: 16px; height: 16px; }
-.person { display: grid; gap: var(--space-3); padding: var(--space-4); background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-lg); box-shadow: var(--shadow-1); }
+.person { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: var(--space-3); padding: var(--space-4); background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-lg); box-shadow: var(--shadow-1); }
 .inactive { opacity: .75; }
-.head { display: flex; align-items: center; gap: var(--space-3); }
+.head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
 .avatar { display: grid; place-items: center; width: 42px; height: 42px; flex: none; border-radius: 50%; background: var(--c-primary-soft); color: var(--c-primary); font-weight: 800; text-transform: uppercase; }
-.main { flex: 1; min-width: 0; }
-.name { font-weight: 700; display: flex; align-items: center; gap: var(--space-2); }
+/* Name and email take the row; on a narrow screen the status badge drops underneath. */
+.main { flex: 1 1 160px; min-width: 0; }
+.name { font-weight: 700; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); overflow-wrap: anywhere; }
 .you { font-size: var(--text-xs); font-weight: 700; color: var(--c-text-muted); background: var(--c-surface-2); border-radius: var(--r-pill); padding: 1px 8px; }
-.email { color: var(--c-text-muted); font-size: var(--text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.email { color: var(--c-text-muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.roleSelect { width: auto; min-width: 140px; }
+.roleSelect { width: auto; min-width: 140px; max-width: 100%; }
 .link { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
 .link code { flex: 1; min-width: 0; word-break: break-all; font-size: var(--text-xs); }
 .inactiveList summary { cursor: pointer; min-height: var(--tap); display: flex; align-items: center; font-weight: 600; color: var(--c-text-muted); }

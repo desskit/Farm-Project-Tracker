@@ -1,4 +1,4 @@
-.quick { display: grid; gap: var(--space-3); }
+.quick { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
 .quickRow { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 .quickName { flex: 1 1 140px; min-width: 0; display: grid; }
 .quickName small { color: var(--c-text-muted); font-size: var(--text-sm); }
@@ -6,7 +6,7 @@
 .ok { color: var(--c-ok); font-size: var(--text-sm); font-weight: 600; }
 .err { color: var(--c-danger); font-size: var(--text-sm); }
 .pills { display: inline-flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
-.form { display: grid; gap: var(--space-3); }
+.form { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
 .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-3); }
 .actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .chart { width: 100%; height: 72px; display: block; }

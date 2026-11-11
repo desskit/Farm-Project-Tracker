@@ -1,5 +1,5 @@
 .wrap { max-width: var(--content-max); margin: 0 auto; padding: var(--space-4) var(--gutter) calc(var(--nav-h) + var(--space-8)); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
-.grid { display: grid; gap: var(--space-3); }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
 .project {
   display: grid; gap: var(--space-2); padding: var(--space-4);
   background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-lg); box-shadow: var(--shadow-1);
@@ -13,5 +13,5 @@
 .meta { color: var(--c-text-muted); font-size: var(--text-sm); }
 .over { color: var(--c-danger); font-weight: 700; }
 .done summary { cursor: pointer; min-height: var(--tap); display: flex; align-items: center; font-weight: 600; color: var(--c-text-muted); }
-.add { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
+.add { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); margin-top: var(--space-4); }
 .h2 { font-size: var(--text-lg); margin: 0; }

@@ -1,5 +1,5 @@
-.wrap { display: grid; gap: var(--space-3); }
-.list { display: grid; }
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+.list { display: grid; grid-template-columns: minmax(0, 1fr); }
 .note { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2) 0; }
 .note + .note { border-top: 1px solid var(--c-border); }
 .main { flex: 1; min-width: 0; display: grid; gap: 4px; }
