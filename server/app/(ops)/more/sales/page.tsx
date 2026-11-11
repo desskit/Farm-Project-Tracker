@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { getSessionUser } from '@/lib/auth/session';
 import { listSales, salesTotals } from '@/lib/data/sales';
+import { loanBorrowers, loanSummaryForSales } from '@/lib/data/loans';
 import { listGroups } from '@/lib/data/livestock';
 import { listUnits } from '@/lib/data/land';
 import { can } from '@/lib/domain/permissions';
@@ -26,6 +27,10 @@ export default async function SalesPage({ searchParams }: { searchParams: { show
     can(user, 'animals.view') ? listGroups() : Promise.resolve([]),
     can(user, 'land.view') ? listUnits() : Promise.resolve([]),
   ]);
+  const [loanBySale, borrowers] = await Promise.all([
+    loanSummaryForSales(rows.map((r) => r.id), today),
+    can(user, 'finance.manage') ? loanBorrowers() : Promise.resolve([]),
+  ]);
   const month = salesTotals(year.filter((r) => r.date.slice(0, 7) === today.slice(0, 7)));
   const ytd = salesTotals(year);
   const tiles: Tile[] = [
@@ -42,6 +47,8 @@ export default async function SalesPage({ searchParams }: { searchParams: { show
         sales={rows}
         canLog={can(user, 'sales.log')}
         canManage={can(user, 'finance.manage')}
+        loans={Object.fromEntries(loanBySale)}
+        borrowers={borrowers}
         me={user.id}
         seesAll={seesAll}
         today={today}

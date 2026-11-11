@@ -16,7 +16,7 @@ import { addDays, todayISO } from '@/lib/domain/dates';
 import { toICal } from '@/lib/domain/ical';
 import { calendarItems } from './calendar';
 
-const KIND_LABEL: Record<string, string> = { chore: 'Chore', maintenance: 'Upkeep', task: 'Task', rent: 'Rent', animals: 'Animals', land: 'Land', papers: 'Papers' };
+const KIND_LABEL: Record<string, string> = { chore: 'Chore', maintenance: 'Upkeep', task: 'Task', rent: 'Rent', loan: 'Loan', animals: 'Animals', land: 'Land', papers: 'Papers' };
 
 /** Makes (or replaces) someone's link and returns the raw token — shown once. */
 export async function resetCalendarToken(userId: string): Promise<string> {

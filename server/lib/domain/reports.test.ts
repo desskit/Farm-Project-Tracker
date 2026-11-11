@@ -49,5 +49,8 @@ describe("what's new", () => {
     expect(newsFor('', () => false, entries)?.items.map((i) => i.text)).toEqual(['For all']);
     expect(newsFor('2026-10-01', () => true, entries)?.items).toHaveLength(2);
     expect(newsFor('2026-11-10', () => true, entries)).toBeNull();
+    // Nothing for you in the newest note: the older one you haven't seen still shows.
+    const onlyMoney = [{ id: '2026-12-01', title: 'Money', items: [{ text: 'm', cap: 'finance.view' as const }] }, ...entries];
+    expect(newsFor('', () => false, onlyMoney)?.id).toBe('2026-11-10');
   });
 });

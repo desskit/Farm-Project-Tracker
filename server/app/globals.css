@@ -539,6 +539,7 @@ a.tap-link:hover .item-title { color: var(--brand); }
 .cal-dot.maintenance { background: var(--today); }
 .cal-dot.task { background: #5b7cc0; }
 .cal-dot.rent { background: var(--overdue); }
+.cal-dot.loan { background: var(--today); }
 
 /* ---------------- AI suggest steps ---------------- */
 .suggest-list { list-style: none; padding: 0; margin: 0 0 12px; }

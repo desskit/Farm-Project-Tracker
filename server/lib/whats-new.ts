@@ -10,6 +10,14 @@ export type NewsEntry = { id: string; title: string; items: NewsItem[] };
 
 export const WHATS_NEW: NewsEntry[] = [
   {
+    id: '2026-11-11',
+    title: 'New: loans',
+    items: [
+      { text: 'Sell to someone on the farm on a payment plan: turn on “Pay over time” when recording a sale.', href: '/more/sales', cap: 'finance.manage' },
+      { text: 'Borrowers get reminders and tap “I paid”; you confirm each payment under More → Loans.', href: '/more/loans', cap: 'finance.manage' },
+    ],
+  },
+  {
     id: '2026-11-10',
     title: 'New on the farm tracker',
     items: [
@@ -26,10 +34,15 @@ export const WHATS_NEW: NewsEntry[] = [
   },
 ];
 
-/** The newest entry this person hasn't dismissed, with only the lines that apply to them. */
+/**
+ * The newest entry this person hasn't dismissed that has something for them,
+ * with only the lines that apply to them.
+ */
 export function newsFor(seen: string, has: (cap: Cap) => boolean, entries: NewsEntry[] = WHATS_NEW): NewsEntry | null {
-  const latest = [...entries].sort((a, b) => b.id.localeCompare(a.id))[0];
-  if (!latest || latest.id <= seen) return null;
-  const items = latest.items.filter((i) => !i.cap || has(i.cap));
-  return items.length ? { ...latest, items } : null;
+  for (const e of [...entries].sort((a, b) => b.id.localeCompare(a.id))) {
+    if (e.id <= seen) return null;
+    const items = e.items.filter((i) => !i.cap || has(i.cap));
+    if (items.length) return { ...e, items };
+  }
+  return null;
 }

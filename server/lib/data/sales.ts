@@ -9,7 +9,7 @@
 import 'server-only';
 import { and, desc, eq, gte, lte } from 'drizzle-orm';
 import { db } from '@/db';
-import { animalGroups, landUnits, sales, users, type SaleKind } from '@/db/schema';
+import { animalGroups, landUnits, loans, sales, users, type SaleKind } from '@/db/schema';
 import { uid } from '@/lib/ids';
 import { todayISO } from '@/lib/domain/dates';
 import { can } from '@/lib/domain/permissions';
@@ -18,6 +18,7 @@ import type { SessionUser } from '@/lib/auth/session';
 import { publishChange } from '@/lib/realtime/bus';
 import { logActivity } from './activity';
 import { DataError } from './errors';
+import { announceLoan, assertSaleDeletable, checkLoanTerms, loanRow, saleHasLoan, type LoanTerms } from './loans';
 
 export type SaleRow = typeof sales.$inferSelect & { byName: string | null; groupName: string | null; unitName: string | null };
 
@@ -55,6 +56,8 @@ export function salesTotals(rows: { amount: number; paid: boolean; kind: SaleKin
 export type SaleInput = {
   date?: string; kind: SaleKind; item?: string; qty?: number | null; unit?: string; amount: number;
   buyer?: string; paid?: boolean; groupId?: string | null; landUnitId?: string | null; notes?: string;
+  /** Sold to someone on the farm, paid back in instalments. */
+  loan?: LoanTerms | null;
 };
 
 export async function addSale(user: SessionUser, d: SaleInput): Promise<string> {
@@ -62,13 +65,21 @@ export async function addSale(user: SessionUser, d: SaleInput): Promise<string> 
   if (!(d.amount > 0)) throw new DataError('Enter what it sold for.', 400);
   const date = d.date || todayISO();
   if (date > todayISO()) throw new DataError('That date hasn’t happened yet.', 400);
-  const paid = d.paid !== false;
+  const borrowerName = d.loan ? await checkLoanTerms(user, d.amount, date, d.loan) : null;
+  const paid = d.loan ? false : d.paid !== false;
   const id = uid('sl');
-  await db.insert(sales).values({
+  const sale = db.insert(sales).values({
     id, date, kind: d.kind, item: d.item?.trim() ?? '', qty: d.qty ?? null, unit: d.unit?.trim() ?? '', amount: cents(d.amount),
-    buyer: d.buyer?.trim() ?? '', paid, paidOn: paid ? date : null, groupId: d.groupId || null, landUnitId: d.landUnitId || null,
+    buyer: borrowerName ?? d.buyer?.trim() ?? '', paid, paidOn: paid ? date : null, groupId: d.groupId || null, landUnitId: d.landUnitId || null,
     notes: d.notes?.trim() ?? '', userId: user.id,
   });
+  if (d.loan) {
+    const row = loanRow(user, id, d.amount, d.loan);
+    await db.batch([sale, db.insert(loans).values(row)]);
+    await announceLoan(user, d.loan.borrowerId, d.item?.trim() || d.kind, cents(d.amount), row.id);
+  } else {
+    await sale;
+  }
   await logActivity(user.id, `recorded a sale: ${d.item?.trim() || d.kind}`, { audience: 'finance.view', href: '/more/sales' });
   publishChange('sales');
   return id;
@@ -83,6 +94,7 @@ async function mine(user: SessionUser, id: string) {
 
 export async function setSalePaid(user: SessionUser, id: string, paid: boolean): Promise<void> {
   await mine(user, id);
+  if (await saleHasLoan(id)) throw new DataError('This sale is paid off through its loan: record payments on the loan.', 409);
   await db.update(sales).set({ paid, paidOn: paid ? todayISO() : null }).where(eq(sales.id, id));
   publishChange('sales');
 }
@@ -90,6 +102,7 @@ export async function setSalePaid(user: SessionUser, id: string, paid: boolean):
 export async function deleteSale(user: SessionUser, id: string): Promise<void> {
   const s = await mine(user, id);
   if (s.animalEventId) throw new DataError('This came from an animal sale — remove that entry on the animals’ page instead.', 409);
+  await assertSaleDeletable(id);
   await db.delete(sales).where(eq(sales.id, id));
   publishChange('sales');
 }

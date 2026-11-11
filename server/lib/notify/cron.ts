@@ -17,6 +17,7 @@ import { runLeaseJobs } from './lease-jobs';
 import { runWeatherAlerts } from './weather-alerts';
 import { runRenewalReminders } from './renewals';
 import { runBirthHooks } from './webhooks';
+import { runLoanReminders } from './loan-reminders';
 import { getWeather, refreshForecast } from '@/lib/data/weather';
 
 const g = globalThis as unknown as { __fptCronStarted?: boolean };
@@ -75,6 +76,12 @@ export function startCron(): void {
     runRenewalReminders()
       .then((r) => r.sent && console.log(`[cron] renewal reminders: ${r.sent}`))
       .catch((e) => console.error('[cron] renewal reminders failed', e));
+  });
+  // Loan instalments coming up, due or late: 07:40.
+  cron.schedule('40 7 * * *', () => {
+    runLoanReminders()
+      .then((r) => r.sent && console.log(`[cron] loan reminders: ${r.sent}`))
+      .catch((e) => console.error('[cron] loan reminders failed', e));
   });
   // Births and hatches close at hand, for anything listening on a webhook: 07:30.
   cron.schedule('30 7 * * *', () => {

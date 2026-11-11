@@ -1082,3 +1082,46 @@ export const webhooks = sqliteTable('webhooks', {
   lastAt: integer('last_at'),
   createdAt: integer('created_at').notNull().default(now),
 });
+
+/* ---------------- loans (sales paid back over time) ---------------- */
+
+export type LoanEvery = 'week' | 'month';
+export type LoanStatus = 'active' | 'paid';
+
+/**
+ * A sale to someone on the farm, paid back in set instalments with no
+ * interest. The sale stays "owed" until the loan is paid off.
+ */
+export const loans = sqliteTable('loans', {
+  id: text('id').primaryKey(),
+  saleId: text('sale_id').notNull().unique().references(() => sales.id, { onDelete: 'cascade' }),
+  borrowerId: text('borrower_id').references(() => users.id, { onDelete: 'set null' }),
+  principal: real('principal').notNull(),
+  instalment: real('instalment').notNull(),
+  every: text('every').$type<LoanEvery>().notNull(),
+  firstDue: text('first_due').notNull(),
+  status: text('status').$type<LoanStatus>().notNull().default('active'),
+  paidOffOn: text('paid_off_on'),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at').notNull().default(now),
+}, (t) => ({
+  borrowerIdx: index('loans_borrower_idx').on(t.borrowerId, t.status),
+}));
+
+export type LoanPaymentStatus = 'pending' | 'confirmed';
+
+/** Money paid toward a loan. The borrower marks it; someone who handles money confirms it. */
+export const loanPayments = sqliteTable('loan_payments', {
+  id: text('id').primaryKey(),
+  loanId: text('loan_id').notNull().references(() => loans.id, { onDelete: 'cascade' }),
+  date: text('date').notNull(),
+  amount: real('amount').notNull(),
+  status: text('status').$type<LoanPaymentStatus>().notNull().default('pending'),
+  note: text('note').notNull().default(''),
+  markedBy: text('marked_by').references(() => users.id, { onDelete: 'set null' }),
+  confirmedBy: text('confirmed_by').references(() => users.id, { onDelete: 'set null' }),
+  confirmedAt: integer('confirmed_at'),
+  createdAt: integer('created_at').notNull().default(now),
+}, (t) => ({
+  loanIdx: index('loan_payments_loan_idx').on(t.loanId, t.status),
+}));

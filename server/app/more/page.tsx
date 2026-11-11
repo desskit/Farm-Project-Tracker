@@ -1,10 +1,11 @@
-import { Activity, BarChart3, Bell, BookOpen, Building2, CalendarDays, CircleDollarSign, CloudSun, Database, FileSpreadsheet, KeyRound, LockKeyhole, Megaphone, MessageSquareWarning, Package, Phone, Receipt, Scale, Search, ShieldCheck, Timer, Tractor, Trophy, UserCog, Users, Wallet, Webhook } from 'lucide-react';
+import { Activity, BarChart3, Bell, BookOpen, Building2, CalendarDays, CircleDollarSign, CloudSun, Database, FileSpreadsheet, KeyRound, LockKeyhole, Megaphone, MessageSquareWarning, Package, Phone, Receipt, Scale, Search, ShieldCheck, Timer, Tractor, Trophy, UserCog, Users, Wallet, Webhook, HandCoins } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { getSessionUser } from '@/lib/auth/session';
 import { lowStockItems } from '@/lib/data/inventory';
 import { LogoutButton } from '@/app/_components/logout-button';
 import { can, ROLE_LABEL } from '@/lib/domain/permissions';
 import { datasetsFor } from '@/lib/data/csv';
+import { hasLoans } from '@/lib/data/loans';
 import { Card, ListRow, PageHeader, StatusPill } from '@/components/ui';
 import s from './more.module.css';
 
@@ -43,6 +44,7 @@ export default async function MorePage() {
   if (can(user, 'requests.create') || can(user, 'requests.manage'))
     money.push({ href: '/requests', icon: <MessageSquareWarning />, label: 'Requests', sub: can(user, 'requests.manage') ? 'Things to fix' : 'Report a problem' });
   if (can(user, 'sales.log') || seesMoney) money.push({ href: '/more/sales', icon: <CircleDollarSign />, label: 'Sales', sub: seesMoney ? 'What the farm sold, and who owes' : 'Record what you sell' });
+  if (onFarm && (await hasLoans(user))) money.push({ href: '/more/loans', icon: <HandCoins />, label: 'Loans', sub: seesMoney ? 'Sales paid back over time' : 'What you owe, and payments' });
   if (seesMoney) money.push({ href: '/more/spend', icon: <Receipt />, label: 'Spending', sub: 'Farm costs' });
   if (seesMoney) money.push({ href: '/more/profit', icon: <Scale />, label: 'Profit', sub: 'Money in and costs, by herd, garden and rentals' });
 

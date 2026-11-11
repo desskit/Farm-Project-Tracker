@@ -4,6 +4,7 @@
  * gated by the capability that lets someone act on it.
  */
 import 'server-only';
+import { loanPaymentsToConfirm } from './loans';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { projectTasks, projects, rentCharges } from '@/db/schema';
@@ -44,6 +45,7 @@ export type FarmCards = {
   upkeepDue?: number;
   lowStock?: number;
   rentToVerify?: number;
+  loansToConfirm?: number;
   openRequests?: number;
   leasesToActOn?: number;
   team?: boolean;
@@ -61,6 +63,8 @@ export async function farmCards(viewer: SessionUser): Promise<FarmCards | null> 
   if (can(viewer, 'finance.manage')) {
     const charges = await db.select({ status: rentCharges.status }).from(rentCharges).where(eq(rentCharges.month, currentMonthKey()));
     cards.rentToVerify = charges.filter((c) => c.status === 'marked').length;
+    const loanPays = await loanPaymentsToConfirm();
+    if (loanPays) cards.loansToConfirm = loanPays;
   }
   if (can(viewer, 'requests.manage')) cards.openRequests = await openRequestCount();
   if (can(viewer, 'rentals.manage')) cards.leasesToActOn = (await listRentalUnits()).filter((u) => u.active && u.stage).length;

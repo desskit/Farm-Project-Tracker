@@ -17,9 +17,10 @@ import { upkeepWithStatus } from './upkeep-status';
 import { livestockAlerts } from './livestock';
 import { landAlerts } from './land';
 import { leaseIdsFor } from './rentals';
+import { listLoans } from './loans';
 import { todayISO } from '@/lib/domain/dates';
 
-export type CalendarKind = 'chore' | 'maintenance' | 'task' | 'rent' | 'animals' | 'land' | 'papers';
+export type CalendarKind = 'chore' | 'maintenance' | 'task' | 'rent' | 'loan' | 'animals' | 'land' | 'papers';
 export type CalendarItem = { date: string; kind: CalendarKind; id: string; title: string; href: string };
 
 export async function calendarItems(viewer: SessionUser, fromISO: string, toISO: string): Promise<CalendarItem[]> {
@@ -92,6 +93,16 @@ export async function calendarItems(viewer: SessionUser, fromISO: string, toISO:
       const what = c.kind === 'rent' ? 'rent' : c.label || 'charge';
       const title = mine ? `Your ${what}` : `${what.charAt(0).toUpperCase()}${what.slice(1)} · ${nameById.get(c.userId) ?? 'someone'}`;
       out.push({ date: c.dueDate, kind: 'rent', id: c.id, title, href: '/more/rent' });
+    }
+  }
+
+  // Loan instalments still to pay: your own, or everyone's for people who see the farm's money.
+  for (const l of await listLoans(viewer)) {
+    if (l.status !== 'active') continue;
+    const mine = l.borrowerId === viewer.id;
+    for (const i of l.state.schedule) {
+      if (i.state === 'paid' || !within(i.date)) continue;
+      out.push({ date: i.date, kind: 'loan', id: `${l.id}-${i.n}`, title: mine ? `Your loan payment · ${l.item}` : `Loan payment · ${l.borrowerName}`, href: `/more/loans/${l.id}` });
     }
   }
 

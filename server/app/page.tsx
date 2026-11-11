@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AlertTriangle, Baby, Building2, Egg, Hand, ShieldAlert, Sprout, Wheat, MessageSquareWarning, Package, Users, Wallet, Wrench } from 'lucide-react';
+import { AlertTriangle, Baby, HandCoins, Building2, Egg, Hand, ShieldAlert, Sprout, Wheat, MessageSquareWarning, Package, Users, Wallet, Wrench } from 'lucide-react';
 import { getSessionUser } from '@/lib/auth/session';
 import { getDashboard, type DashboardItem } from '@/lib/data/dashboard';
 import { farmCards, upForGrabs } from '@/lib/data/today';
@@ -13,6 +13,7 @@ import { ClaimButton } from '@/components/patterns/work-buttons';
 import { WeatherWidget } from './_components/weather-widget';
 import { Notices } from './_components/notices';
 import { WhatsNew } from './_components/whats-new';
+import { MyLoans } from './_components/my-loans';
 import { PortalHome } from './_components/portal-home';
 import s from './today.module.css';
 
@@ -70,6 +71,7 @@ export default async function TodayPage({ searchParams }: { searchParams: { scop
       {!everything && <WhatsNew user={user} />}
 
       {cards && <FarmToday cards={cards} />}
+      {!everything && <MyLoans user={user} />}
       {animals && <AnimalsToday a={animals} />}
       {land && <LandToday l={land} />}
 
@@ -175,6 +177,7 @@ function FarmToday({ cards }: { cards: NonNullable<Awaited<ReturnType<typeof far
     tiles.push({ href: '/more/supplies', icon: <Package />, label: 'Supplies low', value: cards.lowStock, tone: cards.lowStock ? 'today' : undefined });
   if (cards.rentToVerify !== undefined)
     tiles.push({ href: '/more/rent', icon: <Wallet />, label: 'Rent to confirm', value: cards.rentToVerify, tone: cards.rentToVerify ? 'today' : undefined });
+  if (cards.loansToConfirm) tiles.push({ href: '/more/loans', icon: <HandCoins />, label: 'Loan payments to confirm', value: cards.loansToConfirm, tone: 'today' });
   if (cards.openRequests !== undefined)
     tiles.push({ href: '/requests', icon: <MessageSquareWarning />, label: 'Open requests', value: cards.openRequests, tone: cards.openRequests ? 'today' : undefined });
   if (cards.leasesToActOn) tiles.push({ href: '/more/rentals', icon: <Building2 />, label: 'Leases ending', value: cards.leasesToActOn, tone: 'today' });

@@ -4,6 +4,7 @@ import { requireCap } from '@/lib/auth/session';
 import { errorResponse } from '@/lib/api/errors';
 import { addSale } from '@/lib/data/sales';
 import { idempotencyKey, withIdempotency } from '@/lib/api/idempotency';
+import { loanTermsSchema } from '@/lib/api/loan-schemas';
 
 const schema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -17,6 +18,7 @@ const schema = z.object({
   groupId: z.string().max(64).nullable().optional(),
   landUnitId: z.string().max(64).nullable().optional(),
   notes: z.string().max(500).optional(),
+  loan: loanTermsSchema.nullable().optional(),
 });
 
 /** Record a sale. Replay-safe, so one logged at the farm stand with no signal isn't counted twice. */
