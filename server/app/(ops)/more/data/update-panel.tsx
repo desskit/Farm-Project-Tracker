@@ -7,6 +7,13 @@ import s from './update-panel.module.css';
 
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : '—');
 
+/** "4 min ago", "3 h ago": how fresh the server's last check-in is. */
+function ago(iso: string | null): string {
+  if (!iso) return '';
+  const min = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000));
+  return min < 1 ? 'just now' : min < 60 ? `${min} min ago` : min < 48 * 60 ? `${Math.round(min / 60)} h ago` : `${Math.round(min / 1440)} days ago`;
+}
+
 /**
  * Admin "Update now". The request goes to the host (see lib/deploy/control.ts);
  * the host picks it up within a minute, runs the normal update and restarts
@@ -37,6 +44,15 @@ export function UpdatePanel({ initial }: { initial: DeployStatus }) {
     }
   }, []);
 
+  // A tab left open for hours would otherwise show what the server said when it
+  // was opened. Check again on arrival and whenever the tab comes back.
+  useEffect(() => {
+    poll();
+    const onShow = () => { if (document.visibilityState === 'visible') poll(); };
+    document.addEventListener('visibilitychange', onShow);
+    return () => document.removeEventListener('visibilitychange', onShow);
+  }, [poll]);
+
   useEffect(() => {
     if (!inFlight && !unreachable) return;
     const t = setInterval(poll, 5000);
@@ -48,7 +64,9 @@ export function UpdatePanel({ initial }: { initial: DeployStatus }) {
     setBusy(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/update', { method: 'POST' });
+      const res = await fetch('/api/admin/update', { method: 'POST' }).catch(() => {
+        throw new Error('Couldn’t reach the server, so the update wasn’t started. Check your connection, then try again.');
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not start the update.');
       startVersion.current = data.current;
@@ -57,7 +75,24 @@ export function UpdatePanel({ initial }: { initial: DeployStatus }) {
       setError(e instanceof Error ? e.message : 'Could not start the update.');
     } finally {
       setBusy(false);
+      poll();
     }
+  }
+
+  if (!status.available && status.checkedAt) {
+    return (
+      <Card title="Server updates" action={<StatusPill tone="overdue">Not responding</StatusPill>} className={s.panel}>
+        <Banner tone="warn" title="The update helper on the server has stopped">
+          It last checked in {when(status.checkedAt)} ({ago(status.checkedAt)}), so the <strong>Update now</strong> button can’t
+          work, and the 3 a.m. update may not be running either. The app itself is fine; it’s still on <code>{status.current ?? 'the last version'}</code>.
+        </Banner>
+        <p className={s.muted}>
+          The usual causes are the server restarting without its scheduled jobs, or its disk filling up. On the server,
+          <code>crontab -l</code> should list <code>deploy-watch.sh</code> and <code>auto-update.sh</code>, and <code>df -h /</code> should
+          show free space. Running <code>server/scripts/deploy-watch.sh</code> by hand brings this page back within a minute.
+        </p>
+      </Card>
+    );
   }
 
   if (!status.available) {
@@ -91,7 +126,7 @@ export function UpdatePanel({ initial }: { initial: DeployStatus }) {
           {status.state === 'failed' && ' — failed, previous version kept'}
         </dd>
         <dt>Checked</dt>
-        <dd>{when(status.checkedAt)}</dd>
+        <dd>{when(status.checkedAt)}{status.checkedAt ? ` (${ago(status.checkedAt)})` : ''}</dd>
       </dl>
 
       {unreachable && inFlight && (
