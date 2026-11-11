@@ -121,7 +121,7 @@ function AnimalsToday({ a }: { a: Awaited<ReturnType<typeof livestockAlerts>> })
         <ListRow key={b.id} href={`/farm/animals/${b.groupId}`} lead={<Baby />} title={`${b.dam ?? b.groupName} due ${relativeLabel(b.dueOn)}`} meta={`Around ${fmtDate(b.dueOn)} · ${b.groupName}`} />
       ))}
       {a.hatches.filter((h) => h.date <= soon).map((h) => (
-        <ListRow key={h.id} href="/farm/animals" lead={<Egg />} title={h.label} meta={h.date === todayISO() ? 'Today' : fmtDate(h.date)} />
+        <ListRow key={h.id} href="/farm/animals" lead={<Egg />} wrap title={h.label} meta={h.date === todayISO() ? 'Today' : fmtDate(h.date)} />
       ))}
       {a.withdrawals.map((w) => (
         <ListRow

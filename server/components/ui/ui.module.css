@@ -54,13 +54,15 @@
   background: var(--c-surface); color: var(--c-text);
   border: 1px solid var(--c-border); border-radius: var(--r-lg);
   box-shadow: var(--shadow-1);
+  /* Never let wide content (a scrolling strip, a table) widen the page. */
+  min-width: 0;
 }
 .pad { padding: var(--space-4); }
 .cardHead {
   display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
-  padding: var(--space-3) var(--space-4) 0;
+  flex-wrap: wrap; padding: var(--space-3) var(--space-4) 0;
 }
-.cardTitle { margin: 0; font-size: var(--text-md); font-weight: 700; }
+.cardTitle { margin: 0; font-size: var(--text-md); font-weight: 700; min-width: 0; }
 .cardBody { padding: var(--space-3) var(--space-4) var(--space-4); }
 .cardFlush { padding: var(--space-2) 0; }
 
@@ -81,6 +83,7 @@ button.row { width: 100%; background: none; border: 0; font: inherit; text-align
 .rowLead svg { width: 20px; height: 20px; }
 .rowMain { flex: 1; min-width: 0; }
 .rowTitle { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rowTitleWrap { white-space: normal; overflow-wrap: anywhere; }
 .rowMeta { display: block; color: var(--c-text-muted); font-size: var(--text-sm); margin-top: 2px; }
 .rowTrail { flex: none; display: flex; align-items: center; gap: var(--space-2); color: var(--c-text-muted); }
 .rowTrail > svg { width: 18px; height: 18px; }

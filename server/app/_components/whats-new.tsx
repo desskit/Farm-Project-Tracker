@@ -12,13 +12,13 @@ export async function WhatsNew({ user }: { user: SessionUser }) {
       {setup && (
         <Card title={`Getting set up (${setup.filter((x) => x.done).length} of ${setup.length})`} action={<DismissButton url="/api/admin/setup-dismiss" label="Hide this" />} flush>
           {setup.map((x) => (
-            <ListRow key={x.key} href={x.done ? undefined : x.href} lead={x.done ? <CheckCircle2 /> : <Circle />} title={x.label} meta={x.done ? 'Done' : x.hint} />
+            <ListRow key={x.key} href={x.done ? undefined : x.href} lead={x.done ? <CheckCircle2 /> : <Circle />} wrap title={x.label} meta={x.done ? 'Done' : x.hint} />
           ))}
         </Card>
       )}
       {news && (
         <Card title={news.title} action={<DismissButton url="/api/account/news-seen" label="Got it" />} flush>
-          {news.items.map((i) => <ListRow key={i.text} href={i.href} lead={<Sparkles />} title={i.text} />)}
+          {news.items.map((i) => <ListRow key={i.text} href={i.href} lead={<Sparkles />} wrap title={i.text} />)}
         </Card>
       )}
     </>

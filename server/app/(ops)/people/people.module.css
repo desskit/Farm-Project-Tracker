@@ -1,4 +1,4 @@
-.wrap { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--gutter) calc(var(--nav-h) + var(--space-8)); display: grid; gap: var(--space-4); }
+.wrap { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--gutter) calc(var(--nav-h) + var(--space-8)); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
 .list { display: grid; gap: var(--space-3); }
 .whoLink { display: inline-flex; align-items: center; gap: 6px; min-height: var(--tap); color: var(--c-primary); font-weight: 600; font-size: var(--text-sm); text-decoration: none; }
 .whoLink svg { width: 16px; height: 16px; }

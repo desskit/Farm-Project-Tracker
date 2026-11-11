@@ -82,9 +82,11 @@ export function Card({
 
 /* ---------- ListRow ---------- */
 export function ListRow({
-  title, meta, lead, trail, href, onClick, chevron = !!href,
+  title, meta, lead, trail, href, onClick, chevron = !!href, wrap,
 }: {
   title: ReactNode;
+  /** Let a long title run onto more lines instead of being cut off with "…". */
+  wrap?: boolean;
   meta?: ReactNode;
   lead?: ReactNode;
   trail?: ReactNode;
@@ -96,7 +98,7 @@ export function ListRow({
     <>
       {lead && <span className={s.rowLead}>{lead}</span>}
       <span className={s.rowMain}>
-        <span className={s.rowTitle}>{title}</span>
+        <span className={cx(s.rowTitle, wrap && s.rowTitleWrap)}>{title}</span>
         {meta && <span className={s.rowMeta}>{meta}</span>}
       </span>
       {(trail || chevron) && (

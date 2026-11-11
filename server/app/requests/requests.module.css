@@ -1,4 +1,4 @@
-.wrap { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--gutter) calc(var(--nav-h) + var(--space-8)); display: grid; gap: var(--space-4); }
+.wrap { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--gutter) calc(var(--nav-h) + var(--space-8)); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
 .meta { color: var(--c-text-muted); font-size: var(--text-sm); }
 .details { white-space: pre-wrap; margin: 0; }
 .photo { max-width: 100%; border-radius: var(--r-md); border: 1px solid var(--c-border); }

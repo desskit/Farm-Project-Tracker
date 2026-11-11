@@ -1,4 +1,4 @@
-.wrap { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--gutter) calc(var(--nav-h) + var(--space-8)); display: grid; gap: var(--space-4); }
+.wrap { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--gutter) calc(var(--nav-h) + var(--space-8)); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
 .who { display: flex; align-items: center; gap: var(--space-3); }
 .avatar { display: grid; place-items: center; width: 48px; height: 48px; flex: none; border-radius: 50%; background: var(--c-primary); color: var(--c-on-primary); font-weight: 800; font-size: var(--text-xl); text-transform: uppercase; }
 .whoMain { flex: 1; min-width: 0; display: grid; }

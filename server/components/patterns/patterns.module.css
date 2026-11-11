@@ -30,7 +30,7 @@
 .dropzone svg { width: 18px; height: 18px; }
 .dropzone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .docFields { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3); }
-.screen { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--gutter) calc(var(--nav-h) + var(--space-8)); display: grid; gap: var(--space-4); align-content: start; }
+.screen { max-width: var(--content-max); margin: 0 auto; padding: 0 var(--gutter) calc(var(--nav-h) + var(--space-8)); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-content: start; }
 .screenWide { max-width: 1040px; }
 .backLink { display: grid; place-items: center; width: var(--tap); height: var(--tap); color: var(--c-text); }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3); }

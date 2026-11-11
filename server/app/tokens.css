@@ -209,3 +209,8 @@
   --text-xl: 25px;
   --text-2xl: 32px;
 }
+
+/* Narrow screens (folding phones' cover screens, small phones): a little more room for content. */
+@media (max-width: 380px) {
+  :root { --gutter: 12px; }
+}
