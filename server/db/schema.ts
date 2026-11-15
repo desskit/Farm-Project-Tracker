@@ -538,11 +538,9 @@ export const requestComments = sqliteTable('request_comments', {
 
 /* ---------------- password & code vault ---------------- */
 /**
- * Who can see an entry, chosen by its owner:
- *  private  – only the owner (admins can't open it either);
- *  groups   – the owner and members of the chosen vault groups;
- *  farm     – everyone with farm access;
- *  everyone – everyone who can sign in, renters included (e.g. the gate code).
+ * Before per-entry share lists (vault_shares), an entry had one of these.
+ * Kept only as a rough summary column: 'private' when shared with nobody,
+ * 'groups' otherwise. Who can see an entry now comes from vault_shares.
  */
 export type VaultVisibility = 'private' | 'groups' | 'farm' | 'everyone';
 
@@ -583,12 +581,36 @@ export const vaultEntries = sqliteTable('vault_entries', {
   ownerIdx: index('vault_entries_owner_idx').on(t.ownerId),
 }));
 
+/** Legacy (before vault_shares): the groups an entry was shared with. Copied into vault_shares by migration 0029; no longer read. */
 export const vaultEntryGroups = sqliteTable('vault_entry_groups', {
   entryId: text('entry_id').notNull().references(() => vaultEntries.id, { onDelete: 'cascade' }),
   groupId: text('group_id').notNull().references(() => vaultGroups.id, { onDelete: 'cascade' }),
 }, (t) => ({
   pk: primaryKey({ columns: [t.entryId, t.groupId] }),
   groupIdx: index('vault_entry_groups_group_idx').on(t.groupId),
+}));
+
+export type VaultShareType = 'user' | 'group' | 'role' | 'farm' | 'everyone';
+
+/**
+ * Who an entry is shared with, one line each, chosen by its owner: a person,
+ * a group, everyone with a role, everyone on the farm, or everyone (renters
+ * too). Each line can let them edit, and can stop after a date. Shared with
+ * nobody means private: not even admins can open it.
+ */
+export const vaultShares = sqliteTable('vault_shares', {
+  id: text('id').primaryKey(),
+  entryId: text('entry_id').notNull().references(() => vaultEntries.id, { onDelete: 'cascade' }),
+  targetType: text('target_type').$type<VaultShareType>().notNull(),
+  /** User id, group id or role; empty for farm / everyone. */
+  targetId: text('target_id').notNull().default(''),
+  canEdit: integer('can_edit', { mode: 'boolean' }).notNull().default(false),
+  /** Last day the share works ('YYYY-MM-DD'); null = no end. */
+  expiresOn: text('expires_on'),
+  createdAt: integer('created_at').notNull().default(now),
+}, (t) => ({
+  entryIdx: index('vault_shares_entry_idx').on(t.entryId),
+  targetIdx: index('vault_shares_target_idx').on(t.targetType, t.targetId),
 }));
 
 /** Every time a secret is shown, copied or changed — who, what, when. */

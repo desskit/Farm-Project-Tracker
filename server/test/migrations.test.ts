@@ -127,3 +127,27 @@ describe('0020 dropping the old single-assignee columns', () => {
     expect((await c.execute('SELECT count(*) AS n FROM chore_completions')).rows[0].n).toBe(1);
   });
 });
+
+describe('0029 vault share lists', () => {
+  it('turns each entry’s old setting into the same share lines', async () => {
+    await migrate(drizzle(c), { migrationsFolder: migrationsBefore('0029') });
+    await c.executeMultiple(`
+      INSERT INTO users (id, name, email, role) VALUES ('u1', 'Owner', 'o@x', 'admin');
+      INSERT INTO vault_groups (id, name) VALUES ('g1', 'Shop'), ('g2', 'Family');
+      INSERT INTO vault_entries (id, owner_id, title, secret_enc, visibility) VALUES
+        ('e-priv', 'u1', 'Private', 'x', 'private'),
+        ('e-grp', 'u1', 'Groups', 'x', 'groups'),
+        ('e-farm', 'u1', 'Farm', 'x', 'farm'),
+        ('e-all', 'u1', 'Everyone', 'x', 'everyone');
+      INSERT INTO vault_entry_groups (entry_id, group_id) VALUES ('e-grp', 'g1'), ('e-grp', 'g2');
+    `);
+    await migrate(drizzle(c), { migrationsFolder: MIGRATIONS });
+    const rows = (await c.execute('SELECT entry_id, target_type, target_id, can_edit, expires_on FROM vault_shares ORDER BY entry_id, target_id')).rows;
+    expect(rows.map((r) => [r.entry_id, r.target_type, r.target_id, Number(r.can_edit), r.expires_on])).toEqual([
+      ['e-all', 'everyone', '', 0, null],
+      ['e-farm', 'farm', '', 0, null],
+      ['e-grp', 'group', 'g1', 0, null],
+      ['e-grp', 'group', 'g2', 0, null],
+    ]);
+  });
+});

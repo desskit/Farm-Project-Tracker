@@ -10,6 +10,14 @@ export type NewsEntry = { id: string; title: string; items: NewsItem[] };
 
 export const WHATS_NEW: NewsEntry[] = [
   {
+    id: '2026-11-15',
+    title: 'New: finer password sharing',
+    items: [
+      { text: 'Share a password with specific people, a group, a role or everyone, and let some of them edit it.', href: '/vault', cap: 'vault.create' },
+      { text: 'Give a share an end date, e.g. a gate code for a contractor this week; it hides itself after.', href: '/vault', cap: 'vault.create' },
+    ],
+  },
+  {
     id: '2026-11-11',
     title: 'New: loans',
     items: [

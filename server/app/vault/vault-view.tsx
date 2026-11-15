@@ -1,21 +1,17 @@
 'use client';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Copy, Eye, EyeOff, History, KeyRound, Lock, Pencil, Plus, Search, Trash2, Wand2 } from 'lucide-react';
+import { Copy, Eye, EyeOff, History, KeyRound, Lock, Pencil, Plus, Search, Trash2, Wand2, X } from 'lucide-react';
 import type { VaultEntryView } from '@/lib/data/vault';
-import type { VaultVisibility } from '@/db/schema';
-import { Banner, Button, Card, Dialog, EmptyState, Field, IconButton, Input, Segmented, Stack, StatusPill, Textarea } from '@/components/ui';
+import { canGrantEdit, type ShareType } from '@/lib/domain/vault-sharing';
+import { fmtDate } from '@/lib/domain/dates';
+import { Banner, Button, Card, Dialog, EmptyState, Field, IconButton, Input, Select, Stack, StatusPill, Textarea } from '@/components/ui';
 import { useDialogs } from '@/components/ui/dialogs';
 import s from './vault.module.css';
 
-type Group = { id: string; name: string };
-
-const VIS_LABEL: Record<VaultVisibility, string> = {
-  private: 'Only me',
-  groups: 'Groups',
-  farm: 'Everyone on the farm',
-  everyone: 'Everyone, renters too',
-};
+type Opt = { id: string; name: string };
+/** Who an entry can be shared with: offered in the "Add" picker. */
+export type ShareTargets = { people: Opt[]; groups: Opt[]; roles: Opt[]; onFarm: boolean };
 
 async function reveal(id: string): Promise<{ secret: string; notes: string }> {
   const res = await fetch(`/api/vault/${id}/reveal`, { method: 'POST' });
@@ -34,18 +30,16 @@ async function copy(text: string): Promise<boolean> {
 }
 
 export function VaultView({
-  entries, groups, shareGroups, canCreate, isAdmin, onFarm,
+  entries, targets, canCreate, isAdmin, today,
 }: {
   entries: VaultEntryView[];
-  groups: Group[];
-  shareGroups: Group[];
+  targets: ShareTargets;
   canCreate: boolean;
   isAdmin: boolean;
-  onFarm: boolean;
+  today: string;
 }) {
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<VaultEntryView | 'new' | null>(null);
-  const groupName = new Map(groups.map((g) => [g.id, g.name]));
   const shown = useMemo(() => {
     const n = q.trim().toLowerCase();
     return n ? entries.filter((e) => `${e.title} ${e.url} ${e.username}`.toLowerCase().includes(n)) : entries;
@@ -68,25 +62,19 @@ export function VaultView({
           </EmptyState>
         ) : (
           shown.map((e) => (
-            <EntryRow
-              key={e.id}
-              e={e}
-              who={e.visibility === 'groups' ? e.groupIds.map((g) => groupName.get(g) ?? 'a group').join(', ') || 'No group' : VIS_LABEL[e.visibility]}
-              canDelete={e.mine || isAdmin}
-              onEdit={() => setEditing(e)}
-            />
+            <EntryRow key={e.id} e={e} canDelete={e.mine || isAdmin} onEdit={() => setEditing(e)} />
           ))
         )}
       </Card>
 
       <Dialog sheet open={editing !== null} onClose={() => setEditing(null)} title={editing === 'new' ? 'Add a password or code' : 'Edit'}>
-        {editing && <EntryForm entry={editing === 'new' ? null : editing} groups={shareGroups} onFarm={onFarm} onDone={() => setEditing(null)} />}
+        {editing && <EntryForm entry={editing === 'new' ? null : editing} targets={targets} today={today} onDone={() => setEditing(null)} />}
       </Dialog>
     </Stack>
   );
 }
 
-function EntryRow({ e, who, canDelete, onEdit }: { e: VaultEntryView; who: string; canDelete: boolean; onEdit: () => void }) {
+function EntryRow({ e, canDelete, onEdit }: { e: VaultEntryView; canDelete: boolean; onEdit: () => void }) {
   const { confirm: askConfirm } = useDialogs();
   const router = useRouter();
   const [shownSecret, setShownSecret] = useState<{ secret: string; notes: string } | null>(null);
@@ -148,8 +136,14 @@ function EntryRow({ e, who, canDelete, onEdit }: { e: VaultEntryView; who: strin
             <a href={/^https?:\/\//.test(e.url) ? e.url : `https://${e.url}`} target="_blank" rel="noopener noreferrer" className={s.url}>{e.url}</a>
           )}
           <span className={s.meta}>
-            <StatusPill tone={e.visibility === 'private' ? 'neutral' : 'info'}>{who}</StatusPill>
-            {!e.mine && <span>from {e.ownerName}</span>}
+            {e.mine ? (
+              <StatusPill tone={e.summary.startsWith('Only me') ? 'neutral' : 'info'}>{e.summary}</StatusPill>
+            ) : (
+              <>
+                <StatusPill tone={e.access === 'edit' ? 'upcoming' : 'neutral'}>{e.access === 'edit' ? 'You can edit' : 'View only'}</StatusPill>
+                <span>from {e.ownerName}{e.until ? ` · until ${fmtDate(e.until)}` : ''}</span>
+              </>
+            )}
           </span>
         </div>
       </div>
@@ -173,10 +167,10 @@ function EntryRow({ e, who, canDelete, onEdit }: { e: VaultEntryView; who: strin
       {msg && <span className={s.ok} role="status">{msg}</span>}
       {err && <Banner tone="danger">{err}</Banner>}
 
-      {(e.mine || canDelete) && (
+      {(e.mine || canDelete || e.access === 'edit') && (
         <div className={s.tools}>
-          {e.mine && <Button size="sm" variant="ghost" icon={<Pencil />} onClick={onEdit}>Edit</Button>}
-          <Button size="sm" variant="ghost" icon={<History />} onClick={onLog}>{log ? 'Hide history' : 'Who opened it'}</Button>
+          {(e.mine || e.access === 'edit') && <Button size="sm" variant="ghost" icon={<Pencil />} onClick={onEdit}>Edit</Button>}
+          {(e.mine || canDelete) && <Button size="sm" variant="ghost" icon={<History />} onClick={onLog}>{log ? 'Hide history' : 'Who opened it'}</Button>}
           {canDelete && <Button size="sm" variant="ghost" icon={<Trash2 />} onClick={onDelete}>Delete</Button>}
         </div>
       )}
@@ -198,7 +192,10 @@ function generate(len = 20): string {
   return Array.from(bytes, (b) => chars[b % chars.length]).join('');
 }
 
-function EntryForm({ entry, groups, onFarm, onDone }: { entry: VaultEntryView | null; groups: Group[]; onFarm: boolean; onDone: () => void }) {
+type ShareRow = { type: ShareType; target: string; canEdit: boolean; expiresOn: string };
+
+function EntryForm({ entry, targets, today, onDone }: { entry: VaultEntryView | null; targets: ShareTargets; today: string; onDone: () => void }) {
+  const owner = !entry || entry.mine;
   const router = useRouter();
   const [title, setTitle] = useState(entry?.title ?? '');
   const [url, setUrl] = useState(entry?.url ?? '');
@@ -207,8 +204,9 @@ function EntryForm({ entry, groups, onFarm, onDone }: { entry: VaultEntryView | 
   const [showSecret, setShowSecret] = useState(false);
   const [notes, setNotes] = useState('');
   const [notesLoaded, setNotesLoaded] = useState(!entry?.hasNotes);
-  const [visibility, setVisibility] = useState<VaultVisibility>(entry?.visibility ?? 'private');
-  const [groupIds, setGroupIds] = useState<string[]>(entry?.groupIds ?? []);
+  const [shares, setShares] = useState<ShareRow[]>(
+    (entry?.shares ?? []).map((x) => ({ type: x.type, target: x.target, canEdit: x.canEdit, expiresOn: x.expiresOn ?? '' })),
+  );
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -227,7 +225,9 @@ function EntryForm({ entry, groups, onFarm, onDone }: { entry: VaultEntryView | 
     ev.preventDefault();
     setBusy(true);
     setErr(null);
-    const body: Record<string, unknown> = { title, url, username, visibility, groupIds: visibility === 'groups' ? groupIds : [] };
+    const body: Record<string, unknown> = { title, url, username };
+    // Only the owner decides who it's shared with.
+    if (owner) body.shares = shares.map((x) => ({ type: x.type, target: x.target, canEdit: x.canEdit, expiresOn: x.expiresOn || null }));
     if (secret) body.secret = secret;
     if (notesLoaded) body.notes = notes;
     else if (entry) {
@@ -250,13 +250,6 @@ function EntryForm({ entry, groups, onFarm, onDone }: { entry: VaultEntryView | 
     router.refresh();
   }
 
-  const options: { value: VaultVisibility; label: string }[] = [
-    { value: 'private', label: 'Only me' },
-    ...(groups.length ? [{ value: 'groups' as const, label: 'Groups' }] : []),
-    ...(onFarm ? [{ value: 'farm' as const, label: 'Farm' }] : []),
-    { value: 'everyone', label: 'Everyone' },
-  ];
-
   return (
     <form onSubmit={submit}>
       <Stack>
@@ -275,23 +268,85 @@ function EntryForm({ entry, groups, onFarm, onDone }: { entry: VaultEntryView | 
         ) : (
           <div><Button size="sm" variant="ghost" onClick={loadNotes}>Edit notes</Button></div>
         )}
-        <Field label="Who can see it" htmlFor="v-vis" hint={visibility === 'everyone' ? 'Includes renters and guests — good for gate codes.' : visibility === 'private' ? 'Nobody else, not even admins.' : undefined}>
-          <Segmented label="Who can see it" value={visibility} onChange={setVisibility} options={options} />
-        </Field>
-        {visibility === 'groups' && (
-          <fieldset className={s.groups}>
-            <legend className={s.label}>Share with</legend>
-            {groups.map((g) => (
-              <label key={g.id} className={s.groupOpt}>
-                <input type="checkbox" checked={groupIds.includes(g.id)} onChange={(e) => setGroupIds((ids) => (e.target.checked ? [...ids, g.id] : ids.filter((x) => x !== g.id)))} />
-                {g.name}
-              </label>
-            ))}
-          </fieldset>
+        {owner ? (
+          <ShareEditor rows={shares} onChange={setShares} targets={targets} today={today} />
+        ) : (
+          <p className={s.hint}>You can change what’s stored. Only {entry?.ownerName} decides who it’s shared with.</p>
         )}
         {err && <Banner tone="danger">{err}</Banner>}
         <Button type="submit" block loading={busy}>{entry ? 'Save' : 'Add'}</Button>
       </Stack>
     </form>
+  );
+}
+
+const key = (x: { type: ShareType; target: string }) => `${x.type}:${x.target}`;
+
+/**
+ * The owner's share list: who it's shared with, whether each can edit, and
+ * an optional last day. Empty means only the owner (not even admins).
+ */
+function ShareEditor({ rows, onChange, targets, today }: { rows: ShareRow[]; onChange: (r: ShareRow[]) => void; targets: ShareTargets; today: string }) {
+  const label = (x: { type: ShareType; target: string }) => {
+    const find = (list: Opt[]) => list.find((o) => o.id === x.target)?.name;
+    switch (x.type) {
+      case 'user': return find(targets.people) ?? 'Former member';
+      case 'group': return `${find(targets.groups) ?? 'A group'} (group)`;
+      case 'role': return `Everyone who’s ${find(targets.roles) ?? x.target}`;
+      case 'farm': return 'Everyone on the farm';
+      default: return 'Everyone, renters too';
+    }
+  };
+  const taken = new Set(rows.map(key));
+  const set = (i: number, patch: Partial<ShareRow>) => onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  function add(value: string) {
+    if (!value) return;
+    const [type, ...rest] = value.split(':');
+    const row = { type: type as ShareType, target: rest.join(':'), canEdit: false, expiresOn: '' };
+    if (!taken.has(key(row))) onChange([...rows, row]);
+  }
+  const free = (type: ShareType, list: Opt[]) => list.filter((o) => !taken.has(`${type}:${o.id}`));
+
+  return (
+    <fieldset className={s.shares}>
+      <legend className={s.label}>Shared with</legend>
+      {rows.length === 0 && <p className={s.hint}>Only you. Nobody else can open it, not even admins.</p>}
+      {rows.map((r, i) => {
+        const ended = !!r.expiresOn && r.expiresOn < today;
+        return (
+          <div key={key(r)} className={s.shareRow}>
+            <span className={s.shareWho}>
+              {label(r)}
+              {ended && <StatusPill tone="neutral">Ended</StatusPill>}
+            </span>
+            <div className={s.shareCtl}>
+              <Select aria-label={`Access for ${label(r)}`} value={r.canEdit ? 'edit' : 'view'} onChange={(e) => set(i, { canEdit: e.target.value === 'edit' })} disabled={!canGrantEdit(r.type)}>
+                <option value="view">Can view</option>
+                {canGrantEdit(r.type) && <option value="edit">Can edit</option>}
+              </Select>
+              <Input type="date" aria-label={`Last day for ${label(r)} (optional)`} title="Last day (optional)" min={today} value={r.expiresOn} onChange={(e) => set(i, { expiresOn: e.target.value })} />
+              <IconButton label={`Stop sharing with ${label(r)}`} onClick={() => onChange(rows.filter((_, j) => j !== i))}><X /></IconButton>
+            </div>
+          </div>
+        );
+      })}
+      <Select aria-label="Share with…" value="" onChange={(e) => add(e.target.value)}>
+        <option value="">+ Share with…</option>
+        {free('user', targets.people).length > 0 && (
+          <optgroup label="People">{free('user', targets.people).map((p) => <option key={p.id} value={`user:${p.id}`}>{p.name}</option>)}</optgroup>
+        )}
+        {free('group', targets.groups).length > 0 && (
+          <optgroup label="Groups">{free('group', targets.groups).map((g) => <option key={g.id} value={`group:${g.id}`}>{g.name}</option>)}</optgroup>
+        )}
+        {free('role', targets.roles).length > 0 && (
+          <optgroup label="Everyone with a role">{free('role', targets.roles).map((r) => <option key={r.id} value={`role:${r.id}`}>{r.name}</option>)}</optgroup>
+        )}
+        <optgroup label="Everyone">
+          {targets.onFarm && !taken.has('farm:') && <option value="farm:">Everyone on the farm</option>}
+          {!taken.has('everyone:') && <option value="everyone:">Everyone, renters and guests too</option>}
+        </optgroup>
+      </Select>
+      <p className={s.hint}>Leave the date empty for no end. A shared password stops showing for that person the day after the date you pick. Only people, groups and roles can be allowed to edit.</p>
+    </fieldset>
   );
 }

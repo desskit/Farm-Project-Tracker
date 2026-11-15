@@ -6,8 +6,13 @@ export const entrySchema = z.object({
   username: z.string().max(200).optional(),
   secret: z.string().max(2000).optional(),
   notes: z.string().max(4000).optional(),
-  visibility: z.enum(['private', 'groups', 'farm', 'everyone']),
-  groupIds: z.array(z.string().max(64)).max(50).optional(),
+  /** Who it's shared with; empty = only me. Left out on an edit = unchanged. */
+  shares: z.array(z.object({
+    type: z.enum(['user', 'group', 'role', 'farm', 'everyone']),
+    target: z.string().max(64).optional(),
+    canEdit: z.boolean().optional(),
+    expiresOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  })).max(50).optional(),
 });
 
 export const groupSchema = z.object({

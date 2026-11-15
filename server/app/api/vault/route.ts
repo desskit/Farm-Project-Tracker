@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   try {
     const user = await requireCap('vault.create');
     const parsed = entrySchema.safeParse(await req.json().catch(() => null));
-    if (!parsed.success) return NextResponse.json({ error: 'Check the name, password and who can see it.' }, { status: 400 });
+    if (!parsed.success) return NextResponse.json({ error: 'Check the name, password and who it’s shared with.' }, { status: 400 });
     return NextResponse.json({ id: await createEntry(user, parsed.data) });
   } catch (e) {
     return errorResponse(e);

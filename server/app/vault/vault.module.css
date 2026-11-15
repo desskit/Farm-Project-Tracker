@@ -22,7 +22,9 @@
 .log { margin: 0 0 0 52px; padding: 0; list-style: none; display: grid; gap: 4px; font-size: var(--text-xs); color: var(--c-text-muted); }
 .secretRow { display: flex; gap: var(--space-1); align-items: center; }
 .secretRow input { flex: 1; font-family: var(--font-mono); }
-.groups { border: 0; margin: 0; padding: 0; display: grid; gap: var(--space-1); }
-.groupOpt { display: flex; align-items: center; gap: var(--space-3); min-height: var(--tap); cursor: pointer; }
-.groupOpt input { width: 22px; height: 22px; accent-color: var(--c-primary); }
+.shares { border: 0; margin: 0; padding: 0; display: grid; gap: var(--space-2); min-width: 0; }
+.shareRow { display: grid; gap: var(--space-1); padding: var(--space-2) 0; border-top: 1px solid var(--c-border); }
+.shareWho { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-weight: 600; overflow-wrap: anywhere; }
+.shareCtl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--space-2); align-items: center; }
+.hint { margin: 0; color: var(--c-text-muted); font-size: var(--text-sm); }
 @media (max-width: 420px) { .field, .notes, .ok, .log { padding-left: 0; margin-left: 0; } .tools { padding-left: 0; } }
