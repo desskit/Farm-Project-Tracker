@@ -55,7 +55,7 @@ export function TimerControl({
       </button>
       {running && <span className="timer-live">{fmtDur(elapsed)}</span>}
       {totalSec > 0 && (
-        <span className="subtle" style={{ fontSize: 13 }}>
+        <span className="subtle">
           {fmtDur(totalSec)} logged
         </span>
       )}

@@ -16,12 +16,15 @@
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  --text-xs: 12px;
-  --text-sm: 14px;
-  --text-md: 16px;
-  --text-lg: 18px;
-  --text-xl: 22px;
-  --text-2xl: 28px;
+  /* Type sizes are in rem, so the phone's or browser's own text-size setting
+     (Android font size, browser text scaling) makes every word bigger. Never
+     set font sizes in px: test/conventions.test.ts enforces it. */
+  --text-xs: .75rem;
+  --text-sm: .875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -39,7 +42,8 @@
   --r-pill: 999px;
 
   --tap: 44px;          /* minimum touch target */
-  --nav-h: 64px;
+  /* Grows with the label text, so larger text never clips the bottom bar. */
+  --nav-h: calc(46px + 1.125rem);
   --gutter: 16px;
   --content-max: 760px;
 
@@ -200,17 +204,16 @@
   --shadow-lg: var(--shadow-3);
 }
 
-/* Larger text (Account → Appearance): one step up across the scale. */
-[data-text="lg"] {
-  --text-xs: 14px;
-  --text-sm: 16px;
-  --text-md: 18px;
-  --text-lg: 20px;
-  --text-xl: 25px;
-  --text-2xl: 32px;
-}
+/* Larger text (Account → Appearance): everything an eighth bigger, on top of
+   whatever the phone's own text size is set to (a percentage, so it
+   multiplies the phone's setting rather than replacing it). */
+html[data-text="lg"] { font-size: 112.5%; }
 
 /* Narrow screens (folding phones' cover screens, small phones): a little more room for content. */
 @media (max-width: 380px) {
   :root { --gutter: 12px; }
+}
+/* Very narrow: a large "display size" setting or page zoom on a phone. */
+@media (max-width: 300px) {
+  :root { --gutter: 8px; }
 }

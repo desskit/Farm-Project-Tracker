@@ -21,13 +21,13 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
         }}
       >
         <main style={{ maxWidth: 420, textAlign: 'center' }}>
-          <h1 style={{ fontSize: 22, margin: '0 0 8px' }}>Something went wrong</h1>
+          <h1 style={{ fontSize: '1.375rem', margin: '0 0 8px' }}>Something went wrong</h1>
           <p style={{ margin: '0 0 20px', lineHeight: 1.5 }}>
             The app hit an error it couldn&apos;t recover from. Your saved work is safe; try again, and if it keeps
             happening let the farm admin know.
           </p>
           {error.digest && (
-            <p style={{ fontSize: 12, opacity: 0.7, margin: '0 0 20px' }}>Reference: {error.digest}</p>
+            <p style={{ fontSize: '.75rem', opacity: 0.7, margin: '0 0 20px' }}>Reference: {error.digest}</p>
           )}
           <button
             onClick={reset}
@@ -38,7 +38,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
               border: 0,
               background: '#2f5d3a',
               color: '#fff',
-              fontSize: 16,
+              fontSize: '1rem',
               cursor: 'pointer',
             }}
           >
