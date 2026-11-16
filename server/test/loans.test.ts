@@ -75,7 +75,7 @@ describe('loans', () => {
     await expect(markLoanPayment(crew, l.id, { amount: 1 })).rejects.toThrow(/already paid off/);
 
     // Removing a confirmed payment (a mistake) reopens the loan and the sale.
-    await expect(deleteLoanPayment(crew, after.payments[0].id)).rejects.toThrow(/Only someone who handles/);
+    await expect(deleteLoanPayment(crew, after.payments[0].id)).rejects.toThrow(/Only whoever handles/);
     await deleteLoanPayment(admin, after.payments[0].id);
     expect((await loanForViewer(crew, l.id)).status).toBe('active');
     expect((await db.select().from(schema.sales).where(eq(schema.sales.id, saleId)))[0].paid).toBe(false);
@@ -107,5 +107,46 @@ describe('loans', () => {
     const [l] = await listLoans(crew);
     await markLoanPayment(crew, l.id, { amount: 100 });
     expect((await runLoanReminders(due)).sent).toBe(0);
+  });
+});
+
+describe('personal sales', () => {
+  it('are recorded by anyone on the farm, private to seller and buyer, and not the farm’s income', async () => {
+    const { admin, crew, other } = await setup();
+    const { saleForViewer } = await import('@/lib/data/sales');
+    const { profitReport } = await import('@/lib/data/profit');
+    const before = (await profitReport(`${T.slice(0, 4)}-01-01`, T)).income;
+
+    // Crew can't record the farm's sales, but can record their own.
+    await expect(addSale(crew, { kind: 'other', amount: 50 })).rejects.toThrow(/record your own/);
+    const saleId = await addSale(crew, {
+      kind: 'other', category: ' Firearms ', item: 'Bolt-action rifle', serial: 'SN-123', amount: 600, personal: true,
+      loan: { borrowerId: other.id, instalment: 200, every: 'month', firstDue: T },
+    });
+    const [row] = await db.select().from(schema.sales).where(eq(schema.sales.id, saleId));
+    expect(row).toMatchObject({ personal: true, sellerId: crew.id, category: 'Firearms', serial: 'SN-123', buyer: 'Kim', paid: false });
+
+    // Not in the farm's books, and not visible to managers.
+    expect((await profitReport(`${T.slice(0, 4)}-01-01`, T)).income).toBe(before);
+    expect((await listSales(admin)).map((x) => x.id)).not.toContain(saleId);
+    expect((await listSales(crew)).map((x) => x.id)).toContain(saleId);
+    await expect(saleForViewer(admin, saleId)).rejects.toThrow(/No such sale/);
+    expect((await saleForViewer(other, saleId)).sellerName).toBe('Sam'); // the buyer can see the bill of sale
+    expect((await listLoans(admin)).map((l) => l.saleId)).not.toContain(saleId);
+
+    // The seller, not a money manager, confirms payments.
+    const [l] = (await listLoans(other)).filter((x) => x.saleId === saleId);
+    expect(l).toMatchObject({ personal: true, sellerName: 'Sam', item: 'Bolt-action rifle', serial: 'SN-123' });
+    const farmWaiting = await loanPaymentsToConfirm();
+    const p = await markLoanPayment(other, l.id, { amount: 200 });
+    expect(await loanPaymentsToConfirm()).toBe(farmWaiting); // not on the farm's "to confirm" tile
+    await expect(confirmLoanPayment(admin, p)).rejects.toThrow(/No such payment/);
+    await confirmLoanPayment(crew, p);
+    expect((await loanForViewer(other, l.id)).state.paid).toBe(200);
+
+    // A cash payment the seller takes counts at once.
+    await markLoanPayment(crew, l.id, { amount: 400 });
+    expect((await db.select().from(schema.sales).where(eq(schema.sales.id, saleId)))[0].paid).toBe(true);
+    await expect(addSale(crew, { kind: 'other', amount: 10, personal: true, loan: { borrowerId: crew.id, instalment: 5, every: 'week', firstDue: T } })).rejects.toThrow(/yourself/);
   });
 });

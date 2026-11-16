@@ -1023,7 +1023,7 @@ export const contacts = sqliteTable('contacts', {
 
 export type SaleKind = 'eggs' | 'milk' | 'produce' | 'animal' | 'hay' | 'other';
 
-/** Something the farm sold. Optionally tied to the herd or ground it came from, for profit by enterprise. */
+/** Something the farm (or, for personal sales, one of its people) sold. Optionally tied to the herd or ground it came from, for profit by enterprise. */
 export const sales = sqliteTable('sales', {
   id: text('id').primaryKey(),
   date: text('date').notNull(),
@@ -1041,6 +1041,17 @@ export const sales = sqliteTable('sales', {
   animalEventId: text('animal_event_id').references(() => animalEvents.id, { onDelete: 'cascade' }),
   notes: text('notes').notNull().default(''),
   userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  /** Your own words for what it is ("Firearms", "Tools", "Truck"); shown instead of the kind when set. */
+  category: text('category').notNull().default(''),
+  /** Serial number, VIN, tag or other ID, if it has one. */
+  serial: text('serial').notNull().default(''),
+  /**
+   * A personal sale between people on the farm, not the farm's: kept out of
+   * the farm's sales totals, profit and tax pack, and seen only by the seller
+   * and buyer. `sellerId` is who sold it.
+   */
+  personal: integer('personal', { mode: 'boolean' }).notNull().default(false),
+  sellerId: text('seller_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: integer('created_at').notNull().default(now),
 }, (t) => ({
   dateIdx: index('sales_date_idx').on(t.date),

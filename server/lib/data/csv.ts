@@ -66,10 +66,11 @@ export const DATASETS = {
   },
   sales: {
     label: 'Sales', about: 'What was sold, to whom, paid or owed', cap: 'finance.view',
-    query: (f, t) => sql`SELECT s.date AS "Date", s.kind AS "Kind", s.item AS "What", s.qty AS "Amount", s.unit AS "Unit", s.amount AS "Total", s.buyer AS "Buyer",
+    // The farm's sales only: personal sales between people stay private to them.
+    query: (f, t) => sql`SELECT s.date AS "Date", COALESCE(NULLIF(s.category, ''), s.kind) AS "Kind", s.item AS "What", s.serial AS "Serial / ID", s.qty AS "Amount", s.unit AS "Unit", s.amount AS "Total", s.buyer AS "Buyer",
       CASE WHEN s.paid THEN 'paid' ELSE 'owed' END AS "Status", COALESCE(g.name, lu.name, '') AS "From", u.name AS "Recorded by"
       FROM sales s LEFT JOIN animal_groups g ON g.id = s.group_id LEFT JOIN land_units lu ON lu.id = s.land_unit_id LEFT JOIN users u ON u.id = s.user_id
-      WHERE s.date BETWEEN ${f} AND ${t} ORDER BY s.date`,
+      WHERE s.personal = 0 AND s.date BETWEEN ${f} AND ${t} ORDER BY s.date`,
   },
   production: {
     label: 'Eggs, milk & wool', about: 'Daily production by group', cap: 'animals.view',

@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getSessionUser } from '@/lib/auth/session';
-import { loanForViewer } from '@/lib/data/loans';
+import { handlesLoan, loanForViewer } from '@/lib/data/loans';
 import { DataError } from '@/lib/data/errors';
 import { can } from '@/lib/domain/permissions';
 import { EVERY_LABEL } from '@/lib/domain/loans';
@@ -28,7 +28,8 @@ export default async function LoanPage({ params }: { params: { id: string } }) {
     throw e;
   });
   const mine = l.borrowerId === user.id;
-  const manage = can(user, 'finance.manage');
+  // Whoever handles this loan: the seller of a personal sale, or the farm's money managers.
+  const manage = handlesLoan(user, l);
   const waiting = l.pending.reduce((a, p) => a + p.amount, 0);
   const room = Math.round((l.state.balance - waiting) * 100) / 100;
   const st = l.state;
@@ -40,7 +41,12 @@ export default async function LoanPage({ params }: { params: { id: string } }) {
   if (st.next) tiles.push({ label: st.overdue > 0 ? 'Was due' : 'Next payment', value: `${usd(st.overdue > 0 ? st.overdue : st.next.amount)} · ${fmtDate(st.next.date)}`, tone: st.overdue > 0 ? 'bad' : undefined });
 
   return (
-    <Screen title={l.item} subtitle={`${mine ? 'Your loan' : l.borrowerName} · bought ${l.saleDate ? fmtDate(l.saleDate) : ''} · ${usd(l.instalment)} ${EVERY_LABEL[l.every]}`} back="/more/loans">
+    <Screen
+      title={l.item}
+      subtitle={`${mine ? `From ${l.sellerName}` : `${l.borrowerName}${l.personal ? ' · your personal sale' : ''}`} · bought ${l.saleDate ? fmtDate(l.saleDate) : ''} · ${usd(l.instalment)} ${EVERY_LABEL[l.every]}${l.serial ? ` · #${l.serial}` : ''}`}
+      back="/more/loans"
+      actions={<a href={`/more/sales/${l.saleId}/bill`} className={s.fileBtn}>Bill of sale</a>}
+    >
       {l.status === 'paid' && <Banner tone="ok" title="Paid off">{l.paidOffOn ? `Finished ${fmtDate(l.paidOffOn)}.` : 'All paid.'}</Banner>}
       {l.status === 'active' && st.overdue > 0 && (
         <Banner tone="danger" title="Behind">{usd(st.overdue)} was due by {fmtDate(st.next!.date)} ({st.daysLate} day{st.daysLate === 1 ? '' : 's'} ago).</Banner>
@@ -48,7 +54,7 @@ export default async function LoanPage({ params }: { params: { id: string } }) {
       <StatTiles tiles={tiles} />
 
       {l.status === 'active' && (mine || manage) && room > 0 && (
-        <Card title={mine ? 'Made a payment?' : 'Took a payment?'}>
+        <Card title={mine ? 'Made a payment?' : 'Got paid?'}>
           <PayForm loanId={l.id} suggested={Math.min(room, st.overdue > 0 ? st.overdue : st.next?.amount ?? room)} max={room} today={today} manager={manage && !mine} />
         </Card>
       )}

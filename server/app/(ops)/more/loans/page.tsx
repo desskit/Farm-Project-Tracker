@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { HandCoins } from 'lucide-react';
 import { getSessionUser } from '@/lib/auth/session';
-import { listLoans } from '@/lib/data/loans';
+import { handlesLoan, listLoans } from '@/lib/data/loans';
 import { can } from '@/lib/domain/permissions';
 import { fmtDate } from '@/lib/domain/dates';
 import { Card, EmptyState, ListRow } from '@/components/ui';
@@ -22,19 +22,22 @@ export default async function LoansPage() {
   const manage = can(user, 'finance.manage');
   const active = all.filter((l) => l.status === 'active');
   const done = all.filter((l) => l.status === 'paid');
-  const toConfirm = active.flatMap((l) => l.pending.map((p) => ({ p, l })));
+  // Payments waiting on you: farm loans if you handle the farm's money, and your own personal sales.
+  const toConfirm = active.filter((l) => handlesLoan(user, l)).flatMap((l) => l.pending.map((p) => ({ p, l })));
+  const handlesAny = manage || all.some((l) => l.personal && l.sellerId === user.id);
 
   const tiles: Tile[] = [
-    { label: seesAll ? 'Still owed' : 'You owe', value: usd(active.reduce((a, l) => a + l.state.balance, 0)) },
+    { label: 'You owe', value: usd(active.filter((l) => l.borrowerId === user.id).reduce((a, l) => a + l.state.balance, 0)) },
+    { label: seesAll ? 'Owed to the farm and you' : 'Owed to you', value: usd(active.filter((l) => l.borrowerId !== user.id).reduce((a, l) => a + l.state.balance, 0)) },
     { label: 'Late', value: usd(active.reduce((a, l) => a + l.state.overdue, 0)), tone: active.some((l) => l.state.overdue > 0) ? 'bad' : undefined },
   ];
-  if (manage) tiles.push({ label: 'To confirm', value: toConfirm.length, tone: toConfirm.length ? 'warn' : undefined });
+  if (handlesAny) tiles.push({ label: 'To confirm', value: toConfirm.length, tone: toConfirm.length ? 'warn' : undefined });
 
   return (
-    <Screen title="Loans" subtitle={seesAll ? 'Sales to people on the farm, paid back over time' : 'What you’re paying back'} back="/more">
+    <Screen title="Loans" subtitle="Things sold to people on the farm, paid back over time" back="/more">
       {all.length > 0 && <StatTiles tiles={tiles} />}
 
-      {manage && toConfirm.length > 0 && (
+      {toConfirm.length > 0 && (
         <Card title="Payments to confirm" flush>
           {toConfirm.map(({ p, l }) => (
             <div key={p.id} className={s.event}>
@@ -51,16 +54,16 @@ export default async function LoansPage() {
       <Card title={active.length ? 'Being paid back' : undefined} flush>
         {active.length === 0 ? (
           <EmptyState icon={<HandCoins />} title="No loans running">
-            {manage ? 'Record a sale and turn on “Pay over time” to sell to someone on the farm on a payment plan.' : 'Nothing to pay back.'}
+            Record a sale and turn on “Pay over time” to sell to someone on the farm on a payment plan.
           </EmptyState>
         ) : (
-          active.map((l) => <ListRow key={l.id} href={`/more/loans/${l.id}`} lead={<HandCoins />} title={l.item} meta={loanMeta(l, seesAll)} trail={loanPill(l)} />)
+          active.map((l) => <ListRow key={l.id} href={`/more/loans/${l.id}`} lead={<HandCoins />} title={l.item} meta={loanMeta(l, user.id)} trail={loanPill(l)} />)
         )}
       </Card>
 
       {done.length > 0 && (
         <Card title="Paid off" flush>
-          {done.map((l) => <ListRow key={l.id} href={`/more/loans/${l.id}`} lead={<HandCoins />} title={l.item} meta={loanMeta(l, seesAll)} trail={loanPill(l)} />)}
+          {done.map((l) => <ListRow key={l.id} href={`/more/loans/${l.id}`} lead={<HandCoins />} title={l.item} meta={loanMeta(l, user.id)} trail={loanPill(l)} />)}
         </Card>
       )}
     </Screen>

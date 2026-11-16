@@ -26,7 +26,7 @@ describe('sales', () => {
     const mgr = await makeUser('manager');
     const fam = await makeUser('family');
     const crew = await makeUser('worker');
-    await expect(addSale(crew, { kind: 'eggs', amount: 5 })).rejects.toThrow(/can’t record sales/);
+    await expect(addSale(crew, { kind: 'eggs', amount: 5 })).rejects.toThrow(/can’t record the farm’s sales/);
     const s1 = await addSale(fam, { kind: 'eggs', item: '3 dozen', qty: 3, unit: 'dozen', amount: 15, buyer: 'Neighbour', paid: false });
     await addSale(mgr, { kind: 'hay', amount: 200 });
     expect((await listSales(fam)).map((s) => s.amount)).toEqual([15]);

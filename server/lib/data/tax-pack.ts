@@ -14,7 +14,7 @@ import {
   animalEvents, animalGroups, assetDocs, assets, attachments, inventory, inventoryLog, landEvents, landUnits, maintenanceItems, maintenanceLogs,
   projectExpenses, projects, rentCharges, rentalUnits, sales, users, utilityAccounts, utilityBills,
 } from '@/db/schema';
-import { SALE_KIND_LABEL } from '@/lib/domain/money';
+import { saleKindLabel } from '@/lib/domain/money';
 import { UTILITY_LABEL } from '@/lib/domain/rentals';
 import { csvCell } from './csv';
 import type { TarEntry } from './tar';
@@ -31,7 +31,8 @@ export async function taxPack(year: number): Promise<TaxPack> {
   const inYear = <T extends { date: string }>(r: T) => r.date >= from && r.date <= to;
 
   const [saleRows, rent, buys, upkeep, projs, aCosts, lCosts, bills, receiptDocs] = await Promise.all([
-    db.select().from(sales).where(and(gte(sales.date, from), lte(sales.date, to))),
+    // Personal sales between people aren't the farm's income.
+    db.select().from(sales).where(and(gte(sales.date, from), lte(sales.date, to), eq(sales.personal, false))),
     db.select({ date: rentCharges.verifiedAt, tenant: users.name, kind: rentCharges.kind, label: rentCharges.label, month: rentCharges.month, amount: rentCharges.amount })
       .from(rentCharges).innerJoin(users, eq(users.id, rentCharges.userId))
       .where(and(eq(rentCharges.status, 'verified'), gte(rentCharges.verifiedAt, from), lte(rentCharges.verifiedAt, to))),
@@ -52,7 +53,7 @@ export async function taxPack(year: number): Promise<TaxPack> {
   ]);
 
   const income: unknown[][] = [
-    ...saleRows.map((s) => [s.date, 'Sales', SALE_KIND_LABEL[s.kind], s.item, s.buyer, s.amount, s.paid ? 'paid' : 'OWED']),
+    ...saleRows.map((s) => [s.date, 'Sales', saleKindLabel(s), s.item, s.buyer, s.amount, s.paid ? 'paid' : 'OWED']),
     ...rent.map((r) => [r.date, 'Rental income', r.kind === 'rent' ? `Rent ${r.month}` : r.label || r.kind, '', r.tenant, r.amount, 'paid']),
   ].sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 

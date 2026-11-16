@@ -12,8 +12,9 @@ export function loanPill(l: LoanView) {
   return <StatusPill tone="upcoming">{usd(l.state.balance)} left</StatusPill>;
 }
 
-export function loanMeta(l: LoanView, showBorrower: boolean): string {
-  const who = showBorrower ? `${l.borrowerName} · ` : '';
+export function loanMeta(l: LoanView, viewerId: string): string {
+  // Whoever isn't you: the borrower if you're owed, the seller if you owe.
+  const who = l.borrowerId === viewerId ? `from ${l.sellerName} · ` : `${l.borrowerName}${l.personal ? ' (personal)' : ''} · `;
   if (l.status === 'paid') return `${who}${usd(l.principal)}, paid off ${l.paidOffOn ? fmtDate(l.paidOffOn) : ''}`;
   const next = l.state.next;
   return `${who}${usd(l.state.paid)} of ${usd(l.principal)} paid${next ? ` · next ${usd(next.amount)} ${fmtDate(next.date)}` : ''}`;

@@ -211,6 +211,13 @@
       "when": 1794786572284,
       "tag": "0029_vault_shares",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1794791823934,
+      "tag": "0030_sale_details",
+      "breakpoints": true
     }
   ]
 }

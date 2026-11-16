@@ -40,7 +40,8 @@ export async function profitReport(from: string, to: string): Promise<ProfitRepo
   const [groups, units, saleRows, aCosts, lCosts, draws, inv, upkeep, projects, rent, bills, prod] = await Promise.all([
     db.select({ id: animalGroups.id, name: animalGroups.name }).from(animalGroups),
     db.select({ id: landUnits.id, name: landUnits.name, parentId: landUnits.parentId }).from(landUnits),
-    db.select().from(sales).where(and(gte(sales.date, from), lte(sales.date, to))),
+    // Personal sales between people aren't the farm's income.
+    db.select().from(sales).where(and(gte(sales.date, from), lte(sales.date, to), eq(sales.personal, false))),
     db.select({ groupId: animalEvents.groupId, cost: animalEvents.cost }).from(animalEvents).where(and(isNotNull(animalEvents.cost), ne(animalEvents.type, 'sale'), gte(animalEvents.date, from), lte(animalEvents.date, to))),
     db.select({ unitId: landEvents.unitId, cost: landEvents.cost }).from(landEvents).where(and(isNotNull(landEvents.cost), gte(landEvents.date, from), lte(landEvents.date, to))),
     db.select({ itemId: inventoryLog.itemId, delta: inventoryLog.delta, refType: inventoryLog.refType, refId: inventoryLog.refId }).from(inventoryLog).where(and(lt(inventoryLog.delta, 0), gte(inventoryLog.date, from), lte(inventoryLog.date, to))),

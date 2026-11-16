@@ -5,6 +5,26 @@ export const SALE_UNITS: Record<keyof typeof SALE_KIND_LABEL, string[]> = {
   eggs: ['dozen', 'eggs'], milk: ['gal', 'qt', 'lb'], produce: ['lb', 'bunches', 'each', 'boxes'], animal: ['head'], hay: ['bales', 'tons'], other: ['each'],
 };
 
+/** Offered when typing a category of your own; anything else can be typed. */
+export const CATEGORY_SUGGESTIONS = ['Equipment', 'Firearms', 'Firewood', 'Meat', 'Tools', 'Vehicles', 'Services', 'Household'];
+/** Offered when typing a unit for a category of your own. */
+export const COMMON_UNITS = ['each', 'set', 'lb', 'dozen', 'bale', 'gal', 'cord', 'hr', 'box'];
+
+/** What a sale is called in lists: your own category if given, else the built-in kind. */
+export function saleKindLabel(s: { kind: keyof typeof SALE_KIND_LABEL; category?: string | null }): string {
+  return s.category?.trim() || SALE_KIND_LABEL[s.kind] || 'Other';
+}
+
+/** Categories to offer: the suggestions plus ones already used, no duplicates (ignoring case). */
+export function categoryChoices(used: string[]): string[] {
+  const seen = new Map<string, string>();
+  for (const c of [...used, ...CATEGORY_SUGGESTIONS]) {
+    const k = c.trim().toLowerCase();
+    if (k && !seen.has(k)) seen.set(k, c.trim());
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+
 /** Round to cents. */
 export const cents = (n: number) => Math.round(n * 100) / 100;
 

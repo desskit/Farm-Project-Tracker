@@ -18,13 +18,20 @@ const schema = z.object({
   groupId: z.string().max(64).nullable().optional(),
   landUnitId: z.string().max(64).nullable().optional(),
   notes: z.string().max(500).optional(),
+  category: z.string().max(40).optional(),
+  serial: z.string().max(80).optional(),
+  personal: z.boolean().optional(),
   loan: loanTermsSchema.nullable().optional(),
 });
 
-/** Record a sale. Replay-safe, so one logged at the farm stand with no signal isn't counted twice. */
+/**
+ * Record a sale: the farm's (needs sales.log, checked in the data layer) or
+ * your own personal one. Replay-safe, so one logged at the farm stand with no
+ * signal isn't counted twice.
+ */
 export async function POST(req: Request) {
   try {
-    const user = await requireCap('sales.log');
+    const user = await requireCap('farm.view');
     const parsed = schema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: 'Enter what was sold and for how much.' }, { status: 400 });
     return await withIdempotency(user.id, idempotencyKey(req), async () => ({ status: 200, body: { id: await addSale(user, parsed.data) } }));

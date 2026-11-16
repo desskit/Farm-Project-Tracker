@@ -43,7 +43,7 @@ export default async function MorePage() {
   if (can(user, 'rentals.manage')) money.push({ href: '/more/rentals', icon: <Building2 />, label: 'Rentals', sub: 'Units, leases, utilities, inspections' });
   if (can(user, 'requests.create') || can(user, 'requests.manage'))
     money.push({ href: '/requests', icon: <MessageSquareWarning />, label: 'Requests', sub: can(user, 'requests.manage') ? 'Things to fix' : 'Report a problem' });
-  if (can(user, 'sales.log') || seesMoney) money.push({ href: '/more/sales', icon: <CircleDollarSign />, label: 'Sales', sub: seesMoney ? 'What the farm sold, and who owes' : 'Record what you sell' });
+  if (onFarm) money.push({ href: '/more/sales', icon: <CircleDollarSign />, label: 'Sales', sub: seesMoney ? 'What the farm sold, and who owes' : can(user, 'sales.log') ? 'Record what you sell' : 'Things you sold to people' });
   if (onFarm && (await hasLoans(user))) money.push({ href: '/more/loans', icon: <HandCoins />, label: 'Loans', sub: seesMoney ? 'Sales paid back over time' : 'What you owe, and payments' });
   if (seesMoney) money.push({ href: '/more/spend', icon: <Receipt />, label: 'Spending', sub: 'Farm costs' });
   if (seesMoney) money.push({ href: '/more/profit', icon: <Scale />, label: 'Profit', sub: 'Money in and costs, by herd, garden and rentals' });

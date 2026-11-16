@@ -6,10 +6,10 @@ import { deleteSale, setSalePaid } from '@/lib/data/sales';
 
 const schema = z.object({ paid: z.boolean() });
 
-/** Mark a sale paid or still owed (whoever recorded it, or a manager). */
+/** Mark a sale paid or still owed: whoever recorded it, a manager for farm sales, the seller for personal ones (checked in the data layer). */
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await requireCap('sales.log');
+    const user = await requireCap('farm.view');
     const parsed = schema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
     await setSalePaid(user, params.id, parsed.data.paid);
@@ -21,7 +21,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await requireCap('sales.log');
+    const user = await requireCap('farm.view');
     await deleteSale(user, params.id);
     return NextResponse.json({ ok: true });
   } catch (e) {
