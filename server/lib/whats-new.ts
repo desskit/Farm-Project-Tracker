@@ -17,6 +17,7 @@ export const WHATS_NEW: NewsEntry[] = [
       { text: 'Pay: hourly rates, two-week pay periods, and crew pay put toward their rent automatically.', href: '/more/pay', cap: 'finance.manage' },
       { text: 'Equipment: see who has the chainsaw or trailer, take it out and bring it back (the asset QR code opens it).', href: '/farm/equipment', cap: 'work.do' },
       { text: 'Appointments: the vet, farrier or an inspector on the calendar, with a reminder the day before.', href: '/more/appointments', cap: 'farm.view' },
+      { text: 'Standing orders: regular buyers (2 dozen eggs every Friday). Each delivery records the sale and what they owe.', href: '/more/sales', cap: 'sales.log' },
     ],
   },
   {

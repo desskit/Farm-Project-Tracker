@@ -19,6 +19,8 @@ import { SimpleHome } from './_components/simple-home';
 import { currentLayoutPref } from '@/lib/data/brand';
 import s from './today.module.css';
 import { AppointmentsCard } from '@/app/_components/appointments-card';
+import { deliveriesDue } from '@/lib/data/standing-orders';
+import { DeliveriesDue } from './(ops)/more/sales/standing-orders';
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -56,6 +58,7 @@ export default async function TodayPage({ searchParams }: { searchParams: { scop
     everything || !can(user, 'animals.view') ? Promise.resolve(null) : livestockAlerts(todayISO(), 7),
     everything || !can(user, 'land.view') ? Promise.resolve(null) : landAlerts(todayISO(), 2),
   ]);
+  const deliveries = everything ? [] : await deliveriesDue(user);
   const total = mine.overdue.length + mine.today.length + mine.upcoming.length;
 
   return (
@@ -81,6 +84,7 @@ export default async function TodayPage({ searchParams }: { searchParams: { scop
       {animals && <AnimalsToday a={animals} />}
       {land && <LandToday l={land} />}
       {!everything && <AppointmentsCard user={user} />}
+      {deliveries.length > 0 && <DeliveriesDue orders={deliveries} today={todayISO()} />}
 
       {total === 0 ? (
         <Card>

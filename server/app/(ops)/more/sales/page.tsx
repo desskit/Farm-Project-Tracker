@@ -10,6 +10,9 @@ import { Screen } from '@/components/patterns/screen';
 import { StatTiles, type Tile } from '@/components/patterns/stat-tiles';
 import { FilterChips } from '@/components/patterns/filter-chips';
 import { SalesView } from './sales-view';
+import { DeliveriesDue, StandingOrdersCard } from './standing-orders';
+import { deliveriesDue, listStandingOrders } from '@/lib/data/standing-orders';
+import { Card, ListRow } from '@/components/ui';
 
 export const metadata = { title: 'Sales · Farm Project Tracker' };
 
@@ -33,9 +36,22 @@ export default async function SalesPage({ searchParams }: { searchParams: { show
     can(user, 'land.view') ? listUnits() : Promise.resolve([]),
     loanBorrowers(),
   ]);
-  const loanBySale = await loanSummaryForSales(rows.map((r) => r.id), today);
+  const canFarm = canRecordFarmSales(user);
+  const [loanBySale, orders, due] = await Promise.all([
+    loanSummaryForSales(rows.map((r) => r.id), today),
+    canFarm ? listStandingOrders(user) : Promise.resolve([]),
+    deliveriesDue(user, today),
+  ]);
   const farmRows = rows.filter((r) => !r.personal);
   const myRows = rows.filter((r) => r.personal);
+  // "Who owes": what each buyer still owes the farm.
+  const owedBy = [...farmRows.filter((r) => !r.paid).reduce((m, r) => {
+    const k = r.buyer || 'No name given';
+    const cur = m.get(k) ?? { buyer: k, total: 0, count: 0 };
+    cur.total += r.amount;
+    cur.count++;
+    return m.set(k, cur);
+  }, new Map<string, { buyer: string; total: number; count: number }>()).values()].sort((a, b) => b.total - a.total);
   const categories = [...new Set([...rows, ...year].map((r) => r.category).filter(Boolean))];
 
   const month = salesTotals(year.filter((r) => r.date.slice(0, 7) === today.slice(0, 7)));
@@ -67,7 +83,14 @@ export default async function SalesPage({ searchParams }: { searchParams: { show
     <Screen title="Sales" subtitle={farmSide ? 'What the farm sold, and what you sold yourself' : 'Things you’ve sold to people'} back="/more">
       {tiles.length > 0 && <StatTiles tiles={tiles} />}
       <FilterChips label="Show" items={[{ href: '/more/sales', label: 'Last 90 days', on: !owedOnly }, { href: '/more/sales?show=owed', label: 'Who owes', on: owedOnly }]} />
+      <DeliveriesDue orders={due} today={today} />
+      {owedOnly && owedBy.length > 0 && (
+        <Card title="Owed, by buyer" flush>
+          {owedBy.map((b) => <ListRow key={b.buyer} title={b.buyer} meta={`${b.count} sale${b.count === 1 ? '' : 's'}`} trail={<strong>{money(b.total)}</strong>} />)}
+        </Card>
+      )}
       {farmSide && <SalesView {...common} sales={farmRows} title="The farm’s sales" />}
+      {canFarm && <StandingOrdersCard orders={orders} today={today} groups={common.groups} places={common.places} />}
       {(!farmSide || myRows.length > 0) && <SalesView {...common} sales={myRows} title="Your personal sales" personalList />}
     </Screen>
   );

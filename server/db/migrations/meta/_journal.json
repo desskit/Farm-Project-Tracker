@@ -239,6 +239,13 @@
       "when": 1794874854193,
       "tag": "0033_appointments",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1794875161901,
+      "tag": "0034_standing_orders",
+      "breakpoints": true
     }
   ]
 }

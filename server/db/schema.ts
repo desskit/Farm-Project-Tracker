@@ -1287,3 +1287,36 @@ export const appointments = sqliteTable('appointments', {
   dateIdx: index('appointments_date_idx').on(t.date),
   linkIdx: index('appointments_link_idx').on(t.linkType, t.linkId),
 }));
+
+/* ---------------- standing orders ---------------- */
+
+export type OrderEvery = 'week' | '2weeks' | 'month';
+
+/**
+ * A regular buyer: the same thing on a schedule (2 dozen eggs every Friday).
+ * Each delivery marked done records a sale; `nextDate` is the next one due.
+ */
+export const standingOrders = sqliteTable('standing_orders', {
+  id: text('id').primaryKey(),
+  buyer: text('buyer').notNull(),
+  kind: text('kind').$type<SaleKind>().notNull(),
+  category: text('category').notNull().default(''),
+  item: text('item').notNull().default(''),
+  qty: real('qty'),
+  unit: text('unit').notNull().default(''),
+  /** The price of one delivery. */
+  price: real('price').notNull(),
+  every: text('every').$type<OrderEvery>().notNull(),
+  startDate: text('start_date').notNull(),
+  nextDate: text('next_date').notNull(),
+  groupId: text('group_id').references(() => animalGroups.id, { onDelete: 'set null' }),
+  landUnitId: text('land_unit_id').references(() => landUnits.id, { onDelete: 'set null' }),
+  /** They pay when it's dropped off (else each delivery is owed until marked paid). */
+  paidOnDelivery: integer('paid_on_delivery', { mode: 'boolean' }).notNull().default(false),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  notes: text('notes').notNull().default(''),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at').notNull().default(now),
+}, (t) => ({
+  nextIdx: index('standing_orders_next_idx').on(t.active, t.nextDate),
+}));
