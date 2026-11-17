@@ -19,6 +19,7 @@ import { runRenewalReminders } from './renewals';
 import { runBirthHooks } from './webhooks';
 import { runLoanReminders } from './loan-reminders';
 import { runCheckoutReminders } from '@/lib/data/equipment';
+import { runAppointmentReminders } from '@/lib/data/appointments';
 import { getWeather, refreshForecast } from '@/lib/data/weather';
 
 const g = globalThis as unknown as { __fptCronStarted?: boolean };
@@ -77,6 +78,12 @@ export function startCron(): void {
     runRenewalReminders()
       .then((r) => r.sent && console.log(`[cron] renewal reminders: ${r.sent}`))
       .catch((e) => console.error('[cron] renewal reminders failed', e));
+  });
+  // Tomorrow's appointments: 07:50.
+  cron.schedule('50 7 * * *', () => {
+    runAppointmentReminders()
+      .then((r) => r.sent && console.log(`[cron] appointment reminders: ${r.sent}`))
+      .catch((e) => console.error('[cron] appointment reminders failed', e));
   });
   // Equipment still out past its return date: 07:45.
   cron.schedule('45 7 * * *', () => {

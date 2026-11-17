@@ -13,6 +13,7 @@ import { ButtonLink, Card, EmptyState, ListRow, StatusPill } from '@/components/
 import { Screen } from '@/components/patterns/screen';
 import { DepositCard, EditRentalUnit, InspectionsCard, LeaseCard, UtilitiesCard } from './unit-client';
 import s from '../../../farm/animals/animals.module.css';
+import { AppointmentsCard } from '@/app/_components/appointments-card';
 
 const money = (n: number) => `$${n.toFixed(2)}`;
 
@@ -68,6 +69,7 @@ export default async function RentalUnitPage({ params }: { params: { id: string 
       <UtilitiesCard unitId={unit.id} accounts={d.accounts} hasLease={!!d.current} today={today} />
       <InspectionsCard unitId={unit.id} inspections={d.inspections} comparisons={d.comparisons} today={today} />
 
+      <AppointmentsCard user={user} linkType="rental_unit" linkId={params.id} title="Appointments" />
       <Card title="Requests" flush>
         {d.requests.length === 0 ? (
           <EmptyState icon={<MessageSquareWarning />} title="No requests from this unit" />

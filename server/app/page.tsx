@@ -18,6 +18,7 @@ import { PortalHome } from './_components/portal-home';
 import { SimpleHome } from './_components/simple-home';
 import { currentLayoutPref } from '@/lib/data/brand';
 import s from './today.module.css';
+import { AppointmentsCard } from '@/app/_components/appointments-card';
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -79,6 +80,7 @@ export default async function TodayPage({ searchParams }: { searchParams: { scop
       {!everything && <MyLoans user={user} />}
       {animals && <AnimalsToday a={animals} />}
       {land && <LandToday l={land} />}
+      {!everything && <AppointmentsCard user={user} />}
 
       {total === 0 ? (
         <Card>

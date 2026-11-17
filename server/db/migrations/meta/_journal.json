@@ -232,6 +232,13 @@
       "when": 1794874647487,
       "tag": "0032_equipment_checkout",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1794874854193,
+      "tag": "0033_appointments",
+      "breakpoints": true
     }
   ]
 }

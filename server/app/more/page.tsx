@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Bell, BookOpen, Building2, CalendarDays, CircleDollarSign, CloudSun, Database, FileSpreadsheet, KeyRound, LockKeyhole, Megaphone, MessageSquareWarning, Package, Phone, Receipt, Scale, Search, ShieldCheck, Timer, Tractor, Trophy, UserCog, Users, Wallet, Webhook, HandCoins } from 'lucide-react';
+import { Activity, BarChart3, Bell, CalendarClock, BookOpen, Building2, CalendarDays, CircleDollarSign, CloudSun, Database, FileSpreadsheet, KeyRound, LockKeyhole, Megaphone, MessageSquareWarning, Package, Phone, Receipt, Scale, Search, ShieldCheck, Timer, Tractor, Trophy, UserCog, Users, Wallet, Webhook, HandCoins } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { getSessionUser } from '@/lib/auth/session';
 import { lowStockItems } from '@/lib/data/inventory';
@@ -25,6 +25,7 @@ export default async function MorePage() {
       farm.push({ href: '/more/supplies', icon: <Package />, label: 'Supplies', sub: 'Feed, fuel & parts', trail: low ? <StatusPill tone="today">{low} low</StatusPill> : undefined });
     farm.push({ href: '/more/assets', icon: <Tractor />, label: 'Assets', sub: 'Equipment & documents' });
     farm.push({ href: '/more/calendar', icon: <CalendarDays />, label: 'Calendar', sub: 'What’s due, by day' });
+    farm.push({ href: '/more/appointments', icon: <CalendarClock />, label: 'Appointments', sub: 'Vet, farrier, inspectors, contractors' });
     farm.push({ href: '/more/time', icon: <Timer />, label: seesTeam ? 'Time report' : 'My hours & pay', sub: seesTeam ? 'Hours logged, and your own pay' : 'Log hours, see your pay' });
     if (seesTeam) farm.push({ href: '/more/team', icon: <Users />, label: 'Team', sub: 'Who’s on what' });
     farm.push({ href: '/more/leaderboard', icon: <Trophy />, label: 'Leaderboard', sub: 'Points & streaks' });

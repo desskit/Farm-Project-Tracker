@@ -14,6 +14,7 @@ import { Screen } from '@/components/patterns/screen';
 import { NewUnitButton } from '../land-client';
 import { KIND_ICON, unitMeta, unitPills } from '../land-ui';
 import { EditUnit, FieldWorkCard, GrazingCard, HarvestCard, PerennialsCard, PlantingsCard } from './unit-client';
+import { AppointmentsCard } from '@/app/_components/appointments-card';
 
 export default async function UnitPage({ params }: { params: { id: string } }) {
   const user = await getSessionUser();
@@ -91,6 +92,7 @@ export default async function UnitPage({ params }: { params: { id: string } }) {
           today={today}
         />
       )}
+      <AppointmentsCard user={user} linkType="land_unit" linkId={unit.id} title="Appointments" />
       <GuidesCard parentType="land_unit" parentId={unit.id} linked={await guidesFor('land_unit', unit.id)} all={can(user, 'work.manage') ? (await listGuides()).map((g) => ({ id: g.id, title: g.title, summary: g.summary })) : []} canManage={can(user, 'work.manage')} />
       <FieldWorkCard unitId={unit.id} events={d.events} supplies={sup} canLog={log} canManage={manage} today={today} />
     </Screen>

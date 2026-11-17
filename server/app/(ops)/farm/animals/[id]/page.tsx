@@ -13,6 +13,7 @@ import { addDays, fmtDate, todayISO } from '@/lib/domain/dates';
 import { Banner } from '@/components/ui';
 import { Screen } from '@/components/patterns/screen';
 import { AnimalsCard, BreedingCard, CareCard, GroupSettings, HistoryCard, LogCard, ProductionCard } from './group-client';
+import { AppointmentsCard } from '@/app/_components/appointments-card';
 
 export default async function GroupPage({ params }: { params: { id: string } }) {
   const user = await getSessionUser();
@@ -76,6 +77,7 @@ export default async function GroupPage({ params }: { params: { id: string } }) 
         <MoveGroupCard groupId={group.id} current={group.landUnitId} movedOn={group.movedOn} units={paddocks} today={today} advice={advice.find((a) => a.groupId === group.id) ?? null} />
       )}
 
+      <AppointmentsCard user={user} linkType="animal_group" linkId={group.id} title="Appointments" />
       <GuidesCard parentType="animal_group" parentId={group.id} linked={await guidesFor('animal_group', group.id)} all={can(user, 'work.manage') ? (await listGuides()).map((g) => ({ id: g.id, title: g.title, summary: g.summary })) : []} canManage={can(user, 'work.manage')} />
 
       <CareCard groupId={group.id} groupName={group.name} species={species} chores={d.care} canAdd={can(user, 'work.manage')} />

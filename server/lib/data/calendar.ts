@@ -18,9 +18,10 @@ import { livestockAlerts } from './livestock';
 import { landAlerts } from './land';
 import { leaseIdsFor } from './rentals';
 import { listLoans } from './loans';
+import { listAppointments, whenLabel } from './appointments';
 import { todayISO } from '@/lib/domain/dates';
 
-export type CalendarKind = 'chore' | 'maintenance' | 'task' | 'rent' | 'loan' | 'animals' | 'land' | 'papers';
+export type CalendarKind = 'chore' | 'maintenance' | 'task' | 'rent' | 'loan' | 'appointment' | 'animals' | 'land' | 'papers';
 export type CalendarItem = { date: string; kind: CalendarKind; id: string; title: string; href: string };
 
 export async function calendarItems(viewer: SessionUser, fromISO: string, toISO: string): Promise<CalendarItem[]> {
@@ -94,6 +95,11 @@ export async function calendarItems(viewer: SessionUser, fromISO: string, toISO:
       const title = mine ? `Your ${what}` : `${what.charAt(0).toUpperCase()}${what.slice(1)} · ${nameById.get(c.userId) ?? 'someone'}`;
       out.push({ date: c.dueDate, kind: 'rent', id: c.id, title, href: '/more/rent' });
     }
+  }
+
+  // Appointments (the vet, the farrier, an inspector…), as each person may see them.
+  for (const a of await listAppointments(viewer, fromISO, toISO)) {
+    out.push({ date: a.date, kind: 'appointment', id: a.id, title: `${a.title}${a.time ? ` · ${whenLabel(a).split(', ')[1]}` : ''}${a.linkLabel ? ` · ${a.linkLabel}` : ''}`, href: '/more/appointments' });
   }
 
   // Loan instalments still to pay: your own, or everyone's for people who see the farm's money.

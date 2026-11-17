@@ -13,6 +13,7 @@ import { CodeCard } from './secret-buttons';
 import { RentLineActions } from './simple-rent';
 import { SwitchToFull } from './simple-switch';
 import s from './simple-home.module.css';
+import { AppointmentsCard } from './appointments-card';
 
 const STATUS_WORD = { paid: 'Paid', waiting: 'Says they paid', owed: 'Not paid yet', late: 'Late' } as const;
 const usd = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -46,6 +47,7 @@ export async function SimpleHome({ user }: { user: SessionUser }) {
         <p className={s.date}>{fmtDate(today)}</p>
       </div>
       <Notices user={user} />
+      <AppointmentsCard user={user} />
 
       {board && (
         <section className={s.section} aria-labelledby="sh-rent">

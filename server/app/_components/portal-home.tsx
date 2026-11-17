@@ -11,6 +11,7 @@ import { currentMonthKey, monthLabel } from '@/lib/domain/dates';
 import { can } from '@/lib/domain/permissions';
 import { ButtonLink, Card, ListRow, PageHeader, StatusPill } from '@/components/ui';
 import s from './portal-home.module.css';
+import { AppointmentsCard } from './appointments-card';
 
 const money = (n: number) => n.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
 
@@ -36,6 +37,7 @@ export async function PortalHome({ user }: { user: SessionUser }) {
     <main className={s.wrap}>
       <PageHeader title={`Hi, ${user.name.split(' ')[0]}`} subtitle="Your rent, documents and requests" />
       <Notices user={user} />
+      <AppointmentsCard user={user} days={30} />
 
       <Card title={`Rent · ${monthLabel(mk)}`}>
         {charge ? (

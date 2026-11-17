@@ -1257,3 +1257,33 @@ export const assetCheckouts = sqliteTable('asset_checkouts', {
   assetIdx: index('asset_checkouts_asset_idx').on(t.assetId, t.inAt),
   userIdx: index('asset_checkouts_user_idx').on(t.userId),
 }));
+
+/* ---------------- appointments ---------------- */
+
+export type AppointmentLink = 'animal_group' | 'rental_unit' | 'asset' | 'land_unit';
+export type AppointmentStatus = 'scheduled' | 'done' | 'cancelled';
+
+/**
+ * A visit on a set day: the vet, the farrier, an inspector, a contractor.
+ * Optionally with someone from Contacts and about a group, rental unit,
+ * asset or piece of land. The people listed get a reminder the day before.
+ */
+export const appointments = sqliteTable('appointments', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  date: text('date').notNull(),
+  /** 'HH:MM', or '' for "sometime that day". */
+  time: text('time').notNull().default(''),
+  contactId: text('contact_id').references(() => contacts.id, { onDelete: 'set null' }),
+  linkType: text('link_type').$type<AppointmentLink>(),
+  linkId: text('link_id'),
+  notes: text('notes').notNull().default(''),
+  /** Who to remind (user ids). */
+  people: text('people', { mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+  status: text('status').$type<AppointmentStatus>().notNull().default('scheduled'),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at').notNull().default(now),
+}, (t) => ({
+  dateIdx: index('appointments_date_idx').on(t.date),
+  linkIdx: index('appointments_link_idx').on(t.linkType, t.linkId),
+}));

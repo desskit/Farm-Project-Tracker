@@ -23,6 +23,7 @@ import { todayISO } from '@/lib/domain/dates';
 import { AssetDocs } from './asset-docs';
 import { NotesSection } from '@/app/_components/notes-section';
 import s from './asset.module.css';
+import { AppointmentsCard } from '@/app/_components/appointments-card';
 
 export default async function AssetDetailPage({ params }: { params: { assetId: string } }) {
   const user = await getSessionUser();
@@ -68,6 +69,7 @@ export default async function AssetDetailPage({ params }: { params: { assetId: s
       {checkouts && can(user, 'work.do') && (
         <CheckoutCard assetId={asset.id} name={asset.name} current={checkouts.current} history={checkouts.history} me={user.id} canManage={can(user, 'work.manage')} today={todayISO()} />
       )}
+      <AppointmentsCard user={user} linkType="asset" linkId={asset.id} title="Appointments" />
       <GuidesCard parentType="asset" parentId={asset.id} linked={await guidesFor('asset', asset.id)} all={can(user, 'work.manage') ? (await listGuides()).map((g) => ({ id: g.id, title: g.title, summary: g.summary })) : []} canManage={can(user, 'work.manage')} />
       <AssetDocs assetId={asset.id} docs={docs} currentUser={user} />
       <NotesSection parentType="asset" parentId={asset.id} notes={notes} currentUser={user} mentionNames={people.filter((p) => p.active).map((p) => p.name)} />
