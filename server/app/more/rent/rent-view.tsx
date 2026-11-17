@@ -15,9 +15,11 @@ import s from './rent.module.css';
 const money = (n: number) => `$${n.toFixed(n % 1 ? 2 : 0)}`;
 
 export function RentView({
-  charges, summary, people, assignments, currentUser,
+  charges, credits = {}, summary, people, assignments, currentUser,
 }: {
   charges: RentChargeRow[];
+  /** Work credits per charge (pay put toward rent). */
+  credits?: Record<string, number>;
   summary: RentSummary | null;
   people: PersonRow[];
   assignments: Record<string, RentAssignmentRow | null>;
@@ -86,6 +88,10 @@ export function RentView({
                     <span className={s.muted}><BellRing aria-hidden /> reminded {fmtDate(c.reminderSentOn)}</span>
                   )}
                 </div>
+                {(credits[c.id] ?? 0) > 0 && c.status !== 'verified' && (
+                  <p className={s.note}>{money(credits[c.id])} covered by work · {money(Math.max(0, c.amount - credits[c.id]))} left to pay</p>
+                )}
+                {(credits[c.id] ?? 0) > 0 && c.status === 'verified' && <p className={s.note}>{money(Math.min(c.amount, credits[c.id]))} of it covered by work</p>}
                 {c.note && <p className={s.note}>“{c.note}”</p>}
               </div>
               <div className={s.actions}>

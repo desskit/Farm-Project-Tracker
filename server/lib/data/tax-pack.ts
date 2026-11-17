@@ -12,8 +12,7 @@ import { and, eq, gt, gte, isNotNull, lte, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   animalEvents, animalGroups, assetDocs, assets, attachments, inventory, inventoryLog, landEvents, landUnits, maintenanceItems, maintenanceLogs,
-  projectExpenses, projects, rentCharges, rentalUnits, sales, users, utilityAccounts, utilityBills,
-} from '@/db/schema';
+  projectExpenses, projects, rentCharges, rentalUnits, sales, users, utilityAccounts, utilityBills, payLines, payRuns } from '@/db/schema';
 import { saleKindLabel } from '@/lib/domain/money';
 import { UTILITY_LABEL } from '@/lib/domain/rentals';
 import { csvCell } from './csv';
@@ -57,7 +56,18 @@ export async function taxPack(year: number): Promise<TaxPack> {
     ...rent.map((r) => [r.date, 'Rental income', r.kind === 'rent' ? `Rent ${r.month}` : r.label || r.kind, '', r.tenant, r.amount, 'paid']),
   ].sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 
+  // Crew pay: the part handed over (on the day it was paid) and the part put toward the person's rent
+  // (on the day the pay was approved; that rent also shows as rental income when the charge was covered).
+  const payRows = await db.select({ l: payLines, start: payRuns.periodStart, end: payRuns.periodEnd, approvedAt: payRuns.approvedAt, name: users.name })
+    .from(payLines).innerJoin(payRuns, eq(payRuns.id, payLines.runId)).leftJoin(users, eq(users.id, payLines.userId));
+  const approvedOn = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  const payInYear = payRows.filter((p) => (p.l.paidOn ?? '').startsWith(String(year)) || approvedOn(p.approvedAt).startsWith(String(year)));
+
   const expenses: unknown[][] = [
+    ...payRows.filter((p) => p.l.paidOn?.startsWith(String(year)) && p.l.paidOut > 0)
+      .map((p) => [p.l.paidOn, 'Crew pay', `${p.start} to ${p.end}${p.l.paidHow ? ` (${p.l.paidHow})` : ''}`, p.name ?? '', p.l.paidOut]),
+    ...payRows.filter((p) => approvedOn(p.approvedAt).startsWith(String(year)) && p.l.toRent > 0)
+      .map((p) => [approvedOn(p.approvedAt), 'Crew pay (toward their rent)', `${p.start} to ${p.end}`, p.name ?? '', p.l.toRent]),
     ...buys.filter(inYear).map((b) => [b.date, 'Supplies bought', `${b.qty} ${b.unit} ${b.name}`, b.vendor ?? '', b.cost]),
     ...upkeep.filter(inYear).map((u) => [u.date, 'Equipment upkeep', `${u.asset}: ${u.item}`, '', u.cost]),
     ...projs.filter(inYear).map((p) => [p.date, 'Projects', `${p.project}: ${p.label}`, '', p.amount]),
@@ -87,12 +97,14 @@ export async function taxPack(year: number): Promise<TaxPack> {
     `income.csv    money in: sales and rental income received        total $${totalIn.toFixed(2)}`,
     `expenses.csv  money paid out, by category                        total $${totalOut.toFixed(2)}`,
     `receipts/     ${receipts.length} receipt file(s) from project expenses, paid services and filed receipts`,
+    ...(payInYear.length ? ['pay.csv       crew pay by period: hours, rate, what went toward rent, what was paid out'] : []),
     '',
     'Notes',
     '- Expenses are what was PAID in the year. Supplies appear only where a price was entered when restocking.',
     '- Rental income is counted on the day it was confirmed received. Utility bills are listed in full;',
     '  the share tenants paid back appears in income.csv.',
     '- Sales marked OWED have not been paid yet.',
+    '- Crew pay is a record of what was paid, not payroll tax filing.',
     '- This is a record, not tax advice.',
     '',
   ].join('\r\n');
@@ -103,6 +115,10 @@ export async function taxPack(year: number): Promise<TaxPack> {
       { name: 'README.txt', content: readme },
       { name: 'income.csv', content: csv(['Date', 'Category', 'What', 'Detail', 'From', 'Amount', 'Status'], income) },
       { name: 'expenses.csv', content: csv(['Date', 'Category', 'What', 'Paid to', 'Amount'], expenses) },
+      ...(payInYear.length
+        ? [{ name: 'pay.csv', content: csv(['Pay period', 'Person', 'Hours', 'Rate', 'Gross', 'Toward rent', 'Paid out', 'Paid on', 'How'],
+          payInYear.map((p) => [`${p.start} to ${p.end}`, p.name ?? '', p.l.timerHours + p.l.typedHours, p.l.rate, p.l.gross, p.l.toRent, p.l.paidOut, p.l.paidOn ?? '', p.l.paidHow])) }]
+        : []),
       ...receipts,
     ],
   };

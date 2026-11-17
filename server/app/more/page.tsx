@@ -25,7 +25,7 @@ export default async function MorePage() {
       farm.push({ href: '/more/supplies', icon: <Package />, label: 'Supplies', sub: 'Feed, fuel & parts', trail: low ? <StatusPill tone="today">{low} low</StatusPill> : undefined });
     farm.push({ href: '/more/assets', icon: <Tractor />, label: 'Assets', sub: 'Equipment & documents' });
     farm.push({ href: '/more/calendar', icon: <CalendarDays />, label: 'Calendar', sub: 'What’s due, by day' });
-    farm.push({ href: '/more/time', icon: <Timer />, label: seesTeam ? 'Time report' : 'My hours', sub: seesTeam ? 'Hours logged' : 'Time you logged' });
+    farm.push({ href: '/more/time', icon: <Timer />, label: seesTeam ? 'Time report' : 'My hours & pay', sub: seesTeam ? 'Hours logged, and your own pay' : 'Log hours, see your pay' });
     if (seesTeam) farm.push({ href: '/more/team', icon: <Users />, label: 'Team', sub: 'Who’s on what' });
     farm.push({ href: '/more/leaderboard', icon: <Trophy />, label: 'Leaderboard', sub: 'Points & streaks' });
     farm.push({ href: '/more/weather', icon: <CloudSun />, label: 'Weather', sub: 'Forecast & fire danger' });
@@ -45,6 +45,7 @@ export default async function MorePage() {
     money.push({ href: '/requests', icon: <MessageSquareWarning />, label: 'Requests', sub: can(user, 'requests.manage') ? 'Things to fix' : 'Report a problem' });
   if (onFarm) money.push({ href: '/more/sales', icon: <CircleDollarSign />, label: 'Sales', sub: seesMoney ? 'What the farm sold, and who owes' : can(user, 'sales.log') ? 'Record what you sell' : 'Things you sold to people' });
   if (onFarm && (await hasLoans(user))) money.push({ href: '/more/loans', icon: <HandCoins />, label: 'Loans', sub: seesMoney ? 'Sales paid back over time' : 'What you owe, and payments' });
+  if (can(user, 'finance.manage')) money.push({ href: '/more/pay', icon: <HandCoins />, label: 'Pay', sub: 'Crew hours and pay, and pay put toward rent' });
   if (seesMoney) money.push({ href: '/more/spend', icon: <Receipt />, label: 'Spending', sub: 'Farm costs' });
   if (seesMoney) money.push({ href: '/more/profit', icon: <Scale />, label: 'Profit', sub: 'Money in and costs, by herd, garden and rentals' });
 

@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { leases, rentCharges, rentalUnits } from '@/db/schema';
 import { getSessionUser } from '@/lib/auth/session';
 import { depositLedger, leaseIdsFor } from '@/lib/data/rentals';
+import { creditsByCharge } from '@/lib/data/rent';
 import { can } from '@/lib/domain/permissions';
 import { CHARGE_KIND_LABEL } from '@/lib/domain/rentals';
 import { fmtDate, monthLabel, todayISO } from '@/lib/domain/dates';
@@ -28,8 +29,10 @@ export default async function StatementPage({ params }: { params: { id: string }
     depositLedger(l.l.id),
   ]);
   const today = todayISO();
+  const credits = await creditsByCharge(charges.map((c) => c.id));
   const billed = charges.reduce((n, c) => n + c.amount, 0);
-  const paid = charges.filter((c) => c.status === 'verified').reduce((n, c) => n + c.amount, 0);
+  // Paid charges count in full; work put toward a charge not yet paid off counts as paid so far.
+  const paid = charges.reduce((n, c) => n + (c.status === 'verified' ? c.amount : Math.min(c.amount, credits.get(c.id) ?? 0)), 0);
 
   return (
     <Screen title="Statement" subtitle={`${l.unit} · as of ${fmtDate(today)}`} back="/more/rent" actions={<PrintButton />}>
@@ -39,7 +42,10 @@ export default async function StatementPage({ params }: { params: { id: string }
           <div key={c.id} className={s.event}>
             <span className={s.eventMain}>
               <strong>{money(c.amount)} · {c.kind === 'rent' ? `Rent ${monthLabel(c.month)}` : c.label || CHARGE_KIND_LABEL[c.kind]}</strong>
-              <small>Due {fmtDate(c.dueDate)}{c.verifiedAt ? ` · received ${fmtDate(c.verifiedAt)}` : ''}</small>
+              <small>
+                Due {fmtDate(c.dueDate)}{c.verifiedAt ? ` · received ${fmtDate(c.verifiedAt)}` : ''}
+                {(credits.get(c.id) ?? 0) > 0 ? ` · ${money(Math.min(c.amount, credits.get(c.id)!))} covered by work` : ''}
+              </small>
             </span>
             <StatusPill tone={c.status === 'verified' ? 'done' : c.status === 'marked' ? 'info' : c.dueDate < today ? 'overdue' : 'upcoming'}>
               {c.status === 'verified' ? 'Paid' : c.status === 'marked' ? 'Marked paid' : 'Unpaid'}

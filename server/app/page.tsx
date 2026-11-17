@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AlertTriangle, Baby, HandCoins, Building2, Egg, Hand, ShieldAlert, Sprout, Wheat, MessageSquareWarning, Package, Users, Wallet, Wrench } from 'lucide-react';
+import { AlertTriangle, Baby, Clock, HandCoins, Building2, Egg, Hand, ShieldAlert, Sprout, Wheat, MessageSquareWarning, Package, Users, Wallet, Wrench } from 'lucide-react';
 import { getSessionUser } from '@/lib/auth/session';
 import { getDashboard, type DashboardItem } from '@/lib/data/dashboard';
 import { farmCards, upForGrabs } from '@/lib/data/today';
@@ -182,6 +182,7 @@ function FarmToday({ cards }: { cards: NonNullable<Awaited<ReturnType<typeof far
     tiles.push({ href: '/more/supplies', icon: <Package />, label: 'Supplies low', value: cards.lowStock, tone: cards.lowStock ? 'today' : undefined });
   if (cards.rentToVerify !== undefined)
     tiles.push({ href: '/more/rent', icon: <Wallet />, label: 'Rent to confirm', value: cards.rentToVerify, tone: cards.rentToVerify ? 'today' : undefined });
+  if (cards.hoursToApprove) tiles.push({ href: '/more/time', icon: <Clock />, label: 'Hours to approve', value: cards.hoursToApprove, tone: 'today' });
   if (cards.loansToConfirm) tiles.push({ href: '/more/loans', icon: <HandCoins />, label: 'Loan payments to confirm', value: cards.loansToConfirm, tone: 'today' });
   if (cards.openRequests !== undefined)
     tiles.push({ href: '/requests', icon: <MessageSquareWarning />, label: 'Open requests', value: cards.openRequests, tone: cards.openRequests ? 'today' : undefined });

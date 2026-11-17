@@ -10,7 +10,7 @@ import type { SessionUser } from '@/lib/auth/session';
 import { can } from '@/lib/domain/permissions';
 import { currentMonthKey, todayISO } from '@/lib/domain/dates';
 import { DataError } from './errors';
-import { ensureRentCharges, rentChargesForMonth, rentSummary } from './rent';
+import { creditsByCharge, ensureRentCharges, rentChargesForMonth, rentSummary } from './rent';
 
 export type RentBoardStatus = 'paid' | 'waiting' | 'owed' | 'late';
 export type RentBoardRow = {
@@ -20,6 +20,8 @@ export type RentBoardRow = {
   /** "Rent", "Water", "Late fee"… */
   what: string;
   amount: number;
+  /** Covered by work (crew pay put toward rent). */
+  credited: number;
   dueDate: string;
   status: RentBoardStatus;
 };
@@ -31,6 +33,7 @@ export async function rentBoard(viewer: SessionUser, month = currentMonthKey(), 
   if (!can(viewer, 'finance.view')) throw new DataError('Not found.', 404);
   await ensureRentCharges();
   const charges = await rentChargesForMonth(month);
+  const credits = await creditsByCharge(charges.map((c) => c.id));
   const leaseIds = [...new Set(charges.map((c) => c.leaseId).filter((x): x is string => !!x))];
   const [leaseRows, people] = await Promise.all([
     leaseIds.length ? db.select({ id: leases.id, unitId: leases.unitId }).from(leases).where(inArray(leases.id, leaseIds)) : Promise.resolve([]),
@@ -50,12 +53,13 @@ export async function rentBoard(viewer: SessionUser, month = currentMonthKey(), 
       who: unit ? `${unit} · ${tenant}` : tenant,
       what: c.kind === 'rent' ? 'Rent' : c.label || (c.kind === 'late_fee' ? 'Late fee' : 'Charge'),
       amount: c.amount,
+      credited: c.status === 'verified' ? 0 : Math.min(c.amount, credits.get(c.id) ?? 0),
       dueDate: c.dueDate,
       status,
     };
   }).sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.who.localeCompare(b.who));
 
-  const sum = rentSummary(charges);
+  const sum = rentSummary(charges, credits);
   return {
     month,
     rows,

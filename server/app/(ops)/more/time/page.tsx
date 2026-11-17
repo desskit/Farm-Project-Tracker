@@ -8,6 +8,9 @@ import { getSessionUser } from '@/lib/auth/session';
 import { timeReport } from '@/lib/data/time-report';
 import { fmtDur, todayISO, addDays } from '@/lib/domain/dates';
 import { can } from '@/lib/domain/permissions';
+import { canApproveHours, listWorkLogs, myPay } from '@/lib/data/pay';
+import { HoursToApprove } from '../pay/pay-view';
+import { MyHoursPay } from './my-pay';
 
 type Period = 'week' | 'month' | 'all';
 const PERIODS: { key: Period; label: string; days: number | null }[] = [
@@ -28,10 +31,16 @@ export default async function TimeReportPage({ searchParams }: { searchParams: {
   const from = def.days == null ? null : addDays(today, -def.days);
   // Other people's hours are a manager's business; everyone else sees their own.
   const isManager = can(user, 'team.view');
-  const report = await timeReport(from, today, isManager ? undefined : user.id);
+  const [report, pay] = await Promise.all([
+    timeReport(from, today, isManager ? undefined : user.id),
+    can(user, 'work.do') ? myPay(user) : Promise.resolve(null),
+  ]);
+  const toApprove = canApproveHours(user) ? (await listWorkLogs(user, { status: 'pending' })).filter((l) => l.userId !== user.id) : [];
 
   return (
-    <Screen title={isManager ? 'Time report' : 'My hours'} back="/more">
+    <Screen title={isManager ? 'Time report' : 'My hours & pay'} back="/more">
+      <HoursToApprove logs={toApprove.map((l) => ({ id: l.id, name: l.name, date: l.date, hours: l.hours, note: l.note }))} />
+      {pay && <MyHoursPay data={pay} today={today} />}
       <FilterChips label="Period" items={PERIODS.map((p) => ({ href: `/more/time?period=${p.key}`, label: p.label, on: period === p.key }))} />
       <Card>
         <span className={s.big}>{fmtDur(report.totalSeconds)}</span>

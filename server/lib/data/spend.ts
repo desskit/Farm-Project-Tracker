@@ -8,9 +8,11 @@
  * rather than its purchasing schedule. Unpriced items contribute nothing.
  */
 import 'server-only';
-import { and, isNotNull, ne } from 'drizzle-orm';
+import { and, eq, isNotNull, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import {
+  payLines,
+  payRuns,
   animalEvents,
   landEvents,
   maintenanceLogs,
@@ -22,7 +24,7 @@ import {
   inventoryLog,
 } from '@/db/schema';
 
-export type Category = 'upkeep' | 'projects' | 'supplies' | 'animals' | 'land';
+export type Category = 'upkeep' | 'projects' | 'supplies' | 'animals' | 'land' | 'labor';
 export type AssetSpend = { assetId: string; name: string; total: number };
 export type MonthSpend = { month: string; total: number };
 export type CategorySpend = { category: Category; label: string; total: number };
@@ -45,10 +47,11 @@ const CATEGORY_LABELS: Record<Category, string> = {
   supplies: 'Supplies used',
   animals: 'Animals (vet, treatments, purchases)',
   land: 'Field work',
+  labor: 'Crew pay',
 };
 
 export async function spendReport(fromISO: string | null, toISO: string): Promise<SpendReport> {
-  const [logs, items, assetRows, expenses, projectRows, invRows, invLogs, animalCosts, landCosts] = await Promise.all([
+  const [logs, items, assetRows, expenses, projectRows, invRows, invLogs, animalCosts, landCosts, payRows] = await Promise.all([
     db.select({ itemId: maintenanceLogs.itemId, cost: maintenanceLogs.cost, date: maintenanceLogs.date }).from(maintenanceLogs),
     db.select({ id: maintenanceItems.id, assetId: maintenanceItems.assetId }).from(maintenanceItems),
     db.select({ id: assets.id, name: assets.name }).from(assets),
@@ -59,6 +62,7 @@ export async function spendReport(fromISO: string | null, toISO: string): Promis
     // A sale's "cost" field holds what it sold for — that's income, not spending.
     db.select({ cost: animalEvents.cost, date: animalEvents.date }).from(animalEvents).where(and(isNotNull(animalEvents.cost), ne(animalEvents.type, 'sale'))),
     db.select({ cost: landEvents.cost, date: landEvents.date }).from(landEvents).where(isNotNull(landEvents.cost)),
+    db.select({ gross: payLines.gross, end: payRuns.periodEnd }).from(payLines).innerJoin(payRuns, eq(payRuns.id, payLines.runId)),
   ]);
   const assetOfItem = new Map(items.map((i) => [i.id, i.assetId]));
   const assetName = new Map(assetRows.map((a) => [a.id, a.name]));
@@ -103,6 +107,8 @@ export async function spendReport(fromISO: string | null, toISO: string): Promis
 
   for (const e of animalCosts) if ((e.cost ?? 0) > 0 && inWindow(e.date)) record('animals', e.date, e.cost!);
   for (const e of landCosts) if ((e.cost ?? 0) > 0 && inWindow(e.date)) record('land', e.date, e.cost!);
+  // Crew pay counts in the month its pay period ended.
+  for (const p of payRows) if (p.gross > 0 && inWindow(p.end)) record('labor', p.end, p.gross);
 
   const upkeepTotal = perCategory.get('upkeep') ?? 0;
   const suppliesTotal = perCategory.get('supplies') ?? 0;
@@ -118,7 +124,7 @@ export async function spendReport(fromISO: string | null, toISO: string): Promis
     byMonth: [...perMonth.entries()]
       .map(([month, t]) => ({ month, total: t }))
       .sort((a, b) => (a.month < b.month ? 1 : -1)),
-    byCategory: (['upkeep', 'projects', 'supplies', 'animals', 'land'] as Category[])
+    byCategory: (['upkeep', 'projects', 'supplies', 'animals', 'land', 'labor'] as Category[])
       .map((c) => ({ category: c, label: CATEGORY_LABELS[c], total: perCategory.get(c) ?? 0 }))
       .filter((c) => c.total > 0)
       .sort((a, b) => b.total - a.total),

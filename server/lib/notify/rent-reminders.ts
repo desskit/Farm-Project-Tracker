@@ -19,7 +19,7 @@ import 'server-only';
 import { and, eq, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { rentCharges, users } from '@/db/schema';
-import { ensureRentCharges } from '@/lib/data/rent';
+import { ensureRentCharges, creditsByCharge } from '@/lib/data/rent';
 import { getPrefs } from '@/lib/data/prefs';
 import { todayISO, diffDays, fmtDate, monthLabel } from '@/lib/domain/dates';
 import { sendMail, emailConfigured } from './email';
@@ -118,6 +118,9 @@ export async function runRentReminders(
   // Rent, late fees and utility shares are all chased, each under its own name.
   const charges = await db.select().from(rentCharges).where(ne(rentCharges.status, 'verified'));
   if (!charges.length) return result;
+  // Work put toward rent lowers what's still owed; remind about what's left.
+  const credits = await creditsByCharge(charges.map((c) => c.id));
+  const left = (c: { id: string; amount: number }) => Math.max(0, Math.round((c.amount - (credits.get(c.id) ?? 0)) * 100) / 100);
 
   const people = await db.select({ id: users.id, name: users.name, email: users.email, active: users.active }).from(users);
   const byId = new Map(people.map((p) => [p.id, p]));
@@ -133,7 +136,7 @@ export async function runRentReminders(
     const renterReachable = !!person && person.active;
 
     if (stage === 'overdue' && person) {
-      overdueForManagers.push({ name: c.kind === 'rent' ? person.name : `${person.name} · ${chargeName(c)}`, amount: c.amount, dueDate: c.dueDate });
+      overdueForManagers.push({ name: c.kind === 'rent' ? person.name : `${person.name} · ${chargeName(c)}`, amount: left(c), dueDate: c.dueDate });
     }
 
     // Someone who has already marked it paid shouldn't be chased; the charge
@@ -143,7 +146,7 @@ export async function runRentReminders(
 
     const prefs = await getPrefs(c.userId);
     const what = chargeName(c);
-    const body = bodyFor(stage, c.amount, c.dueDate, today, what);
+    const body = bodyFor(stage, left(c), c.dueDate, today, what);
     let delivered = false;
 
     if (prefs.eventPush && ch.pushReady()) {

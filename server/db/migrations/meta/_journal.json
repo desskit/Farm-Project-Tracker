@@ -218,6 +218,13 @@
       "when": 1794791823934,
       "tag": "0030_sale_details",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1794874057970,
+      "tag": "0031_crew_pay",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@
  */
 import 'server-only';
 import { loanPaymentsToConfirm } from './loans';
+import { hoursToApproveCount } from './pay';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { projectTasks, projects, rentCharges } from '@/db/schema';
@@ -46,6 +47,7 @@ export type FarmCards = {
   lowStock?: number;
   rentToVerify?: number;
   loansToConfirm?: number;
+  hoursToApprove?: number;
   openRequests?: number;
   leasesToActOn?: number;
   team?: boolean;
@@ -60,6 +62,8 @@ export async function farmCards(viewer: SessionUser): Promise<FarmCards | null> 
     upkeepDue: [...all.overdue, ...all.today].filter((i) => i.kind === 'maintenance').length,
   };
   if (can(viewer, 'supplies.use')) cards.lowStock = (await lowStockItems()).length;
+  const hours = await hoursToApproveCount(viewer);
+  if (hours) cards.hoursToApprove = hours;
   if (can(viewer, 'finance.manage')) {
     const charges = await db.select({ status: rentCharges.status }).from(rentCharges).where(eq(rentCharges.month, currentMonthKey()));
     cards.rentToVerify = charges.filter((c) => c.status === 'marked').length;

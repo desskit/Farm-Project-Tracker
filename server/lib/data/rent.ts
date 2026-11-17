@@ -10,7 +10,7 @@
  */
 import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
-import { leaseTenants, leases, rentCharges, rentalUnits, users } from '@/db/schema';
+import { leaseTenants, leases, rentCharges, rentCredits, rentalUnits, users } from '@/db/schema';
 import { leaseCoversMonth } from '@/lib/domain/rentals';
 import { leaseIdsFor, primaryLeaseFor, syncCurrentRentCharge } from './rentals';
 import { uid } from '@/lib/ids';
@@ -132,6 +132,18 @@ export async function rentChargesForMonth(mk: string): Promise<RentChargeRow[]> 
   return charges.sort((a, b) => ((name.get(a.userId) ?? '') < (name.get(b.userId) ?? '') ? -1 : 1));
 }
 
+/**
+ * Work credits on charges (crew pay put toward rent), summed per charge. A
+ * charge's balance is its amount minus these.
+ */
+export async function creditsByCharge(ids: string[]): Promise<Map<string, number>> {
+  if (!ids.length) return new Map();
+  const rows = await db.select({ chargeId: rentCredits.chargeId, amount: rentCredits.amount }).from(rentCredits).where(inArray(rentCredits.chargeId, ids));
+  const out = new Map<string, number>();
+  for (const r of rows) out.set(r.chargeId, Math.round(((out.get(r.chargeId) ?? 0) + r.amount) * 100) / 100);
+  return out;
+}
+
 export async function rentChargeById(id: string): Promise<RentChargeRow | null> {
   const rows = await db.select().from(rentCharges).where(eq(rentCharges.id, id)).limit(1);
   return rows[0] ?? null;
@@ -197,15 +209,20 @@ export async function reopenRent(user: SessionUser, chargeId: string): Promise<v
   publishChange('rent');
 }
 
-export function rentSummary(charges: RentChargeRow[]): RentSummary {
+/** Counts and totals for a month. Work credits on charges not yet paid count as collected. */
+export function rentSummary(charges: RentChargeRow[], credits: Map<string, number> = new Map()): RentSummary {
   const s: RentSummary = { count: charges.length, unpaid: 0, marked: 0, verified: 0, due: 0, collected: 0 };
   for (const c of charges) {
     s.due += c.amount;
     if (c.status === 'verified') {
       s.verified++;
       s.collected += c.amount;
-    } else if (c.status === 'marked') s.marked++;
-    else s.unpaid++;
+    } else {
+      s.collected += Math.min(c.amount, credits.get(c.id) ?? 0);
+      if (c.status === 'marked') s.marked++;
+      else s.unpaid++;
+    }
   }
+  s.collected = Math.round(s.collected * 100) / 100;
   return s;
 }

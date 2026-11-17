@@ -1158,3 +1158,84 @@ export const loanPayments = sqliteTable('loan_payments', {
 }, (t) => ({
   loanIdx: index('loan_payments_loan_idx').on(t.loanId, t.status),
 }));
+
+/* ---------------- crew pay (and work toward rent) ---------------- */
+
+export type RentRule = 'none' | 'all' | 'fixed';
+
+/**
+ * Who is paid for their hours, at what rate, and how much of their pay goes
+ * toward their rent: none (all paid out), all (rent first until it's
+ * covered, the rest paid out) or a fixed amount each pay period.
+ */
+export const paySettings = sqliteTable('pay_settings', {
+  userId: text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  hourlyRate: real('hourly_rate').notNull(),
+  rentRule: text('rent_rule').$type<RentRule>().notNull().default('none'),
+  rentFixed: real('rent_fixed'),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  updatedAt: integer('updated_at').notNull().default(now),
+});
+
+export type WorkLogStatus = 'pending' | 'approved' | 'rejected';
+
+/** Hours typed in ("4 h fencing, Tuesday"). They count toward pay once approved. */
+export const workLogs = sqliteTable('work_logs', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  date: text('date').notNull(),
+  hours: real('hours').notNull(),
+  note: text('note').notNull().default(''),
+  status: text('status').$type<WorkLogStatus>().notNull().default('pending'),
+  decidedBy: text('decided_by').references(() => users.id, { onDelete: 'set null' }),
+  decidedAt: integer('decided_at'),
+  createdAt: integer('created_at').notNull().default(now),
+}, (t) => ({
+  userIdx: index('work_logs_user_idx').on(t.userId, t.date),
+  statusIdx: index('work_logs_status_idx').on(t.status),
+}));
+
+/** An approved two-week pay period. */
+export const payRuns = sqliteTable('pay_runs', {
+  id: text('id').primaryKey(),
+  periodStart: text('period_start').notNull().unique(),
+  periodEnd: text('period_end').notNull(),
+  approvedBy: text('approved_by').references(() => users.id, { onDelete: 'set null' }),
+  approvedAt: integer('approved_at').notNull().default(now),
+});
+
+/** One person's pay for a run: hours, gross, what went toward rent, what was paid out. */
+export const payLines = sqliteTable('pay_lines', {
+  id: text('id').primaryKey(),
+  runId: text('run_id').notNull().references(() => payRuns.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  timerHours: real('timer_hours').notNull().default(0),
+  typedHours: real('typed_hours').notNull().default(0),
+  rate: real('rate').notNull(),
+  gross: real('gross').notNull(),
+  toRent: real('to_rent').notNull().default(0),
+  paidOut: real('paid_out').notNull().default(0),
+  /** When the paid-out part was handed over, and how (cash, check, transfer). */
+  paidOn: text('paid_on'),
+  paidHow: text('paid_how').notNull().default(''),
+}, (t) => ({
+  runIdx: index('pay_lines_run_idx').on(t.runId),
+  userIdx: index('pay_lines_user_idx').on(t.userId),
+}));
+
+/**
+ * Part of a rent charge covered some other way than cash: today, work
+ * (from a pay line). A charge's balance is its amount minus its credits.
+ */
+export const rentCredits = sqliteTable('rent_credits', {
+  id: text('id').primaryKey(),
+  chargeId: text('charge_id').notNull().references(() => rentCharges.id, { onDelete: 'cascade' }),
+  amount: real('amount').notNull(),
+  date: text('date').notNull(),
+  source: text('source').$type<'work'>().notNull().default('work'),
+  payLineId: text('pay_line_id').references(() => payLines.id, { onDelete: 'cascade' }),
+  /** This credit finished paying the charge (so reopening the pay run reopens the charge). */
+  settled: integer('settled', { mode: 'boolean' }).notNull().default(false),
+}, (t) => ({
+  chargeIdx: index('rent_credits_charge_idx').on(t.chargeId),
+}));

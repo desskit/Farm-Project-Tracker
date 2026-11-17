@@ -66,8 +66,9 @@ export async function SimpleHome({ user }: { user: SessionUser }) {
                   </div>
                   <div className={s.lineMeta}>
                     {r.what} · due {fmtDate(r.dueDate)} · <span className={`${s.status} ${s[r.status]}`}>{STATUS_WORD[r.status]}</span>
+                    {r.credited > 0 && <> · {usd(r.credited)} covered by work, {usd(r.amount - r.credited)} left</>}
                   </div>
-                  {canRecord && <RentLineActions id={r.id} status={r.status} who={r.who} amount={r.amount} />}
+                  {canRecord && <RentLineActions id={r.id} status={r.status} who={r.who} amount={Math.round((r.amount - r.credited) * 100) / 100} />}
                 </div>
               ))}
             </>

@@ -3,7 +3,7 @@ import { Building2, ChevronLeft, History } from 'lucide-react';
 import { ButtonLink, PageHeader } from '@/components/ui';
 import s from './rent.module.css';
 import { getSessionUser } from '@/lib/auth/session';
-import { rentChargesForMonth, rentSummary, rentAssignmentFor } from '@/lib/data/rent';
+import { creditsByCharge, rentChargesForMonth, rentSummary, rentAssignmentFor } from '@/lib/data/rent';
 import { activeLeaseFor, depositLedger, leaseIdsFor } from '@/lib/data/rentals';
 import { listRentDocs, docCountsByRenter } from '@/lib/data/rent-docs';
 import { listUsers } from '@/lib/data/users';
@@ -24,7 +24,8 @@ export default async function RentPage() {
   const [allCharges, people] = await Promise.all([rentChargesForMonth(mk), listUsers()]);
   const myLeases = isManager ? [] : await leaseIdsFor(user.id);
   const charges = isManager ? allCharges : allCharges.filter((c) => c.userId === user.id || (c.leaseId && myLeases.includes(c.leaseId)));
-  const summary = rentSummary(allCharges);
+  const credits = await creditsByCharge(allCharges.map((c) => c.id));
+  const summary = rentSummary(allCharges, credits);
 
   // Managers need current assignment amounts to prefill the assign form.
   const assignments = isManager
@@ -63,6 +64,7 @@ export default async function RentPage() {
 
       <RentView
         charges={charges}
+        credits={Object.fromEntries(credits)}
         summary={isManager ? summary : null}
         people={people}
         assignments={assignments}

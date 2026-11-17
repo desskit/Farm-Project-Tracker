@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { leases, rentalUnits, users } from '@/db/schema';
 import { getSessionUser } from '@/lib/auth/session';
-import { chargeIsMine, rentChargeById } from '@/lib/data/rent';
+import { chargeIsMine, rentChargeById, creditsByCharge } from '@/lib/data/rent';
 import { can } from '@/lib/domain/permissions';
 import { CHARGE_KIND_LABEL } from '@/lib/domain/rentals';
 import { fmtDate, monthLabel } from '@/lib/domain/dates';
@@ -27,6 +27,7 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
       ? db.select({ name: rentalUnits.name, address: rentalUnits.address }).from(leases).innerJoin(rentalUnits, eq(rentalUnits.id, leases.unitId)).where(eq(leases.id, c.leaseId)).limit(1).then((r) => r[0] ?? null)
       : Promise.resolve(null),
   ]);
+  const work = Math.min(c.amount, (await creditsByCharge([c.id])).get(c.id) ?? 0);
   const what = c.kind === 'rent' ? `Rent for ${monthLabel(c.month)}` : c.label || CHARGE_KIND_LABEL[c.kind];
   const row = (label: string, value: string) => <div className={p.kv}><span className={p.kvLabel}>{label}</span><strong>{value}</strong></div>;
 
@@ -37,6 +38,8 @@ export default async function ReceiptPage({ params }: { params: { id: string } }
         {unit && row('For', [unit.name, unit.address].filter(Boolean).join(' · '))}
         {row('Payment for', what)}
         {row('Amount', `$${c.amount.toFixed(2)}`)}
+        {work > 0 ? row('Covered by work', `$${work.toFixed(2)}`) : null}
+        {work > 0 && work < c.amount ? row('Paid in money', `$${(c.amount - work).toFixed(2)}`) : null}
         {row('Received', c.verifiedAt ? fmtDate(c.verifiedAt) : '')}
         {c.note ? row('Note', c.note) : null}
       </Card>

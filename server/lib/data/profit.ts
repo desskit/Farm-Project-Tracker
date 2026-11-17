@@ -20,6 +20,7 @@ import {
   rentCharges, sales, utilityBills,
 } from '@/db/schema';
 import { cents, unitCost } from '@/lib/domain/money';
+import { laborCost } from './pay';
 
 export type CostLine = { label: string; amount: number };
 export type Enterprise = {
@@ -53,6 +54,7 @@ export async function profitReport(from: string, to: string): Promise<ProfitRepo
     db.select({ groupId: productionLogs.groupId, kind: productionLogs.kind, amount: productionLogs.amount }).from(productionLogs).where(and(gte(productionLogs.date, from), lte(productionLogs.date, to))),
   ]);
 
+  const labor = await laborCost(from, to);
   const rows = new Map<string, Enterprise & { parts: Map<string, number> }>();
   const get = (key: string, name: string, kind: Enterprise['kind'], href: string | null) => {
     let r = rows.get(key);
@@ -91,6 +93,7 @@ export async function profitReport(from: string, to: string): Promise<ProfitRepo
   }
   for (const u of upkeep) cost(general(), 'Equipment upkeep', u.cost ?? 0);
   for (const p of projects) cost(general(), 'Projects', p.amount ?? 0);
+  cost(general(), 'Crew pay', labor.total);
   if (rent.length || bills.length) {
     rentals().income += rent.reduce((n, c) => n + c.amount, 0);
     cost(rentals(), 'Utilities (farm’s share)', bills.reduce((n, b) => n + Math.max(0, b.amount - (b.chargeId ? b.billed ?? 0 : 0)), 0));

@@ -10,6 +10,14 @@ export type NewsEntry = { id: string; title: string; items: NewsItem[] };
 
 export const WHATS_NEW: NewsEntry[] = [
   {
+    id: '2026-11-17b',
+    title: 'New: hours and pay',
+    items: [
+      { text: 'Log hours you didn’t time, and see your pay (and anything put toward your rent) under My hours & pay.', href: '/more/time', cap: 'work.do' },
+      { text: 'Pay: hourly rates, two-week pay periods, and crew pay put toward their rent automatically.', href: '/more/pay', cap: 'finance.manage' },
+    ],
+  },
+  {
     id: '2026-11-17',
     title: 'Easier to read and use',
     items: [
