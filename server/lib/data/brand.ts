@@ -3,7 +3,10 @@ import 'server-only';
 import { requestCache } from '@/lib/request-cache';
 import { cookies } from 'next/headers';
 import { getSetting, setSetting } from './settings';
-import { BRAND_SETTING_KEY, DEFAULT_BRAND, TEXT_COOKIE, THEME_COOKIE, isBrandId, parseTextPref, parseThemePref, type BrandId, type TextPref, type ThemePref } from '@/lib/domain/brand';
+import {
+  BRAND_SETTING_KEY, CONTRAST_COOKIE, DEFAULT_BRAND, SIMPLE_COOKIE, TEXT_COOKIE, THEME_COOKIE, isBrandId, parseContrastPref, parseLayoutPref, parseTextPref, parseThemePref,
+  type BrandId, type ContrastPref, type LayoutPref, type TextPref, type ThemePref,
+} from '@/lib/domain/brand';
 import type { SessionUser } from '@/lib/auth/session';
 import { logActivity } from './activity';
 import { DataError } from './errors';
@@ -21,6 +24,14 @@ export const currentBrand = requestCache(async (): Promise<BrandId> => {
 
 export function currentTextPref(): TextPref {
   return parseTextPref(cookies().get(TEXT_COOKIE)?.value);
+}
+
+export function currentLayoutPref(): LayoutPref {
+  return parseLayoutPref(cookies().get(SIMPLE_COOKIE)?.value);
+}
+
+export function currentContrastPref(): ContrastPref {
+  return parseContrastPref(cookies().get(CONTRAST_COOKIE)?.value);
 }
 
 export function currentThemePref(): ThemePref {

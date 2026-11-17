@@ -217,3 +217,70 @@ html[data-text="lg"] { font-size: 112.5%; }
 @media (max-width: 300px) {
   :root { --gutter: 8px; }
 }
+
+/* ---------- Simple layout (Account → Appearance → Layout) ----------
+   Bigger everything, on top of the phone's own text size; "Larger text"
+   adds another step. Touch targets grow too. */
+html[data-simple] { font-size: 112.5%; --tap: 56px; }
+html[data-simple][data-text="lg"] { font-size: 125%; }
+
+/* ---------- High contrast ----------
+   On when chosen in Appearance, or when the phone asks for more contrast
+   (unless "Normal" was chosen). Darker muted text, stronger outlines and a
+   solid focus ring; dark mode gets the same in reverse. These selectors
+   outrank the brand blocks above, so they win in every brand. */
+html[data-brand][data-contrast="high"] {
+  --c-text: #0b0d0b;
+  --c-text-muted: #2c312c;
+  --c-border: #7c7f74;
+  --c-border-strong: #4d5049;
+  --c-focus: var(--c-text);
+}
+@media (prefers-contrast: more) {
+  html[data-brand]:not([data-contrast="normal"]) {
+    --c-text: #0b0d0b;
+    --c-text-muted: #2c312c;
+    --c-border: #7c7f74;
+    --c-border-strong: #4d5049;
+    --c-focus: var(--c-text);
+  }
+}
+html[data-brand][data-contrast="high"][data-theme="dark"] {
+  --c-text: #ffffff;
+  --c-text-muted: #dde3dc;
+  --c-border: #8b968a;
+  --c-border-strong: #b7c2b6;
+  --c-focus: var(--c-text);
+}
+@media (prefers-color-scheme: dark) {
+  html[data-brand][data-contrast="high"]:not([data-theme="light"]) {
+    --c-text: #ffffff;
+    --c-text-muted: #dde3dc;
+    --c-border: #8b968a;
+    --c-border-strong: #b7c2b6;
+    --c-focus: var(--c-text);
+  }
+}
+@media (prefers-contrast: more) {
+  html[data-brand]:not([data-contrast="normal"])[data-theme="dark"] {
+    --c-text: #ffffff;
+    --c-text-muted: #dde3dc;
+    --c-border: #8b968a;
+    --c-border-strong: #b7c2b6;
+    --c-focus: var(--c-text);
+  }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  html[data-brand]:not([data-contrast="normal"]):not([data-theme="light"]) {
+    --c-text: #ffffff;
+    --c-text-muted: #dde3dc;
+    --c-border: #8b968a;
+    --c-border-strong: #b7c2b6;
+    --c-focus: var(--c-text);
+  }
+}
+/* Links inside running text are underlined, so they don't rely on color alone. */
+html[data-contrast="high"] :where(p, li, small) a { text-decoration: underline; }
+@media (prefers-contrast: more) {
+  html:not([data-contrast="normal"]) :where(p, li, small) a { text-decoration: underline; }
+}

@@ -31,6 +31,18 @@ export const DEFAULT_BRAND: BrandId = 'classic';
 export const BRAND_SETTING_KEY = 'brand';
 export const THEME_COOKIE = 'fpt-theme';
 export const TEXT_COOKIE = 'fpt-text';
+/** Simple layout (a stripped-down home for occasional users), remembered per phone. */
+export const SIMPLE_COOKIE = 'fpt-simple';
+/** High contrast: 'high' forces it, 'normal' turns it off even if the phone asks for more contrast. */
+export const CONTRAST_COOKIE = 'fpt-contrast';
+export type LayoutPref = 'full' | 'simple';
+export type ContrastPref = 'system' | 'normal' | 'high';
+export function parseLayoutPref(v: string | undefined | null): LayoutPref {
+  return v === 'simple' ? 'simple' : 'full';
+}
+export function parseContrastPref(v: string | undefined | null): ContrastPref {
+  return v === 'high' || v === 'normal' ? v : 'system';
+}
 export type TextPref = 'normal' | 'large';
 export function parseTextPref(v: string | undefined | null): TextPref {
   return v === 'large' ? 'large' : 'normal';

@@ -38,6 +38,19 @@ export function primaryNav(v: Subject): NavItem[] {
   return items;
 }
 
+/**
+ * Simple layout: at most four big tabs, for someone who mostly checks rent,
+ * ticks off a chore and looks up a code.
+ */
+export function simpleNav(v: Subject): NavItem[] {
+  if (!can(v, 'farm.view')) return primaryNav(v); // renters already have a simple portal
+  const items: NavItem[] = [{ key: 'home', label: 'Home', href: '/', icon: 'today', match: ['/'], badge: 'overdue' }];
+  if (can(v, 'finance.view')) items.push({ key: 'rent', label: 'Rent', href: '/more/rent', icon: 'rent', match: ['/more/rent'] });
+  if (can(v, 'vault.use')) items.push({ key: 'codes', label: 'Codes', href: '/vault', icon: 'docs', match: ['/vault'] });
+  items.push({ key: 'more', label: 'Menu', href: '/more', icon: 'more', match: ['/more', '/people'] });
+  return items;
+}
+
 function more(v: Subject): NavItem {
   // Crew and guests mostly need their own things there; managers get the farm's.
   const label = can(v, 'team.view') ? 'More' : 'Me';

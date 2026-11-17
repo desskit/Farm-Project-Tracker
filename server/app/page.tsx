@@ -15,6 +15,8 @@ import { Notices } from './_components/notices';
 import { WhatsNew } from './_components/whats-new';
 import { MyLoans } from './_components/my-loans';
 import { PortalHome } from './_components/portal-home';
+import { SimpleHome } from './_components/simple-home';
+import { currentLayoutPref } from '@/lib/data/brand';
 import s from './today.module.css';
 
 function greeting(): string {
@@ -40,6 +42,9 @@ export default async function TodayPage({ searchParams }: { searchParams: { scop
 
   // Renters (no farm access) get their own home: rent, documents, requests.
   if (!can(user, 'farm.view')) return <PortalHome user={user} />;
+
+  // Simple layout (set per phone in Account → Appearance): the essentials only.
+  if (currentLayoutPref() === 'simple') return <SimpleHome user={user} />;
 
   // "Everything due" view for people who can see all the farm's work.
   const everything = searchParams.scope === 'all' && can(user, 'work.viewAll');

@@ -10,6 +10,15 @@ export type NewsEntry = { id: string; title: string; items: NewsItem[] };
 
 export const WHATS_NEW: NewsEntry[] = [
   {
+    id: '2026-11-17',
+    title: 'Easier to read and use',
+    items: [
+      { text: 'Simple layout: a plain home with big buttons for rent, your chores and codes. Turn it on in Account → Appearance.', href: '/more/account' },
+      { text: 'High contrast: darker text and stronger outlines, in Account → Appearance (it also follows your phone’s setting).', href: '/more/account' },
+      { text: 'Sales take any category (tools, vehicles…), serial numbers, personal sales between people and a printable bill of sale.', href: '/more/sales', cap: 'farm.view' },
+    ],
+  },
+  {
     id: '2026-11-15',
     title: 'New: finer password sharing',
     items: [

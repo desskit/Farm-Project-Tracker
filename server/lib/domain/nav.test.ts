@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { isActive, primaryNav, quickActions } from './nav';
+import { isActive, primaryNav, quickActions, simpleNav } from './nav';
+import { parseContrastPref, parseLayoutPref } from './brand';
 
 const keys = (role: Parameters<typeof primaryNav>[0]['role']) => primaryNav({ role }).map((i) => i.key);
 
@@ -23,5 +24,21 @@ describe('navigation', () => {
     expect(isActive(today, '/')).toBe(true);
     expect(isActive(today, '/chores')).toBe(false);
     expect(isActive(work, '/projects/p1')).toBe(true);
+  });
+});
+
+describe('simple layout', () => {
+  const simple = (role: Parameters<typeof simpleNav>[0]['role']) => simpleNav({ role }).map((i) => i.key);
+  it('keeps to a few big tabs, by what each person can do', () => {
+    expect(simple('manager')).toEqual(['home', 'rent', 'codes', 'more']);
+    expect(simple('worker')).toEqual(['home', 'codes', 'more']);
+    expect(simple('renter')).toEqual(['home', 'requests', 'rent', 'more']); // renters keep their portal
+  });
+  it('reads the per-phone preferences safely', () => {
+    expect(parseLayoutPref('simple')).toBe('simple');
+    expect(parseLayoutPref('weird')).toBe('full');
+    expect(parseContrastPref('high')).toBe('high');
+    expect(parseContrastPref('normal')).toBe('normal');
+    expect(parseContrastPref(undefined)).toBe('system');
   });
 });

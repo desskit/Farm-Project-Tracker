@@ -7,27 +7,12 @@ import { canGrantEdit, type ShareType } from '@/lib/domain/vault-sharing';
 import { fmtDate } from '@/lib/domain/dates';
 import { Banner, Button, Card, Dialog, EmptyState, Field, IconButton, Input, Select, Stack, StatusPill, Textarea } from '@/components/ui';
 import { useDialogs } from '@/components/ui/dialogs';
+import { copyText as copy, reveal } from '@/app/_components/secret-buttons';
 import s from './vault.module.css';
 
 type Opt = { id: string; name: string };
 /** Who an entry can be shared with: offered in the "Add" picker. */
 export type ShareTargets = { people: Opt[]; groups: Opt[]; roles: Opt[]; onFarm: boolean };
-
-async function reveal(id: string): Promise<{ secret: string; notes: string }> {
-  const res = await fetch(`/api/vault/${id}/reveal`, { method: 'POST' });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Could not open it.');
-  return data;
-}
-
-async function copy(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export function VaultView({
   entries, targets, canCreate, isAdmin, today,
