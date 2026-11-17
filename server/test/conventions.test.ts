@@ -114,3 +114,19 @@ describe('scales with the phone’s text and display size', () => {
     expect(tokens).toMatch(/html\[data-text="lg"\]\s*\{\s*font-size:\s*\d+(\.\d+)?%/);
   });
 });
+
+/**
+ * Every table the restore reads must also be written by the JSON export.
+ * The export route names each table twice (where it's fetched, and in the
+ * backup object), and it's easy to add one and forget the other.
+ */
+describe('backups', () => {
+  it('exports every table the restore puts back', () => {
+    const restore = readFileSync(path.join(ROOT, 'lib', 'data', 'restore.ts'), 'utf8');
+    const exp = readFileSync(path.join(ROOT, 'app', 'api', 'data', 'export', 'route.ts'), 'utf8');
+    const keys = [...new Set([...restore.matchAll(/\[schema\.\w+, '(\w+)'/g), ...restore.matchAll(/arr\('(\w+)'\)/g)].map((m) => m[1]))];
+    const obj = exp.slice(exp.indexOf('const backup = {'));
+    const missing = keys.filter((k) => !new RegExp(`\\b${k}\\b`).test(obj));
+    expect(missing, 'add these to the backup object in app/api/data/export/route.ts').toEqual([]);
+  });
+});

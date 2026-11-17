@@ -17,6 +17,9 @@ import { can } from '@/lib/domain/permissions';
 import { listAssetDocs } from '@/lib/data/asset-docs';
 import { listUsers } from '@/lib/data/users';
 import { AssetDetail } from './asset-detail';
+import { checkoutsFor, isCheckable } from '@/lib/data/equipment';
+import { CheckoutCard } from '../../farm/equipment/checkout-buttons';
+import { todayISO } from '@/lib/domain/dates';
 import { AssetDocs } from './asset-docs';
 import { NotesSection } from '@/app/_components/notes-section';
 import s from './asset.module.css';
@@ -43,10 +46,11 @@ export default async function AssetDetailPage({ params }: { params: { assetId: s
       costTotal: await itemCostTotal(item.id),
     })),
   );
-  const [timers, notes, docs] = await Promise.all([
+  const [timers, notes, docs, checkouts] = await Promise.all([
     timerStatesFor(user.id, 'maintenance', items.map((i) => i.id)),
     listNotes('asset', params.assetId),
     listAssetDocs(params.assetId),
+    isCheckable(asset.category) ? checkoutsFor(params.assetId) : Promise.resolve(null),
   ]);
 
   return (
@@ -61,6 +65,9 @@ export default async function AssetDetailPage({ params }: { params: { assetId: s
         currentUser={user}
         timers={timers}
       />
+      {checkouts && can(user, 'work.do') && (
+        <CheckoutCard assetId={asset.id} name={asset.name} current={checkouts.current} history={checkouts.history} me={user.id} canManage={can(user, 'work.manage')} today={todayISO()} />
+      )}
       <GuidesCard parentType="asset" parentId={asset.id} linked={await guidesFor('asset', asset.id)} all={can(user, 'work.manage') ? (await listGuides()).map((g) => ({ id: g.id, title: g.title, summary: g.summary })) : []} canManage={can(user, 'work.manage')} />
       <AssetDocs assetId={asset.id} docs={docs} currentUser={user} />
       <NotesSection parentType="asset" parentId={asset.id} notes={notes} currentUser={user} mentionNames={people.filter((p) => p.active).map((p) => p.name)} />

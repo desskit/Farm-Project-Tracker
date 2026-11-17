@@ -1239,3 +1239,21 @@ export const rentCredits = sqliteTable('rent_credits', {
 }, (t) => ({
   chargeIdx: index('rent_credits_charge_idx').on(t.chargeId),
 }));
+
+/* ---------------- equipment checkout ---------------- */
+
+/** Who took a tool, trailer or vehicle, and when it came back (open while in_at is null). */
+export const assetCheckouts = sqliteTable('asset_checkouts', {
+  id: text('id').primaryKey(),
+  assetId: text('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  outAt: integer('out_at').notNull(),
+  /** When it should be back ('YYYY-MM-DD'), if anyone said. */
+  dueBack: text('due_back'),
+  inAt: integer('in_at'),
+  checkedInBy: text('checked_in_by').references(() => users.id, { onDelete: 'set null' }),
+  note: text('note').notNull().default(''),
+}, (t) => ({
+  assetIdx: index('asset_checkouts_asset_idx').on(t.assetId, t.inAt),
+  userIdx: index('asset_checkouts_user_idx').on(t.userId),
+}));

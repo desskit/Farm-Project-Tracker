@@ -15,6 +15,7 @@ export const WHATS_NEW: NewsEntry[] = [
     items: [
       { text: 'Log hours you didn’t time, and see your pay (and anything put toward your rent) under My hours & pay.', href: '/more/time', cap: 'work.do' },
       { text: 'Pay: hourly rates, two-week pay periods, and crew pay put toward their rent automatically.', href: '/more/pay', cap: 'finance.manage' },
+      { text: 'Equipment: see who has the chainsaw or trailer, take it out and bring it back (the asset QR code opens it).', href: '/farm/equipment', cap: 'work.do' },
     ],
   },
   {

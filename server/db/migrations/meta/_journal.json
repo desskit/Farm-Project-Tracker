@@ -225,6 +225,13 @@
       "when": 1794874057970,
       "tag": "0031_crew_pay",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1794874647487,
+      "tag": "0032_equipment_checkout",
+      "breakpoints": true
     }
   ]
 }

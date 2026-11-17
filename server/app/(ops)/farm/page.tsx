@@ -49,6 +49,7 @@ export default async function FarmPage() {
             trail={low > 0 ? <StatusPill tone="today">{low} low</StatusPill> : undefined}
           />
         )}
+        <ListRow href="/farm/equipment" lead={<Tractor />} title="Equipment" meta="Who has what: take it out, bring it back" />
         <ListRow href="/more/assets" lead={<Tractor />} title="Assets" meta="Equipment, vehicles and their papers" />
         <ListRow href="/maintenance" lead={<Wrench />} title="Upkeep" meta="Service coming due on each asset" />
       </Card>
