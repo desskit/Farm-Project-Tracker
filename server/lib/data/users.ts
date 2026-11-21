@@ -58,7 +58,7 @@ export async function createUserWithInvite(data: { name: string; email: string; 
   await db.insert(users).values({ id, name: data.name.trim(), email, role: data.role });
   await db.insert(notificationPrefs).values({ userId: id });
   const invite = await createInvite(id);
-  return { id, inviteToken: invite.token };
+  return { id, inviteToken: invite.token, inviteExpiresAt: invite.expiresAt };
 }
 
 /**

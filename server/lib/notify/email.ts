@@ -50,15 +50,37 @@ export function escapeHtml(value: string): string {
  * Shared wrapper so every message the farm sends looks like it came from the
  * same app. `bodyHtml` is already-escaped markup built by a template.
  */
-export function emailLayout(bodyHtml: string): string {
+export function emailLayout(bodyHtml: string, footerHtml = 'Sent by your farm\'s Project Tracker. Change what you receive under More → Notifications.'): string {
   return `
     <div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1c221e;line-height:1.5;max-width:560px">
       <p style="font-size:18px;font-weight:700;margin:0 0 16px">🌾 Farm Project Tracker</p>
       ${bodyHtml}
       <p style="color:#6b7269;font-size:12px;margin-top:24px;border-top:1px solid #e2e5e0;padding-top:12px">
-        Sent by your farm's Project Tracker. Change what you receive under More → Notifications.
+        ${footerHtml}
       </p>
     </div>`;
+}
+
+/**
+ * A plain-text copy of an HTML email. Sent alongside the HTML: some mail
+ * apps show it, and mail without one is more likely to be marked as spam.
+ */
+export function htmlToText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<a [^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, href: string, label: string) => {
+      const text = label.replace(/<[^>]+>/g, '').trim();
+      return text && text !== href ? `${text} (${href})` : href;
+    })
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '\n  • ')
+    .replace(/<\/(p|div|h[1-6]|ul|ol|li|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+    .split('\n').map((l) => l.replace(/[ \t]+/g, ' ').trimEnd()).join('\n')
+    .replace(/^ (?! *•)/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 /**
@@ -81,11 +103,11 @@ export function emailButton(label: string, url: string): string {
     <p style="color:#6b7269;font-size:12px;word-break:break-all">Or paste this into your browser:<br>${safeUrl}</p>`;
 }
 
-export async function sendMail(to: string, subject: string, html: string): Promise<boolean> {
+export async function sendMail(to: string, subject: string, html: string, text = htmlToText(html)): Promise<boolean> {
   const t = getTransport();
   if (!t) return false;
   try {
-    await t.sendMail({ from: process.env.SMTP_FROM || 'Farm Tracker <farm@example.com>', to, subject, html });
+    await t.sendMail({ from: process.env.SMTP_FROM || 'Farm Tracker <farm@example.com>', to, subject, html, text });
     return true;
   } catch (e) {
     // eslint-disable-next-line no-console

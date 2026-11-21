@@ -5,7 +5,7 @@ import { listUsers, createUserWithInvite } from '@/lib/data/users';
 import { emailConfigured, sendMail } from '@/lib/notify/email';
 import { inviteEmail } from '@/lib/notify/templates';
 import { errorResponse } from '@/lib/api/errors';
-import { ASSIGNABLE_ROLES, audienceOf, type Role } from '@/lib/domain/permissions';
+import { ASSIGNABLE_ROLES, type Role } from '@/lib/domain/permissions';
 
 const createSchema = z.object({
   name: z.string().trim().min(1),
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: 'Name, email, and role are required.' }, { status: 400 });
     }
-    const { inviteToken } = await createUserWithInvite(parsed.data);
+    const { inviteToken, inviteExpiresAt } = await createUserWithInvite(parsed.data);
     const base = process.env.PUBLIC_URL || new URL(req.url).origin;
     const inviteUrl = `${base}/invite/${inviteToken}`;
 
@@ -37,11 +37,11 @@ export async function POST(req: Request) {
     // admin can pass it along by hand if delivery isn't configured or fails.
     let emailed = false;
     if (emailConfigured()) {
-      emailed = await sendMail(
-        parsed.data.email,
-        `${admin.name} invited you to Farm Project Tracker`,
-        inviteEmail(parsed.data.name, admin.name, inviteUrl, audienceOf(parsed.data.role)),
-      );
+      const mail = inviteEmail({
+        name: parsed.data.name, email: parsed.data.email, role: parsed.data.role, inviterName: admin.name,
+        url: inviteUrl, siteUrl: base, linkExpires: inviteExpiresAt,
+      });
+      emailed = await sendMail(parsed.data.email, mail.subject, mail.html);
     }
     return NextResponse.json({ ok: true, inviteUrl, emailed });
   } catch (e) {
